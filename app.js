@@ -255,8 +255,8 @@ async function* chatEvents(body) {
     }
   } finally { reader.releaseLock(); }
 }
-function applyAction(action) {
-  if (action.type === 'plan_transit') window.dispatchEvent(new CustomEvent('city:transit', { detail: action }));
+function applyAction(action, anchor) {
+  if (action.type === 'plan_transit') window.dispatchEvent(new CustomEvent('city:transit', { detail: { ...action, anchor } }));
   if (action.type === 'display_results') showResults(action);
   if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
 }
@@ -276,6 +276,7 @@ async function send() {
   resultPanel.hidden = true;
   const activity = document.createElement('span'); activity.className = 'assistant-activity'; activity.setAttribute('aria-label', 'Wykonane kroki');
   const activities = [];
+  const transitActions = [];
   const answer = document.createElement('span'); answer.className = 'assistant-answer';
   const stop = document.createElement('button'); stop.type = 'button'; stop.className = 'stop-response'; stop.textContent = 'Przerwij';
   progress.append(status, activity, answer, stop);
@@ -304,12 +305,17 @@ async function send() {
         if (['session_started', 'session_reused', 'generating'].includes(event.stage)) stage = 'Przygotowuję odpowiedź…';
       }
       if (event.type === 'text') { stage = 'Asystent odpowiada…'; answer.textContent += event.delta; progress.classList.add('is-answering'); }
-      if (event.type === 'action') applyAction(event.action);
+      if (event.type === 'action') {
+        // A route belongs to this answer, and appears only once the answer is complete.
+        if (event.action.type === 'plan_transit') transitActions.push(event.action);
+        else applyAction(event.action);
+      }
       if (event.type === 'error') throw new Error(event.message);
       if (event.type === 'done') { sessionId = event.sessionId; answer.textContent = event.message; stage = 'Gotowe'; completed = true; progress.classList.add('is-done'); }
       renderStatus(); keepVisible();
     }
     if (!completed) throw new Error('Połączenie zostało przerwane. Spróbuj ponownie.');
+    for (const action of transitActions) applyAction(action, progress);
     keepVisible();
   } catch (error) {
     progress.classList.add('message-error');

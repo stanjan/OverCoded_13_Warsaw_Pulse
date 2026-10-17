@@ -61,7 +61,8 @@
       vendor: 'google',
       ready,
       clearRoute,
-      showRoute(route) {
+      showRoute(route, { top = 65 } = {}) {
+        info.close();activeBubble?.setAttribute('aria-expanded','false');
         clearRoute();
         for (const step of route?.steps || []) {
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
@@ -71,7 +72,7 @@
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
           const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
-          map.fitBounds(bounds, { top: 65, left: 24, right: 24, bottom: 24 });
+          map.fitBounds(bounds, { top, left: 24, right: 24, bottom: 24 });
           [points[0],points.at(-1)].forEach((point,index) => { const label = document.createElement('span');label.className = 'transit-waypoint';label.textContent=index?'B':'A';routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content:label,title:index?'Cel przejazdu':'Początek przejazdu',zIndex:300})); });
         }
         return routeLines.length > 0;
@@ -154,14 +155,14 @@
       vendor: 'leaflet',
       ready,
       clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
-      showRoute(route) {
-        transitLayer.clearLayers();const points=[];
+      showRoute(route, { top = 65 } = {}) {
+        map.closePopup?.();transitLayer.clearLayers();const points=[];
         for (const step of route?.steps || []) {
           const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
           if(path.length<2)continue;points.push(...path);
           L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,dashArray:step.mode==='WALK'?'6 7':null}).addTo(transitLayer);
         }
-        if(points.length)map.fitBounds(points,{paddingTopLeft:[24,65],paddingBottomRight:[24,24]});
+        if(points.length)map.fitBounds(points,{paddingTopLeft:[24,top],paddingBottomRight:[24,24]});
         return points.length>0;
       },
       showVehicles(vehicles) {
