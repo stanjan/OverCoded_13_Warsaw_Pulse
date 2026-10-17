@@ -35,7 +35,7 @@ export function withVehicleDirections(vehicles,graph,deltas,now=Date.now()) {
  const trips=new Map((graph?.trips||[]).map(trip=>[trip.id,trip])),byVehicle=new Map();
  for(const delta of deltas.values()){
   const age=now-delta.observedAt,trip=trips.get(delta.tripId);
-  if(delta.confidence!=='brigade_two_stop_dwell'||!Number.isFinite(age)||age< -60000||age>180000||!trip?.headsign)continue;
+  if(delta.confidence!=='brigade_route_progress'||!Number.isFinite(age)||age< -60000||age>180000||!trip?.headsign)continue;
   if(!byVehicle.has(delta.vehicleId))byVehicle.set(delta.vehicleId,[]);byVehicle.get(delta.vehicleId).push(trip);
  }
  return vehicles.map(vehicle=>{
@@ -82,7 +82,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  function prewarmEvidence(vehicles){
   const lines=new Set(vehicles.filter(vehicle=>vehicle.freshness==='recent'&&normalizeBrigade(vehicle.brigade)).map(vehicle=>vehicle.line));
   for(const line of lines){
-   if(sharedEvidence(line))continue;
+   if(sharedEvidence(line)||[...bindingQueue.values()].some(item=>item.line===line))continue;
    // One representative platform per active line starts learning before a stop
    // arrival or route request. Later branch-specific misses queue independently.
    const counts=new Map();for(const trip of modelGraph?.trips||[]){if(trip.line!==line||trip.stopTimes[0].departure>now()+900000||trip.stopTimes.at(-1).arrival<now()-900000)continue;for(const event of trip.stopTimes)if(stopBridge.has(event.stopId))counts.set(event.stopId,(counts.get(event.stopId)||0)+1);}

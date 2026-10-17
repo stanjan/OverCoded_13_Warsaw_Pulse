@@ -31,7 +31,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
   for(const trip of graph.trips){
    if(++checked%500===0)signal?.throwIfAborted();let boarding=null;
    for(let index=0;index<trip.stopTimes.length;index++){
-    const scheduled=trip.stopTimes[index],delta=deltas.get(trip.id),usable=delta&&Number.isFinite(delta.deltaMs)&&now-delta.observedAt<=180000&&now-delta.observedAt>=-60000&&delta.confidence==='brigade_two_stop_dwell'&&index>delta.stopIndex;
+    const scheduled=trip.stopTimes[index],delta=deltas.get(trip.id),usable=delta&&Number.isFinite(delta.deltaMs)&&now-delta.observedAt<=180000&&now-delta.observedAt>=-60000&&delta.confidence==='brigade_route_progress'&&index>delta.stopIndex;
     const event={...scheduled,arrival:scheduled.arrival+(usable?delta.deltaMs:0),departure:scheduled.departure+(usable?Math.max(0,delta.deltaMs):0),live:usable?delta:null},stop=byId.get(event.stopId);if(!stop)continue;
     if(boarding&&event.dropOff===0&&event.arrival>=boarding.event.departure&&event.arrival<=departureTime+horizonMs){
      const existing=next.get(stop.id);if(!existing||event.arrival<existing.time){

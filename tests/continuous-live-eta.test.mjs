@@ -9,11 +9,11 @@ const events=[60,180,360,540];
 function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,departuresForStop=null,walkingProvider={route:async()=>assert.fail('Unexpected external walking call in offline fixture')}}={}){
  let time=base+80000,latitude=locations[0].latitude-.001,timer,active=0,maxActive=0,failures=0;
  let releaseEvidence;const gate=holdEvidence?new Promise(resolve=>{releaseEvidence=resolve;}):null;
- const calls=[],graph={serviceDay:'2026-10-17',timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',version:'fixture',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:locations,trips:Array.from({length:lineCount},(_,index)=>({id:'trip-'+index,serviceDate:'2026-10-17',line:String(index+1),routeType:0,headsign:'D',stopTimes:locations.map((stop,i)=>({stopId:stop.id,arrival:base+events[i]*1000,departure:base+events[i]*1000,departureClock:clock(events[i]),pickup:0,dropOff:0}))}))};
+ const calls=[],graph={serviceDay:'2026-10-17',timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',version:'fixture',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:locations,trips:Array.from({length:lineCount},(_,index)=>({id:'trip-'+index,serviceDate:'2026-10-17',line:String(index+1),routeType:0,headsign:'D',shape:locations,stopTimes:locations.map((stop,i)=>({stopId:stop.id,arrival:base+events[i]*1000,departure:base+events[i]*1000,departureClock:clock(events[i]),pickup:0,dropOff:0}))}))};
  const service=createTransitService({walkingProvider,now:()=>time,key:()=> 'fixture-token',graphProvider:async()=>graph,setTimeoutImpl:(callback,delay)=>{assert.ok(delay>=0&&delay<=15000);timer=callback;return{unref(){}};},clearTimeoutImpl:()=>{timer=null;},fetchImpl:async(url,options)=>{
   assert.equal(options.headers.Authorization,'fixture-token');const action=url.split('/').at(-1),args=options.body?JSON.parse(options.body):{};calls.push({action,args});
   if(action===TRANSIT_SOURCES.stops.action)return{ok:true,json:async()=>locations.map(stop=>pairs({zespol:stop.id.split('-')[0],slupek:'01',nazwa_zespolu:stop.name,szer_geo:String(stop.latitude),dlug_geo:'21'}))};
-  if(action===TRANSIT_SOURCES.vehicles.action)return{ok:true,json:async()=>args.type===2?[...Array.from({length:staleCount},(_,index)=>({Lat:locations[0].latitude,Lon:21,Lines:'1',VehicleNumber:'stale-'+index,Brigade:'1',Time:'2025-01-01 14:00:00'})),...graph.trips.map((trip,index)=>({Lat:latitude,Lon:21,Lines:trip.line,VehicleNumber:String(index),Brigade:'01',Time:'2026-10-17 '+clock(Math.round((time-base)/1000))}))]:[]};
+  if(action===TRANSIT_SOURCES.vehicles.action)return{ok:true,json:async()=>args.type===2?[...Array.from({length:staleCount},(_,index)=>({Lat:locations[0].latitude,Lon:21,Lines:'1',VehicleNumber:'stale-'+index,Brigade:'1',Time:'2025-01-01 14:00:00'})),...[...new Map(graph.trips.map(trip=>[trip.line,trip])).values()].map((trip,index)=>({Lat:latitude,Lon:21,Lines:trip.line,VehicleNumber:String(index),Brigade:'01',Time:'2026-10-17 '+clock(Math.round((time-base)/1000))}))]:[]};
   assert.equal(action,TRANSIT_SOURCES.departures.action);active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));if(gate)await gate;active--;
   if(failFirst&&failures++===0)throw new Error('temporary source failure');
   const stopIndex=locations.findIndex(stop=>stop.id.startsWith(args.busstopId+'-'));
@@ -70,9 +70,9 @@ test('partial shared evidence cannot manufacture uniqueness across overlapping b
  for(const ambiguous of [true,false]){
   const f=branchFixture(ambiguous);try{
    await f.service.startTracking();await f.settled();assert.equal(f.status().liveModel.sharedTripBindings,1,'representative A knows only the main trip');
-   await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,0);await f.tick(240);
-   await f.tick(375,locations[2].latitude-.001);await f.tick(390,locations[2].latitude);await f.tick(405);assert.equal(f.status().liveModel.confirmedTrips,0,'current-platform evidence must arrive before a second confirmation');await f.tick(420);
-   const requested=f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).map(call=>call.args.busstopId);assert.ok(requested.includes('1001'));if(!ambiguous)assert.ok(requested.includes('1002'));
+   await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,ambiguous?0:1);await f.tick(240);
+   await f.tick(375,locations[2].latitude-.001);await f.tick(390,locations[2].latitude);await f.tick(405);assert.equal(f.status().liveModel.confirmedTrips,ambiguous?0:1,'one crossing suffices only with unique complete brigade evidence');await f.tick(420);
+   const requested=f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).map(call=>call.args.busstopId);assert.ok(requested.includes('1001'));
    assert.equal(f.status().liveModel.confirmedTrips,ambiguous?0:1,'only complete platform evidence assigning the competitor to another brigade resolves ambiguity');
   }finally{f.service.stopTracking();}
  }
