@@ -96,3 +96,18 @@ test('pin theme follows the city event category first, so culture events never g
  assert.equal(theme({name:'Zajęcia',activities:['Sport']}),'sport');
  assert.equal(ui.resultBubble({category:'sports',name:'Joga'},false).dataset.theme,'sport');
 });
+
+test('AED cards and details identify defibrillators while unknown category fallback stays unchanged',()=>{
+ const context={URL,window:{},document:{createElement:element}};
+ runInNewContext(source,context);
+ const place={name:'Defibrylator AED · Urząd',category:'aed'},info=context.window.cityCardInfo(place);
+ assert.equal(info.themeLabel,'AED');assert.notEqual(info.themeLabel,'Kultura');
+ const ui=helpers();
+ assert.equal(ui.resultBubble(place,false).children[1].children[1].textContent,'Defibrylator AED');
+ const detailTag=ui.resultDetails(place,false).children[1].children.find(node=>node.className==='result-detail__tag');
+ assert.equal(detailTag.textContent,'Defibrylator AED');
+ const unknown={name:'Miejsce',category:'unknown'},fallback=context.window.cityCardInfo(unknown);
+ assert.equal(fallback.themeLabel,'Kultura');assert.equal(fallback.icon,'palette');
+ assert.equal(info.icon,fallback.icon);assert.equal(info.theme,fallback.theme);
+ assert.equal(ui.resultBubble(unknown,false).children[1].children[1].textContent,'Miejsce');
+});
