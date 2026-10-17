@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { SOURCES } from './sources.mjs';
+import { SOURCES, SEARCH_CATEGORIES } from './sources.mjs';
 export const normalize = value => String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
 const text = value => typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
 const names = value => Array.isArray(value) ? value.map(v => text(v?.name)).filter(Boolean) : [];
@@ -91,10 +91,10 @@ export function matches(record, filters) {
 }
 export function createCatalog({ fetchImpl = fetch, token = () => process.env.DATA_API_KEY, now = () => new Date().toISOString(), timeoutMs = 15000 } = {}) {
   return { async search(filters = {}) {
-    const categories = filters.category ? [filters.category] : Object.keys(SOURCES);
+    const categories = filters.category ? [filters.category] : SEARCH_CATEGORIES;
     const results = [], sources = [], errors = [];
     for (const category of categories) {
-      const source = SOURCES[category]; if (!source) throw new SourceError('INVALID_CATEGORY', category);
+      const source = SOURCES[category]; if (!SEARCH_CATEGORIES.includes(category)) throw new SourceError('INVALID_CATEGORY', category);
       try {
         const key = token(); if (!key) throw new SourceError('SOURCE_NOT_CONFIGURED', category);
         let response, payload;

@@ -11,14 +11,14 @@ test('data inventory answers without fetching records or replacing a prior selec
   const noFetch = { search: async () => { searches++; throw new Error('Inventory must not fetch'); } };
   const state = { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } };
   const inventory = await executeRealTool('list_data_sources', {}, state, noFetch);
-  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','weather','pitch','route','air_quality']);
+  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','pitch','route']);
   assert.ok(inventory.filters.includes('district'));
-  assert.match(inventory.limitations.join(' '), /nie prognozę/);
+  assert.match(inventory.limitations.join(' '), /teraz otwarty/);
   assert.deepEqual(state, { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } });
   const assistant = createRealAssistant({ provider: noFetch, completion: async history => {
     if (++step === 1) return { tool_calls: [call('list_data_sources', {})] };
-    assert.equal(JSON.parse(history.at(-1).content).sources.length, 6);
-    return { content: 'Mam dane o wydarzeniach, sporcie, pogodzie, boiskach, trasach i jakości powietrza.' };
+    assert.equal(JSON.parse(history.at(-1).content).sources.length, 4);
+    return { content: 'Mogę wyszukać wydarzenia, zajęcia sportowe, boiska i trasy.' };
   } });
   const answer = await assistant.chat({ message: 'jakie dane masz dostępne?' });
   assert.equal(searches, 0);
