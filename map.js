@@ -6,6 +6,23 @@
   // Below this zoom results are small icons; zooming in turns them into bubbles with photo and name.
   const DETAIL_ZOOM = 16;
 
+  function routePadding(element, { top = 65, bottom = 24 } = {}) {
+    // The coordinate anchors sit at the bottom of the 29px endpoint marker.
+    // Reserve the whole marker plus a small gap below the floating route bar.
+    top = Math.max(0, top) + 36;
+    const rect = element.getBoundingClientRect?.();
+    const sheet = document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
+    if (rect && sheet) bottom = Math.max(bottom, rect.bottom - sheet.top + 24);
+    const height = element.clientHeight;
+    if (height > 0) {
+      // Leaflet fills the screen underneath the sheet; Google ends above it.
+      // Keep fitting valid even when the keyboard/sheet leaves very little map.
+      bottom = Math.min(bottom, Math.max(0, height - top - 16));
+      top = Math.min(top, Math.max(0, height - bottom - 1));
+    }
+    return { top, bottom, left: 24, right: 24 };
+  }
+
   // Google reports a rejected key (wrong referrer, API disabled, billing off) through
   // window.gm_authFailure, often AFTER the script loaded and the map was created.
   let authFailed = false;
@@ -62,7 +79,8 @@
       vendor: 'google',
       ready,
       clearRoute,
-      showRoute(route) {
+      showRoute(route, { top = 65 } = {}) {
+        info.close();activeBubble?.setAttribute('aria-expanded','false');
         clearRoute();
         for (const step of route?.steps || []) {
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
@@ -72,7 +90,7 @@
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
           const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
-          map.fitBounds(bounds, { top: 65, left: 24, right: 24, bottom: 24 });
+          map.fitBounds(bounds, routePadding(element, { top }));
           [points[0],points.at(-1)].forEach((point,index) => { const label = document.createElement('span');label.className = 'transit-waypoint';label.textContent=index?'B':'A';routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content:label,title:index?'Cel przejazdu':'Początek przejazdu',zIndex:300})); });
         }
         return routeLines.length > 0;
@@ -161,14 +179,14 @@
       vendor: 'leaflet',
       ready,
       clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
-      showRoute(route) {
-        transitLayer.clearLayers();const points=[];
+      showRoute(route, { top = 65 } = {}) {
+        map.closePopup?.();transitLayer.clearLayers();const points=[];
         for (const step of route?.steps || []) {
           const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
           if(path.length<2)continue;points.push(...path);
           L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,dashArray:step.mode==='WALK'?'6 7':null}).addTo(transitLayer);
         }
-        if(points.length)map.fitBounds(points,{paddingTopLeft:[24,65],paddingBottomRight:[24,24]});
+        if(points.length){const padding=routePadding(element,{top});map.fitBounds(points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});}
         return points.length>0;
       },
       showVehicles(vehicles) {

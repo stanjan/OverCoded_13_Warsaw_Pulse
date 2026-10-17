@@ -87,9 +87,9 @@ test('browser GPS updates publish measured context and chat sends a snapshot; de
   const gps=source.slice(source.indexOf('const CENTER ='),source.indexOf('\nfunction showResults'));
   const send=source.slice(source.indexOf('async function send()'),source.indexOf("\nsubmit.addEventListener('click'"));
   const events=[],requests=[]; let onFix,onError;
-  const node=()=>({textContent:'',disabled:false,className:'',dataset:{},classList:{add(){}},setAttribute(){},removeAttribute(){},append(){},remove(){},addEventListener(){},removeEventListener(){}});
+  const node=()=>({textContent:'',disabled:false,className:'',dataset:{},classList:{add(){}},setAttribute(){},removeAttribute(){},append(){},replaceChildren(){},remove(){},addEventListener(){},removeEventListener(){}});
   const win={dispatchEvent:event=>events.push(event)};
-  const context={window:win,CustomEvent:class {constructor(type,options){this.type=type;this.detail=options.detail;}},
+  const context={window:win,CustomEvent:class {constructor(type,options={}){this.type=type;this.detail=options.detail;}},
     navigator:{geolocation:{watchPosition(success,error){onFix=success;onError=error;return 1;},clearWatch(){}}},
     gpsButton:node(),document:{querySelector:()=>context.gpsButton,createElement:node},cityMap:{showUser(){},setView(){}},setExpanded(){},
     setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},console:{warn(){}},Date,AbortController,
