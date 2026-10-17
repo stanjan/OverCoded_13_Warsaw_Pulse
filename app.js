@@ -128,30 +128,77 @@ function addMessage(text, user = false) {
   requestAnimationFrame(() => { content.scrollTop = content.scrollHeight; });
   return bubble;
 }
+async function* chatEvents(body) {
+  const reader = body.getReader(), decoder = new TextDecoder(); let buffer = '';
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer = (buffer + decoder.decode(value, { stream: !done })).replaceAll('\r\n', '\n');
+      let end;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2);
+        const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+        if (data) yield JSON.parse(data);
+      }
+      if (buffer.length > 1000000) throw new Error('Odpowiedź jest zbyt długa.');
+      if (done) break;
+    }
+  } finally { reader.releaseLock(); }
+}
+function applyAction(action) {
+  if (action.type === 'display_results') showResults(action);
+  if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
+}
 async function send() {
   const value = input.value.trim();
   if (!value || pending) return;
   pending = true; submit.disabled = true; submit.setAttribute('aria-busy', 'true');
   addMessage(value, true); input.value = '';
-  const progress = addMessage('Chwilę…');
+  const progress = addMessage(''); progress.classList.add('stream-message');
+  const status = document.createElement('span'); status.className = 'assistant-progress'; status.setAttribute('role', 'status');
+  const activity = document.createElement('span'); activity.className = 'assistant-activity'; activity.setAttribute('aria-label', 'Wykonane kroki');
+  const activities = [];
+  const answer = document.createElement('span'); answer.className = 'assistant-answer';
+  const stop = document.createElement('button'); stop.type = 'button'; stop.className = 'stop-response'; stop.textContent = 'Przerwij';
+  progress.append(status, activity, answer, stop);
+  let followResponse = true;
+  const onScroll = () => { followResponse = content.scrollHeight - content.scrollTop - content.clientHeight < 80; };
+  const keepVisible = () => { if (followResponse) content.scrollTop = content.scrollHeight; };
+  content.addEventListener('scroll', onScroll, { passive: true });
+  const controller = new AbortController(), startedAt = Date.now(); let stage = 'Łączę się z asystentem…', completed = false;
+  stop.addEventListener('click', () => controller.abort());
+  const renderStatus = () => { status.textContent = stage + ' · ' + Math.floor((Date.now() - startedAt) / 1000) + ' s'; };
+  renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
   try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: value, sessionId }), signal: AbortSignal.timeout(95000) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Nie udało się uzyskać odpowiedzi.');
-    sessionId = data.sessionId; progress.textContent = data.message;
-    for (const action of data.actions || []) {
-      if (action.type === 'display_results') showResults(action);
-      if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
+    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true }), signal: controller.signal });
+    if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Nie udało się uzyskać odpowiedzi.'); }
+    if (!response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('Serwer nie obsługuje transmisji odpowiedzi. Odśwież aplikację.');
+    for await (const event of chatEvents(response.body)) {
+      if (event.type === 'session') sessionId = event.sessionId;
+      if (event.type === 'response_start') answer.textContent = '';
+      if (event.type === 'progress') stage = event.label;
+      if (event.type === 'activity') {
+        activities.push(event.label); activity.textContent = activities.slice(-3).map(label => '✓ ' + label).join(' · ');
+      }
+      if (event.type === 'provider_progress') {
+        if (event.stage === 'queued') stage = 'Czekam na wolne miejsce…';
+        if (['session_started', 'session_reused', 'generating'].includes(event.stage)) stage = 'Przygotowuję odpowiedź…';
+      }
+      if (event.type === 'text') { stage = 'Asystent odpowiada…'; answer.textContent += event.delta; }
+      if (event.type === 'action') applyAction(event.action);
+      if (event.type === 'error') throw new Error(event.message);
+      if (event.type === 'done') { sessionId = event.sessionId; answer.textContent = event.message; stage = 'Gotowe'; completed = true; }
+      renderStatus(); keepVisible();
     }
-    // Keep result cards immediately discoverable while the map shows their markers.
-    content.scrollTop = resultPanel.childElementCount ? 0 : content.scrollHeight;
+    if (!completed) throw new Error('Połączenie zostało przerwane. Spróbuj ponownie.');
+    keepVisible();
   } catch (error) {
     progress.classList.add('message-error');
-    progress.textContent = error.name === 'TimeoutError' ? 'Odpowiedź trwa zbyt długo. Spróbuj ponownie.' : error.message;
+    stage = controller.signal.aborted ? (controller.signal.reason === 'timeout' ? 'Odpowiedź trwa zbyt długo.' : 'Przerwano odpowiedź.') : error.message;
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Spróbuj ponownie';
     retry.addEventListener('click', () => { if (pending) return; input.value = value; progress.remove(); send(); });
-    progress.append(document.createElement('br'), retry);
-  } finally { pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
+    progress.append(retry); renderStatus();
+  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); stop.remove(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
 }
 submit.addEventListener('click', event => { event.stopPropagation(); send(); });
 input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); } });

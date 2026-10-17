@@ -25,7 +25,20 @@ createServer(async (req, res) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 90000);
       res.on('close', () => { if (!res.writableEnded) controller.abort(); });
-      try { return json(res, 200, await assistant.chat(data || {}, controller.signal)); } finally { clearTimeout(timeout); }
+      try {
+        if (data?.stream !== true) return json(res, 200, await assistant.chat(data || {}, controller.signal));
+        res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-store', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+        res.flushHeaders();
+        const write = event => { if (!res.destroyed && !res.writableEnded) res.write('data: ' + JSON.stringify(event) + '\n\n'); };
+        const heartbeat = setInterval(() => { if (!res.destroyed) res.write(': keepalive\n\n'); }, 15000);
+        try {
+          const answer = await assistant.chat(data || {}, controller.signal, write);
+          write({ type: 'done', ...answer });
+        } catch (error) {
+          write({ type: 'error', message: error instanceof BridgeError ? error.message : 'Nie udało się uzyskać odpowiedzi. Spróbuj ponownie.' });
+        } finally { clearInterval(heartbeat); res.end(); }
+        return;
+      } finally { clearTimeout(timeout); }
     }
     if (!['GET', 'HEAD'].includes(req.method)) return json(res, 405, { error: 'Niedozwolona metoda.' });
     const path = url.pathname === '/' ? '/index.html' : url.pathname;

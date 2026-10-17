@@ -5,3 +5,7 @@ node_modules/
 !.env.example
 .local/
 apiKey.txt
+bridge/logs/
+bridge/verification/
+bridge/cert.pem
+bridge/key.pem

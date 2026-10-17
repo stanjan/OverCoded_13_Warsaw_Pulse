@@ -71,3 +71,22 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     await assert.rejects(bridgeCompletion([]), /połączony/);
   } finally { if (old === undefined) delete process.env.CODEX_BRIDGE_URL; else process.env.CODEX_BRIDGE_URL = old; }
 });
+
+test('bridge adapter omits an unset model for automatic routing and preserves an explicit choice', async () => {
+  const oldUrl = process.env.CODEX_BRIDGE_URL, oldModel = process.env.CODEX_BRIDGE_MODEL;
+  try {
+    process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
+    for (const model of ['', 'claude-cli/default']) {
+      process.env.CODEX_BRIDGE_MODEL = model;
+      await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (_url, init) => {
+        const payload = JSON.parse(init.body);
+        assert.equal(Object.hasOwn(payload, 'model'), !!model);
+        if (model) assert.equal(payload.model, model);
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'Gotowe.' } }] }) };
+      } });
+    }
+  } finally {
+    if (oldUrl === undefined) delete process.env.CODEX_BRIDGE_URL; else process.env.CODEX_BRIDGE_URL = oldUrl;
+    if (oldModel === undefined) delete process.env.CODEX_BRIDGE_MODEL; else process.env.CODEX_BRIDGE_MODEL = oldModel;
+  }
+});

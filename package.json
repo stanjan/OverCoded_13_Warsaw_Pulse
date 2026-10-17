@@ -6,6 +6,8 @@
     "dev": "node --env-file-if-exists=.env scripts/serve.mjs",
     "start": "node --env-file-if-exists=.env scripts/serve.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "bridge:start": "node --env-file-if-exists=.env bridge/server.mjs",
+    "bridge:test": "node --test bridge/*.test.mjs"
   }
 }

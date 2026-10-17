@@ -1,5 +1,23 @@
 # Hackathon agent workflow
 
+## Direct requests and existing issues
+
+Do not create new GitHub issues, Project draft items, companion issues or
+subissues from user requests. A request to implement, fix or investigate
+something is not authorization to create a task record.
+
+The workflow runs from existing issues to implementation, never from a chat
+request to a new issue. Pick up only existing eligible issues or draft items
+when working from the GitHub Project.
+
+Handle direct user requests in the current chat without requiring an issue,
+Project item, assignment, scheduling fields or issue comments. Do not block
+direct work because no matching issue exists, and do not attach its records
+to an unrelated issue. The GitHub discovery, admission, scheduling and
+issue-comment requirements below apply only to work picked up from existing
+GitHub tasks. For direct requests, report plans, progress and validation in
+the chat; follow the applicable repository implementation and review guidance.
+
 ## Runtime discovery — no setup file required
 
 Main discovers the working context at session start; do not ask the user to
@@ -36,8 +54,8 @@ prompts or repeating discovery; recheck affected context if it changes.
 
 ## Source of truth and tool boundary
 
-GitHub issues and draft items in the discovered GitHub Project are the sole
-task ledger. Both are tasks throughout these instructions.
+For issue-based work, existing GitHub issues and draft items in the discovered
+GitHub Project are the sole task ledger. Both are tasks throughout these instructions.
 Use connected GitHub MCP capabilities for task/project reads, comments,
 assignments and status changes. Keep existing issue bodies and draft descriptions
 unchanged; all agent-generated task descriptions and execution records go in
@@ -58,9 +76,9 @@ Draft items have no comment thread. A draft may use an existing explicitly
 associated repository issue's comment thread when the relationship is verified;
 keep its Project fields on the draft and reference both records in comments.
 Do not attach notes to an unrelated issue. If no associated issue exists, report
-that a comment-capable issue is needed before execution. Do not attempt draft
-body edits, silently convert the draft or create a companion issue without user
-authorization. Draft read/status operations remain available independently.
+that an existing comment-capable issue is needed before issue-based execution.
+Do not attempt draft body edits, silently convert the draft or create a
+companion issue. Draft read/status operations remain available independently.
 
 The authenticated GitHub MCP current-user login is the session operator.
 Native agents inherit that verified login as task context;
