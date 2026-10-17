@@ -82,30 +82,121 @@ test('cancelling environment loading releases the session and never starts model
   assert.equal(completions,1);
 });
 
-test('browser GPS updates publish measured context and chat sends a snapshot; denied permission clears it', async () => {
-  const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-  const gps=source.slice(source.indexOf('const CENTER ='),source.indexOf('\nfunction showResults'));
-  const send=source.slice(source.indexOf('async function send()'),source.indexOf("\nsubmit.addEventListener('click'"));
-  const events=[],requests=[]; let onFix,onError;
-  const node=()=>({textContent:'',disabled:false,className:'',dataset:{},classList:{add(){}},setAttribute(){},removeAttribute(){},append(){},replaceChildren(){},remove(){},addEventListener(){},removeEventListener(){}});
-  const win={dispatchEvent:event=>events.push(event)};
-  const context={window:win,CustomEvent:class {constructor(type,options={}){this.type=type;this.detail=options.detail;}},
-    navigator:{geolocation:{watchPosition(success,error){onFix=success;onError=error;return 1;},clearWatch(){}}},
-    gpsButton:node(),document:{querySelector:()=>context.gpsButton,createElement:node},cityMap:{showUser(){},setView(){}},setExpanded(){},
-    setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},console:{warn(){}},Date,AbortController,
-    input:{value:'Co jest blisko?'},pending:false,submit:node(),content:{...node(),scrollHeight:0,scrollTop:0,clientHeight:0},sessionId:null,
-    resultPanel:node(),addMessage:node,fetch:async(_url,options)=>{requests.push(JSON.parse(options.body));return{ok:false,json:async()=>({error:'Test stops after request'})};}};
-  runInNewContext(gps+'\n'+send+'\nglobalThis.sendChat=send;',context);
-  assert.equal(win.getCityLocation().reason,'locating');
-  onFix({timestamp:now.getTime(),coords:{latitude:52.24,longitude:21.01,accuracy:45,altitude:105,altitudeAccuracy:20,heading:null,speed:null}});
-  assert.equal(events.at(-1).type,'city:location');
-  assert.equal(events.at(-1).detail.observedAt,now.toISOString());
-  const snapshot=win.getCityLocation(); snapshot.latitude=0;
-  await context.sendChat();
-  assert.equal(requests[0].location.latitude,52.24);
-  assert.equal(requests[0].location.altitude,105);
-  onError({code:1,PERMISSION_DENIED:1});
-  assert.equal(win.getCityLocation().status,'unavailable');
-  assert.equal(win.getCityLocation().reason,'denied');
-  assert.equal(Object.hasOwn(win.getCityLocation(),'latitude'),false);
+async function browserLocation() {
+  const source = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+  const gps = source.slice(source.indexOf('const CENTER ='), source.indexOf('\nfunction showResults'));
+  const send = source.slice(source.indexOf('async function send()'), source.indexOf("\nsubmit.addEventListener('click'"));
+  const events = [], requests = [], acquisitions = [], watches = [], timers = new Map(), intervals = [], listeners = {}, mapPoints = [];
+  let clock = now.getTime(), timerId = 0, permissionListener;
+  const permission = { state: 'granted', addEventListener(_type, listener) { permissionListener = listener; } };
+  class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return clock; } }
+  const node = () => ({ textContent: '', disabled: false, className: '', dataset: {}, classList: { add() {} }, setAttribute() {}, removeAttribute() {}, append() {}, replaceChildren() {}, remove() {}, addEventListener(type, listener) { this[type] = listener; }, removeEventListener() {} });
+  const win = { dispatchEvent: event => events.push(event), addEventListener(type, listener) { listeners[type] = listener; } };
+  const context = { window: win, CustomEvent: class { constructor(type, options = {}) { this.type = type; this.detail = options.detail; } },
+    navigator: { permissions: { query: async () => permission }, geolocation: {
+      watchPosition(success, error, options) { watches.push({ success, error, options }); return watches.length; }, clearWatch() {},
+      getCurrentPosition(success, error, options) { acquisitions.push({ success, error, options }); }
+    } },
+    gpsButton: node(), document: { visibilityState: 'visible', querySelector: () => context.gpsButton, createElement: node, addEventListener(type, listener) { listeners[type] = listener; } },
+    cityMap: { showUser: position => mapPoints.push(position), setView() {} }, setExpanded() {},
+    setTimeout(callback, delay) { const id = ++timerId; timers.set(id, { callback, due: clock + delay }); return id; }, clearTimeout: id => timers.delete(id),
+    setInterval(callback) { intervals.push(callback); return intervals.length; }, clearInterval() {}, console: { warn() {} }, Date: Clock, AbortController,
+    input: { value: 'Co jest blisko?' }, pending: false, submit: node(), content: { ...node(), scrollHeight: 0, scrollTop: 0, clientHeight: 0 }, sessionId: null,
+    resultPanel: node(), addMessage: node, fetch: async (_url, options) => { requests.push(JSON.parse(options.body)); return { ok: false, json: async () => ({ error: 'Test stops after request' }) }; }
+  };
+  runInNewContext(gps + '\n' + send + '\nglobalThis.sendChat=send;', context);
+  await Promise.resolve(); await Promise.resolve();
+  // Complete the permission-triggered initial refresh, if it preceded the watcher.
+  function position(patch = {}) { return { timestamp: clock, coords: { latitude: 52.24, longitude: 21.01, accuracy: 45, altitude: 105, altitudeAccuracy: 20, heading: 90, speed: 1, ...patch } }; }
+  function tick(ms) { clock += ms; for (const [id, timer] of [...timers]) if (timer.due <= clock) { timers.delete(id); timer.callback(); } }
+  return { context, win, events, requests, acquisitions, watches, timers, intervals, listeners, mapPoints, permission, position, tick, revoke() { permission.state = 'denied'; permissionListener(); } };
+}
+
+test('browser GPS sends the measured snapshot and fresh fixes do not trigger extra acquisition', async () => {
+  const h = await browserLocation();
+  h.watches[0].success(h.position());
+  const before = h.acquisitions.length;
+  const snapshot = h.win.getCityLocation(); snapshot.latitude = 0;
+  await h.context.sendChat();
+  assert.equal(h.acquisitions.length, before);
+  assert.equal(h.requests[0].location.latitude, 52.24);
+  assert.equal(h.requests[0].location.altitude, 105);
+  assert.equal(h.requests[0].location.observedAt, now.toISOString());
+  assert.equal(h.events.filter(e => e.type === 'city:location').at(-1).detail.observedAt, now.toISOString());
+  h.watches[0].error({ code: 1 });
+  assert.equal(h.win.getCityLocation().reason, 'denied');
+  assert.equal(Object.hasOwn(h.win.getCityLocation(), 'latitude'), false);
+});
+
+test('a silent stationary GPS is refreshed before sending and all real measurements reach this turn', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(6 * 60000);
+  const sending = h.context.sendChat();
+  assert.equal(h.requests.length, 0);
+  const acquisition = h.acquisitions.at(-1);
+  assert.equal(acquisition.options.maximumAge, 0);
+  acquisition.success(h.position({ latitude: 52.3, longitude: 21.05, accuracy: 12, altitude: 120, altitudeAccuracy: 4, heading: 180, speed: 2 }));
+  await sending;
+  const location = h.requests[0].location;
+  assert.equal(location.latitude, 52.3); assert.equal(location.longitude, 21.05);
+  assert.equal(location.observedAt, new Date(now.getTime() + 6 * 60000).toISOString());
+  for (const [key, value] of Object.entries({ accuracy: 12, altitude: 120, altitudeAccuracy: 4, heading: 180, speed: 2 })) assert.equal(location[key], value);
+  assert.equal(h.mapPoints.at(-1).lat, 52.3);
+});
+
+test('focus, visibility, periodic refresh and chat share one acquisition, which a newer watch fix can satisfy', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(61000);
+  const before = h.acquisitions.length;
+  h.listeners.focus(); h.listeners.visibilitychange(); h.intervals[0]();
+  const sending = h.context.sendChat();
+  assert.equal(h.acquisitions.length, before + 1);
+  h.watches[0].success(h.position({ latitude: 52.31 }));
+  await sending;
+  assert.equal(h.requests[0].location.latitude, 52.31);
+  // A delayed single-shot callback cannot overwrite the newer watcher measurement.
+  h.acquisitions.at(-1).success({ ...h.position({ latitude: 52.1 }), timestamp: now.getTime() });
+  assert.equal(h.win.getCityLocation().latitude, 52.31);
+});
+
+test('GPS button requests a fresh measurement even while watching', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position());
+  const before = h.acquisitions.length;
+  h.context.gpsButton.click();
+  assert.equal(h.acquisitions.length, before + 1);
+  h.acquisitions.at(-1).success(h.position({ latitude: 52.32 }));
+  assert.equal(h.win.getCityLocation().latitude, 52.32);
+});
+
+test('unresponsive browser cannot block chat indefinitely or turn cached timestamps into fresh measurements', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(6 * 60000);
+  const sending = h.context.sendChat(); h.tick(5000); await sending;
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].location.status, 'unavailable');
+  assert.equal(Object.hasOwn(h.requests[0].location, 'latitude'), false);
+  h.watches[0].success({ ...h.position(), timestamp: now.getTime() });
+  assert.equal(h.win.getCityLocation().observedAt, now.toISOString());
+  assert.equal(h.context.gpsButton.dataset.state, 'stale');
+});
+
+test('revoking permission cancels acquisition, clears coordinates and ignores late callbacks without automatic reprompting', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(61000);
+  const sending = h.context.sendChat(), acquisition = h.acquisitions.at(-1);
+  h.revoke(); acquisition.success(h.position({ latitude: 52.35 })); h.watches[0].success(h.position({ latitude: 52.36 }));
+  await sending;
+  assert.equal(h.requests[0].location.reason, 'denied');
+  assert.equal(Object.hasOwn(h.requests[0].location, 'latitude'), false);
+  const before = h.acquisitions.length;
+  h.listeners.focus(); h.listeners.visibilitychange(); h.intervals[0](); await h.win.refreshCityLocation();
+  assert.equal(h.acquisitions.length, before);
+  assert.equal(h.context.gpsButton.dataset.state, 'denied');
+});
+
+test('unknown, invalid and stale timestamps never become a fresh context during refresh', async () => {
+  for (const timestamp of [undefined, NaN, now.getTime() - 360000, now.getTime() + 360000]) {
+    const h = await browserLocation();
+    const sending = h.context.sendChat();
+    h.acquisitions.at(-1).success({ ...h.position(), timestamp });
+    await sending;
+    assert.equal(h.requests[0].location.status, 'unavailable');
+    assert.notEqual(h.context.gpsButton.dataset.state, 'active');
+  }
 });
