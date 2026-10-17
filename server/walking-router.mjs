@@ -11,7 +11,7 @@ export async function planPedestrianGraph(graph,options,{provider=createWalkingP
   const next=unknown[0];
   if(!next||calls>=maxCalls||signal.aborted){limited=!!next;return finish(candidates,limited);}
   calls++;
-  try{const result=await provider.route(next.path[0],next.path.at(-1),{signal});if(result?.geometry!=='osm_pedestrian'||!Number.isFinite(result.durationMillis)||result.durationMillis<0||!Array.isArray(result.path)||result.path.length<2)throw new TransitError('WALK_SCHEMA','Nieprawidłowy wynik przejścia.');edges.set(next.walkingKey,result);}
+  try{const result=await provider.route(next.path[0],next.path.at(-1),{signal});if(result?.geometry!=='osm_pedestrian'||!Number.isFinite(result.durationMillis)||result.durationMillis<0||result.durationMillis>18000000||!Number.isFinite(result.distanceMeters)||result.distanceMeters<0||!Array.isArray(result.path)||result.path.length<2||result.path.length>20000||!result.path.every(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180))throw new TransitError('WALK_SCHEMA','Nieprawidłowy wynik przejścia.');edges.set(next.walkingKey,result);}
   catch(error){options.signal?.throwIfAborted();if(error?.code==='WALK_UNREACHABLE')edges.set(next.walkingKey,null);else {const verified=finish(planGraph(graph,{...options,walkingEdges:edges}),true,false);if(verified.length)return verified;throw error;}}
  }
  return finish(planGraph(graph,{...options,walkingEdges:edges}),true);
