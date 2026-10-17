@@ -88,3 +88,25 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .result-info-popup .leaflet-popup-content-wrapper { border-radius: 21px; }
 .result-info-popup .leaflet-popup-close-button { z-index: 1; top: 16px !important; right: 16px !important; border-radius: 50%; background: #fffdf9ed !important; color: #342b26 !important; }
 .app-shell:has(.result-detail) .weather-bar { visibility: hidden; }
+/* Live environment capsule; details hold source, valid time and location basis. */
+.weather-bar { width: max-content; max-width: calc(100% - 24px); color: #263442; font-size: 11px; }
+.weather-bar summary { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid #0000000c; border-radius: 24px; background: #f7f9fbf5; backdrop-filter: blur(18px); box-shadow: 0 8px 22px #09142624; cursor: pointer; white-space: nowrap; list-style: none; }
+.weather-bar summary::-webkit-details-marker { display: none; }
+.weather-bar summary:focus-visible { outline: 3px solid #0051d5; outline-offset: 3px; }
+#environment-icon { color: #ad7416; font-size: 21px; }
+#environment-weather { font-size: 14px; font-weight: 800; }
+#environment-air { font-weight: 700; }
+#environment-air[data-level='good'] { color: #247151; }
+#environment-air[data-level='fair'] { color: #466d25; }
+#environment-air[data-level='moderate'] { color: #8a6109; }
+#environment-air[data-level='poor'], #environment-air[data-level='very-poor'] { color: #b23e30; }
+#environment-air[data-level='extreme'] { color: #7f2f75; }
+.environment-divider { color: #a0a8b1; }
+.environment-details { position: absolute; top: calc(100% + 6px); left: 0; right: 0; padding: 13px 15px; border: 1px solid #dce1e5; border-radius: 17px; background: #fffffff5; box-shadow: 0 8px 20px #09142622; font-size: 11px; line-height: 1.65; }
+.environment-details p { margin: 5px 0 0; }
+.environment-attribution { color: #65727f; }
+.environment-attribution a { color: #405d76; text-decoration: underline; }
+.weather-bar[data-stale='true'] summary { border-color: #c69b50; }
+@media (max-width: 370px) { .weather-bar summary { gap: 5px; padding-inline: 9px; font-size: 10px; } #environment-weather { font-size: 12px; } #environment-icon { font-size: 18px; } }
+.weather-bar[open] { z-index: 40; }
+.environment-details { max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain; }

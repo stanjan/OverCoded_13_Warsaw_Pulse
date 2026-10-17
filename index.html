@@ -164,18 +164,21 @@
 </div>
 </div>
 <!-- 1. FLOATING TOP WEATHER BAR: Perfectly Centered Horizontally -->
-<div title="Przykładowe dane pogodowe" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto">
-<div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface/95 backdrop-blur-xl shadow-md border border-black/5 text-on-surface whitespace-nowrap active:scale-95 transition-all" style="box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.12);">
-<span class="material-symbols-outlined text-amber-500 text-[18px] anim-sun-icon">wb_sunny</span>
-<span class="text-[10px] text-on-surface-variant">Przykład</span>
-<span class="text-[13px] font-bold">19°C</span>
-<span class="text-outline-variant">•</span>
-<span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-<span class="text-[12px] text-emerald-700 font-semibold">AQI 24</span>
-<span class="text-outline-variant">•</span>
-<span class="text-[12px] text-on-surface-variant">Zachód 19:42</span>
+<details id="environment-bar" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto" data-state="loading">
+<summary aria-label="Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.">
+<span id="environment-icon" class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
+<span id="environment-weather">Pobieram pogodę…</span>
+<span class="environment-divider" aria-hidden="true">·</span>
+<span id="environment-air" data-level="unknown">AQI —</span>
+<span class="environment-divider" aria-hidden="true">·</span>
+<span id="environment-sun">Wschód — · Zachód —</span>
+</summary>
+<div class="environment-details">
+<strong id="environment-location">Centrum Warszawy</strong>
+<p id="environment-info" role="status" aria-live="polite">Ładowanie danych dla centrum Warszawy.</p>
+<p class="environment-attribution">Źródła: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer">CAMS ENSEMBLE</a></p>
 </div>
-</div>
+</details>
 <!-- BOTTOM SHEET CONTAINER (WITH LOCATION BUTTON SITTING DIRECTLY ABOVE IT) -->
 <div class="drawer-container absolute inset-x-0 bottom-16 z-30 flex flex-col pointer-events-none">
 <!-- 2. COMPASS / LOCATION BUTTON: Positioned on the right side immediately ABOVE the bottom sheet -->
@@ -286,6 +289,7 @@
 </nav>
 <script src="/map.js" defer></script>
 <script src="/app.js" defer></script>
+<script src="/environment.js" defer></script>
 
 
 </main></body></html>
