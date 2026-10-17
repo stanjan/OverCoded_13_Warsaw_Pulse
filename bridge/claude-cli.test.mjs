@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { runClaudeProcess, subscriptionEnvironment, claudeCliSelection } from './claude-cli.mjs';
 import { readSse } from '../server/assistant.mjs';
 import { createAssistant } from '../server/assistant.mjs';
+import { provider } from '../tests/catalog-fixture.mjs';
 const fixturePath = fileURLToPath(new URL('./fixtures/claude.mjs', import.meta.url));
 async function bridge(t) {
   const root = mkdtempSync(path.join(tmpdir(), 'bridge-claude-test-'));
@@ -71,12 +72,16 @@ test('stream emits validated tool calls, honors tool choice and reports failures
 });
 test('real app assistant searches and displays through Claude HTTP tool loop', async t => {
   const b = await bridge(t); b.configure({ mode: 'app' });
-  const assistant = createAssistant({ completion: async messages => {
+  const assistant = createAssistant({ provider, completion: async messages => {
     const response = await b.chat({ messages, tools: (await import('../server/tools.mjs')).toolDefinitions });
     assert.equal(response.status, 200, await response.clone().text()); return (await response.json()).choices[0].message;
   } });
   const answer = await assistant.chat({ message: 'Pokaż muzea' });
-  assert.match(answer.message, /demonstracyjnego/); assert.ok(answer.actions.some(action => action.type === 'display_results'));
+  assert.match(answer.message, /demonstracyjnego/);
+  const display = answer.actions.find(action => action.type === 'display_results');
+  assert.ok(display);
+  assert.equal(display.results.length, 2);
+  assert.deepEqual(display.highlightIds, [display.results[0].id]);
 });
 test('cancellation stops the owned Claude process tree before resolving', async t => {
   const root = mkdtempSync(path.join(tmpdir(), 'claude-cancel-test-')), fixture = path.join(root, 'fixture.json'), pidFile = path.join(root, 'pids');

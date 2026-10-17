@@ -22,8 +22,9 @@ if (args.includes('auth')) {
     let structured = fixture.response || { kind: 'assistant', content: 'Gotowe.', tool_calls: [] };
     if (fixture.mode === 'app') {
       const results = request.messages.filter(m => m.role === 'tool');
-      structured = results.length === 0 ? { kind: 'tool_calls', content: null, tool_calls: [{ name: 'search_places', arguments: '{"category":"culture","limit":2}' }] }
-        : results.length === 1 ? { kind: 'tool_calls', content: null, tool_calls: [{ name: 'display_results', arguments: JSON.stringify({ ids: JSON.parse(results[0].content).results.map(r => r.id), title: 'Kultura' }) }] }
+      const ids = results.length ? JSON.parse(results[0].content).results.map(r => r.id) : [];
+      structured = results.length === 0 ? { kind: 'tool_calls', content: null, tool_calls: [{ name: 'search_places', arguments: '{"category":"event"}' }] }
+        : results.length === 1 ? { kind: 'tool_calls', content: null, tool_calls: [{ name: 'display_results', arguments: JSON.stringify({ ids, highlightIds: ids.slice(0, 1), title: 'Kultura' }) }] }
         : { kind: 'assistant', content: 'Pokazuję miejsca z katalogu demonstracyjnego.', tool_calls: [] };
     }
     if (args.includes('stream-json')) {
