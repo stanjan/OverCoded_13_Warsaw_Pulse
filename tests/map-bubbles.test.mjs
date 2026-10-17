@@ -83,3 +83,16 @@ test('toilets have a WC marker and source details without event ticket assumptio
  assert.equal(facts.children.some(node=>node.dataset.kind==='price'),false);
  assert.equal(facts.children.find(node=>node.dataset.kind==='place').children[1].textContent,'Żoliborz · Inwalidów 3');
 });
+
+test('pin theme follows the city event category first, so culture events never get a sport pin',()=>{
+ const ui=helpers();
+ const theme=place=>ui.resultBubble({category:'event',...place},false).dataset.theme;
+ assert.equal(theme({name:'Koncert w parku',activities:['Kultura']}),'culture');
+ assert.equal(theme({name:'Rajd rowerowy',activities:['Kultura','Sport']}),'culture');
+ assert.equal(theme({name:'Wystawa',description:'Historia sportu w Warszawie'}),'culture');
+ assert.equal(theme({name:'Przebieg warsztatów'}),'education');
+ assert.equal(theme({name:'Bieg Niepodległości'}),'sport');
+ assert.equal(theme({name:'Spektakl',activities:['Dla dzieci','Kultura']}),'family');
+ assert.equal(theme({name:'Zajęcia',activities:['Sport']}),'sport');
+ assert.equal(ui.resultBubble({category:'sports',name:'Joga'},false).dataset.theme,'sport');
+});
