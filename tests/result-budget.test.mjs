@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fitResultBudget, warsawDate, requestFits, serializeBridgeRequest, compactHistory, RESULT_LIMITS } from '../server/result-budget.mjs';
 import { createAssistant } from '../server/assistant.mjs';
+import { normalizeRecord } from '../mcp/catalog.mjs';
+import { runTool } from '../mcp/tools.mjs';
 
 const now = new Date('2026-10-17T12:00:00Z');
 const location = { status: 'available', source: 'browser_geolocation', freshness: 'recent',
@@ -95,12 +97,105 @@ test('distance matching honors all allowed source locations and discloses missin
   const nearby = event('multi', '2026-10-17', 40000, 30);
   nearby.locations = [{ lat: location.latitude + 0.001, lng: location.longitude, district: 'Wola' },
     { lat: location.latitude + 0.4, lng: location.longitude, district: 'Ochota' }];
-  const missing = { ...event('missing', '2026-10-17', 130000), lat: undefined, lng: undefined };
-  const fitted = fit([nearby, missing], { location, filters: { district: 'Wola' } });
-  assert.deepEqual(fitted.records.map(record => record.id), ['multi']);
+  const missing = { ...event('missing', '2026-10-17', 40000), lat: undefined, lng: undefined };
+  const distant = { ...event('distant', '2026-10-17', 130000, 40), district: 'Wola' };
+  const fitted = fit([nearby, missing, distant], { location, filters: { district: 'Wola' } });
+  assert.deepEqual(fitted.records.map(record => record.id), ['multi', 'missing']);
   assert.equal(fitted.records[0].lat, nearby.locations[0].lat);
-  assert.equal(fitted.response.narrowing.excluded.missingCoordinates, 1);
+  assert.equal(fitted.response.narrowing.excluded.missingCoordinates, 0);
+  assert.equal(fitted.response.narrowing.preserved.missingCoordinates, 1);
+  assert.equal(fitted.response.narrowing.excluded.outsideRadius, 1);
+  assert.equal(fitted.response.narrowing.appliedFilters.distance.unlocatedIncluded, true);
   assert.equal(nearby.lat, location.latitude + 30 / 111.195);
+});
+
+const pitch = index => normalizeRecord({
+  'Nazwa placówki oświatowej': 'Szkoła Podstawowa ' + index,
+  Dzielnica: index === 0 ? 'Wola' : 'Mokotów',
+  'Adres obiektu': 'ul. Szkolna ' + index,
+  'Typ obiektu': 'Boisko do piłki nożnej',
+  'Rodzaj nawierzchni': 'Trawa syntetyczna',
+  'Data aktualizacji': '2026-10-17', Sobota: '10:00–18:00',
+}, 'pitch', now.toISOString());
+const pitches = Array.from({ length: 1227 }, (_, index) => pitch(index));
+const pitchEnvelope = records => ({ results: records, total: records.length, complete: true, dataMode: 'official',
+  sources: [{ category: 'pitch', matched: records.length, fetched: records.length, complete: true }], errors: [] });
+
+test('automatic distance keeps unlocated pitches alongside nearby events across categories', () => {
+  const unlocated = { ...pitches[0], description: 'x'.repeat(50000) };
+  const records = [event('near', '2026-10-17', 50000), unlocated, event('far', '2026-10-17', 130000, 40)];
+  const fitted = fit(records, { location });
+  assert.equal(fitted.response.status, 'automatically_narrowed');
+  assert.deepEqual(fitted.records.map(record => record.id), ['near', unlocated.id]);
+  assert.equal(fitted.response.narrowing.preserved.missingCoordinates, 1);
+  assert.equal(fitted.response.narrowing.excluded.outsideRadius, 1);
+  assert.equal(fitted.response.narrowing.appliedFilters.distance.unlocatedIncluded, true);
+  assert.equal(fitted.records[1].lat, undefined);
+});
+
+for (const gps of [location, undefined]) test('1227 unlocated pitches require textual refinement without claiming an empty radius (GPS=' + Boolean(gps) + ')', () => {
+  const original = pitchEnvelope(pitches);
+  assert.ok(JSON.stringify(original).length > RESULT_LIMITS.toolCharacters);
+  const fitted = fitResultBudget(original, { now, location: gps, filters: { category: 'pitch' } });
+  assert.equal(fitted.response.status, 'refinement_required');
+  assert.equal(fitted.response.total, 1227);
+  assert.equal(fitted.response.narrowing.fallbackReason, 'missing_coordinates');
+  assert.equal(fitted.response.narrowing.candidateTotal, 1227);
+  assert.equal(fitted.response.narrowing.preserved.missingCoordinates, 1227);
+  assert.equal(fitted.response.narrowing.excluded.missingCoordinates || 0, 0);
+  assert.ok(fitted.response.narrowing.attempts.every(attempt => attempt.total === 1227));
+  assert.match(fitted.response.message, /dzielnicę, nazwę, adres/);
+  assert.deepEqual(original.results, pitches);
+  assert.ok(JSON.stringify(fitted.response).length < 4000);
+});
+
+test('a small unlocated pitch set stays complete and can be displayed without pins', async () => {
+  const original = pitchEnvelope(pitches.slice(0, 2));
+  const fitted = fitResultBudget(original, { now, location });
+  assert.equal(fitted.response, original);
+  assert.equal(fitted.records, original.results);
+  const state = { results: fitted.records, searchMeta: original, actions: [] };
+  await runTool('display_results', { ids: fitted.records.map(record => record.id), highlightIds: [pitches[0].id], title: 'Boiska' }, state);
+  assert.equal(state.actions[0].results.length, 2);
+  assert.ok(state.actions[0].results.every(record => record.lat === undefined && record.lng === undefined));
+});
+
+test('an explicit bounds filter still excludes locations that cannot be verified inside it', async () => {
+  const inside = { ...pitch(1227), lat: location.latitude, lng: location.longitude };
+  const outside = { ...pitch(1228), lat: location.latitude + 1, lng: location.longitude };
+  const state = { results: [pitches[0], inside, outside], searchMeta: pitchEnvelope([]), actions: [] };
+  const result = await runTool('filter_results', { bounds: { south: 52.22, west: 21, north: 52.24, east: 21.02 } }, state);
+  const fitted = fitResultBudget(result, { now, location });
+  assert.deepEqual(fitted.records.map(record => record.id), [inside.id]);
+});
+
+test('a district follow-up recovers unlocated pitches from the retained full set without another fetch', async () => {
+  let step = 0, searches = 0;
+  const assistant = createAssistant({ now: () => now, provider: { search: async () => { searches++; return pitchEnvelope(pitches); } },
+    completion: async history => {
+      assert.equal(requestFits(history), true);
+      if (++step === 1) return { tool_calls: [call('search_places', { category: 'pitch' })] };
+      if (step === 2) {
+        const result = JSON.parse(history.at(-1).content);
+        assert.equal(result.narrowing.fallbackReason, 'missing_coordinates');
+        assert.equal(result.total, 1227);
+        return { content: 'W której dzielnicy szukasz boiska?' };
+      }
+      if (step === 3) return { tool_calls: [call('filter_results', { district: 'Wola' })] };
+      if (step === 4) {
+        const result = JSON.parse(history.at(-1).content);
+        assert.deepEqual(result.results.map(record => record.id), [pitches[0].id]);
+        assert.equal(result.results[0].address, 'ul. Szkolna 0');
+        return { tool_calls: [call('display_results', { ids: [pitches[0].id], highlightIds: [pitches[0].id], title: 'Boisko na Woli' })] };
+      }
+      return { content: 'To boisko ma podany adres, ale nie ma punktu na mapie.' };
+    } });
+  const first = await assistant.chat({ message: 'Pokaż mi boiska', location });
+  assert.deepEqual(first.actions, []);
+  const next = await assistant.chat({ message: 'Na Woli', sessionId: first.sessionId, location });
+  assert.equal(searches, 1);
+  assert.deepEqual(next.actions[0].results.map(record => record.id), [pitches[0].id]);
+  assert.equal(next.actions[0].results[0].lat, undefined);
 });
 
 for (const unavailable of [undefined, { ...location, freshness: 'stale' }, { ...location, freshness: 'unknown' },

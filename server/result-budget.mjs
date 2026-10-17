@@ -45,12 +45,14 @@ function withinRadius(records, location, radiusKm, filters) {
   let missingCoordinates = 0;
   for (const record of records) {
     const points = selectLocations(record, filters);
-    if (!points.length) { missingCoordinates++; continue; }
+    // An automatic radius may exclude a measured distant point, but cannot
+    // establish that an unlocated record is distant. Keep it for assessment.
+    if (!points.length) { missingCoordinates++; kept.push(record); continue; }
     const nearest = points.map(point => ({ ...point, distance: distanceKm(location.latitude, location.longitude, point.lat, point.lng) }))
       .sort((a, b) => a.distance - b.distance)[0];
     if (nearest.distance <= radiusKm) kept.push({ ...record, lat: nearest.lat, lng: nearest.lng });
   }
-  return { records: kept, missingCoordinates, outsideRadius: records.length - missingCoordinates - kept.length };
+  return { records: kept, missingCoordinates, outsideRadius: records.length - kept.length };
 }
 function sourceCounts(sources, counts) {
   return sources?.map(source => ({ ...source, matchedBeforeNarrowing: source.matched, matched: counts[source.category] || 0 }));
@@ -73,14 +75,14 @@ export function fitResultBudget(result, {
   const original = result.results;
   const originalTotal = original.length, countsByCategory = categoryCounts(original);
   const attempts = [];
-  let records = original, applied = { requested: filters }, excluded = {};
+  let records = original, applied = { requested: filters }, excluded = {}, preserved = {};
   const envelope = candidate => {
     const counts = categoryCounts(candidate);
     return {
       ...result, status: 'automatically_narrowed', results: candidate, total: candidate.length,
       sources: sourceCounts(result.sources, counts),
       narrowing: { reason: 'conversation_capacity', originalTotal, effectiveTotal: candidate.length,
-        appliedFilters: applied, excluded, attempts, allMatchingRecordsProvided: true },
+        appliedFilters: applied, excluded, preserved, attempts, allMatchingRecordsProvided: true },
     };
   };
   const attempt = scope => {
@@ -118,13 +120,17 @@ export function fitResultBudget(result, {
     for (const radiusKm of [25, 10, 5, 2, 1, 0.5, 0.25]) {
       const nearby = withinRadius(dated, location, radiusKm, filters);
       records = nearby.records;
-      excluded = { ...excluded, missingCoordinates: nearby.missingCoordinates, outsideRadius: nearby.outsideRadius };
+      excluded = { ...excluded, missingCoordinates: 0, outsideRadius: nearby.outsideRadius };
+      preserved = { missingCoordinates: nearby.missingCoordinates };
       applied = { ...applied, distance: { radiusKm, basis: 'browser_geolocation', latitude: location.latitude,
-        longitude: location.longitude, accuracyMeters: location.accuracy, observedAt: location.observedAt } };
+        longitude: location.longitude, accuracyMeters: location.accuracy, observedAt: location.observedAt,
+        unlocatedIncluded: nearby.missingCoordinates > 0 } };
       const fitted = attempt({ radiusKm });
       if (fitted) return fitted;
     }
   }
+  const missingCoordinates = records.filter(record => !selectLocations(record, filters).length).length;
+  if (missingCoordinates) preserved = { missingCoordinates };
   return {
     records: [],
     response: {
@@ -132,9 +138,11 @@ export function fitResultBudget(result, {
       complete: result.complete, dataMode: result.dataMode, errors: result.errors || [], sources: result.sources || [],
       countsByCategory,
       narrowing: { reason: 'conversation_capacity', originalTotal, effectiveTotal: 0, candidateTotal: records.length,
-        appliedFilters: applied, excluded, attempts, allMatchingRecordsProvided: false,
-        fallbackReason: freshLocation ? 'no_scope_fits' : 'no_recent_user_location' },
-      message: 'Automatyczne zawężanie nie dało zbioru mieszczącego się w rozmowie. Pełny zbiór pozostaje na serwerze; żadne rekordy nie zostały przekazane do oceny. Poproś o dzielnicę, temat lub węższe daty; przy braku świeżej lokalizacji można też poprosić o jej udostępnienie. Nie rekomenduj niewidzianych rekordów.',
+        appliedFilters: applied, excluded, preserved, attempts, allMatchingRecordsProvided: false,
+        fallbackReason: missingCoordinates ? 'missing_coordinates' : freshLocation ? 'no_scope_fits' : 'no_recent_user_location' },
+      message: missingCoordinates
+        ? 'Zbiór jest zbyt duży do oceny w rozmowie, a ' + missingCoordinates + ' rekordów nie ma współrzędnych. Nie odrzucono ich z tego powodu ani nie potwierdzono ich odległości. Pełny zbiór pozostaje na serwerze. Poproś o dzielnicę, nazwę, adres lub rodzaj aktywności i użyj filter_results; nie pokazuj pustej listy ani nie rekomenduj niewidzianych rekordów.'
+        : 'Automatyczne zawężanie nie dało zbioru mieszczącego się w rozmowie. Pełny zbiór pozostaje na serwerze; żadne rekordy nie zostały przekazane do oceny. Poproś o dzielnicę, temat lub węższe daty; przy braku świeżej lokalizacji można też poprosić o jej udostępnienie. Nie rekomenduj niewidzianych rekordów.',
     },
   };
 }
