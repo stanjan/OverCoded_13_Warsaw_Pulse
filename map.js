@@ -376,7 +376,7 @@
     const direction=document.createElement('p');direction.textContent=vehicleDirection(vehicle);box.append(line,direction);return box;
   }
   function vehicleElement(vehicle) {
-    const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.backgroundColor=transitColor(vehicle);element.title=vehicleTitle(vehicle);
+    const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.color=transitColor(vehicle);element.title=vehicleTitle(vehicle);
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
     const rail=vehicle.transportKind==='tram'||vehicle.transportKind==='skm'||vehicle.type===2;
     const paths=rail?['M7 4h10a2 2 0 0 1 2 2v11H5V6a2 2 0 0 1 2-2Z','M5 12h14M9 4l1-3h4l1 3M8 20l-2 2m10-2 2 2M8 15h.01M16 15h.01']:['M6 3h12a2 2 0 0 1 2 2v13H4V5a2 2 0 0 1 2-2Z','M4 12h16M7 18v3m10-3v3M7 15h.01M17 15h.01M8 6h8'];
