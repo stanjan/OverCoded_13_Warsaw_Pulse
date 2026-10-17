@@ -4,7 +4,7 @@ import { resolve, extname } from 'node:path';
 import { createAssistant, BridgeError } from '../server/assistant.mjs';
 import { getEnvironment, EnvironmentError } from '../server/environment.mjs';
 const root = resolve(import.meta.dirname, '..');
-const assistant = createAssistant();
+const assistant = createAssistant({ environmentProvider: getEnvironment });
 const port = Number(process.env.PORT || 5173);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
 const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js']);
