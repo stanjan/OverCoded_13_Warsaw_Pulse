@@ -16,8 +16,16 @@ window.collapseCitySheet = () => setExpanded(false);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 
+// Full-screen snap state (drag the handle up from the expanded panel); it covers the weather bar.
+let sheetFull = false;
+function setSheetFull(value) {
+  sheetFull = value;
+  document.querySelector('#ai-sheet').classList.toggle('is-full', value);
+  drawer.classList.toggle('is-full', value);
+}
 function setExpanded(value) {
   expanded = value;
+  if (!value && sheetFull) setSheetFull(false);
   content.inert = !value;
   content.setAttribute('aria-hidden', String(!value));
   document.querySelector('#ai-sheet').classList.toggle('is-collapsed', !value);
@@ -34,13 +42,41 @@ document.querySelector('#sheet-toggle').addEventListener('click', () => {
 toggle.addEventListener('click', event => { event.stopPropagation(); setExpanded(!expanded); });
 input.addEventListener('focus', () => setExpanded(true));
 document.querySelector('#search-bar-wrapper').addEventListener('click', () => input.focus());
-// Match the drawer's touch affordance without interfering with map gestures.
-let touchStart;
-document.querySelector('#sheet-toggle').addEventListener('pointerdown', event => { touchStart = event.clientY; suppressHandleClick = false; });
-document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
-  if (touchStart !== undefined && Math.abs(event.clientY - touchStart) > 30) { suppressHandleClick = true; setExpanded(event.clientY < touchStart); }
-  touchStart = undefined;
+// Drag the handle: the panel follows the finger, then snaps to collapsed, half or full screen.
+// Pointer capture keeps the drag alive when the finger leaves the small handle area.
+const handle = document.querySelector('#sheet-toggle');
+let drag = null;
+const sheetHeights = () => ({ half: Math.min(innerHeight * (innerHeight <= 550 ? 0.4 : 0.48), 480), full: Math.max(0, innerHeight - 128) });
+handle.addEventListener('pointerdown', event => {
+  if (event.target.closest('button')) return; // the chevron keeps its own click
+  drag = { y: event.clientY, start: expanded ? content.getBoundingClientRect().height : 0, moved: false, id: event.pointerId };
+  suppressHandleClick = false;
+  handle.setPointerCapture?.(event.pointerId);
 });
+handle.addEventListener('pointermove', event => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const dy = drag.y - event.clientY;
+  if (!drag.moved && Math.abs(dy) < 6) return;
+  if (!drag.moved) { drag.moved = true; document.querySelector('#ai-sheet').classList.add('is-dragging'); content.inert = false; }
+  const height = Math.min(Math.max(drag.start + dy, 0), sheetHeights().full);
+  Object.assign(content.style, { maxHeight: height + 'px', minHeight: height + 'px', opacity: '1', transform: 'none' });
+});
+const endDrag = event => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const { moved, y } = drag; drag = null;
+  document.querySelector('#ai-sheet').classList.remove('is-dragging');
+  if (!moved) return; // a tap: the click handler toggles the panel
+  suppressHandleClick = true;
+  const height = content.getBoundingClientRect().height;
+  Object.assign(content.style, { maxHeight: '', minHeight: '', opacity: '', transform: '' });
+  const { half, full } = sheetHeights();
+  const target = height + (event.clientY < y ? 60 : -60); // nudged in the drag direction
+  if (target > (half + full) / 2) { setExpanded(true); setSheetFull(true); }
+  else if (target > half / 2) { setSheetFull(false); setExpanded(true); }
+  else setExpanded(false);
+};
+handle.addEventListener('pointerup', endDrag);
+handle.addEventListener('pointercancel', endDrag);
 
 // Event details opened from a map cloud: shown inside the conversation panel, which grows to full height.
 // The card "expands" out of the cloud (FLIP: it starts at the cloud's rectangle and grows into place).
@@ -292,31 +328,43 @@ function showResults(action) {
   const listed = new Set((recommended.length ? recommended : action.results).slice(0, 3));
   for (const place of action.results) {
     const spatial = Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180;
-    // Cards show only the event title; details live in the map cloud. A title with a map point is a button that focuses it.
-    const card = document.createElement('article'); card.className = 'place-card';
-    const label = (highlighted.has(place.id) ? '★ Polecane: ' : '') + place.name;
-    if (cityMap && spatial) {
-      const marker = cityMap.addMarker(place, { recommended: highlighted.has(place.id), onOpen: () => setExpanded(false) });
-      const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'place-card__title'; focus.textContent = label;
-      focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); });
-      card.append(focus);
-      if (listed.has(place)) resultPanel.append(card);
-      points.push([place.lat, place.lng]);
-    } else if (listed.has(place)) {
-      const name = document.createElement('strong'); name.className = 'place-card__title'; name.textContent = label;
-      card.append(name);
-      resultPanel.append(card);
-    }
-    if (!spatial && listed.has(place) && (place.address || place.addresses?.length)) {
-      const address = document.createElement('span'); address.className = 'place-card__address';
-      address.textContent = [place.address || place.addresses.join(', '), place.district].filter(Boolean).join(' · ');
-      card.append(address);
-    }
+    const isRecommended = highlighted.has(place.id);
+    const marker = cityMap && spatial ? cityMap.addMarker(place, { recommended: isRecommended, onOpen: () => setExpanded(false) }) : null;
+    if (spatial) points.push([place.lat, place.lng]);
+    if (!listed.has(place)) continue;
+    // Recommended card (Stitch prototype, our warm style): tag + when/price, title, address, photo, actions.
+    const info = globalThis.cityCardInfo?.(place) || {};
+    const card = document.createElement('article'); card.className = 'place-card rec-card' + (info.theme ? ' rec-card--' + info.theme : '');
+    const focusMap = () => { if (!cityMap || !marker) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); };
+    const title = document.createElement(marker ? 'button' : 'strong'); title.className = 'place-card__title rec-card__title'; title.textContent = place.name;
+    if (marker) { title.type = 'button'; title.addEventListener('click', focusMap); }
+    const meta = document.createElement('div'); meta.className = 'rec-card__meta';
+    const tag = document.createElement('span'); tag.className = 'rec-card__tag'; tag.textContent = (isRecommended ? '★ ' : '') + (info.themeLabel || 'Polecane');
+    const when = document.createElement('span'); when.className = 'rec-card__when'; when.textContent = [info.when, info.price].filter(Boolean).join(' · ');
+    meta.append(tag, when);
+    card.append(title, meta);
+    const where = [place.address || (place.addresses || []).join(', '), place.district].filter(Boolean).join(' · ');
+    if (where) { const address = document.createElement('span'); address.className = 'place-card__address'; address.textContent = where; card.append(address); }
+    const thumb = document.createElement('div'); thumb.className = 'rec-card__thumb';
+    if (info.imageUrl) { const img = document.createElement('img'); img.src = info.imageUrl; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.addEventListener('error', () => img.remove()); thumb.append(img); }
+    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined rec-card__glyph'; glyph.textContent = info.icon || 'local_activity';
+    thumb.append(glyph); card.append(thumb);
     if (spatial) {
-      const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';
-      transit.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('city:transit',{detail:{destination:{latitude:place.lat,longitude:place.lng,label:place.name}}})));
-      card.append(transit);
+      const actions = document.createElement('div'); actions.className = 'rec-card__actions';
+      const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'rec-card__transit';
+      const transitIcon = document.createElement('span'); transitIcon.className = 'material-symbols-outlined'; transitIcon.textContent = 'near_me';
+      const transitText = document.createElement('span'); transitText.textContent = 'Dojedź komunikacją';
+      transit.append(transitIcon, transitText);
+      transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
+      actions.append(transit);
+      if (marker) {
+        const show = document.createElement('button'); show.type = 'button'; show.className = 'rec-card__map'; show.setAttribute?.('aria-label', 'Pokaż na mapie');
+        const showIcon = document.createElement('span'); showIcon.className = 'material-symbols-outlined'; showIcon.textContent = 'map';
+        show.append(showIcon); show.addEventListener('click', focusMap); actions.append(show);
+      }
+      card.append(actions);
     }
+    resultPanel.append(card);
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
 }

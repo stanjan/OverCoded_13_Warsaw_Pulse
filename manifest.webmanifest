@@ -1,0 +1,19 @@
+{
+  "name": "Warszawa Pulse — Warsaw AI",
+  "short_name": "Warszawa Pulse",
+  "description": "Twój mobilny asystent Warszawy — miejsca, mapa i rozmowa.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "lang": "pl",
+  "background_color": "#f7f9fb",
+  "theme_color": "#f7f9fb",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
