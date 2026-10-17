@@ -11,7 +11,7 @@ test('transport colors distinguish city fleet types from GTFS route_type and kee
   [{line:'175',type:1},'bus','#880077'],
   [{line:'N31',type:1},'night_bus','#000000'],
   [{line:'17',type:2},'tram','#8A0000'],
-  [{line:'S2',routeType:2},'skm','#8A0000'],
+  [{line:'S2',routeType:2},'skm','#008800'],
   [{line:'17',routeType:0},'tram','#8A0000'],
   [{line:'175',routeType:3},'bus','#880077'],
   [{line:'R1',routeType:2},'unknown','#65727f'],

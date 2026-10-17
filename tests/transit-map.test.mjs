@@ -18,7 +18,7 @@ test('route selection closes result details and reserves the expanded weather ba
 test('Google and Leaflet preserve transport colors and show only confirmed fresh vehicles',async()=>{
  const{context,lines,markers,calls}=setup();let leaflet;
  const google=await context.window.createCityMap(element('div'),{onReplace:adapter=>leaflet=adapter});
- const colors=['#880077','#000000','#8A0000','#8A0000'];
+ const colors=['#880077','#000000','#8A0000','#008800'];
  const colored={steps:[route.steps[0],...colors.map(transportColor=>({...route.steps[1],transportColor}))]};
  google.showRoute(colored);assert.deepEqual(lines.map(line=>line.strokeColor),['#61776a',...colors]);
  const now=Date.now(),vehicles=colors.map((transportColor,index)=>({latitude:52.2,longitude:21,line:String(index),freshness:'recent',observedAt:new Date(now).toISOString(),transportColor}));

@@ -104,6 +104,8 @@ function closeEventInConversation(restore) {
   ], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }).finished.then(finish, finish);
 }
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeEventInConversation(true); });
+window.addEventListener('city:transit', () => closeEventInConversation(false));
+window.addEventListener('city:query', () => closeEventInConversation(false));
 
 const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
