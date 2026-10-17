@@ -11,6 +11,19 @@ export function coordinates(lat, lng) {
 const days = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
 function date(value) { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null; }
 function list(value) { return Array.isArray(value) ? value : []; }
+export function eventImage(raw) {
+  const candidates = [raw.image?.small?.path, raw.image?.highlighted?.path];
+  for (const value of candidates) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    try {
+      const url = new URL(value, 'https://um.warszawa.pl');
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) continue;
+      url.protocol = 'https:';
+      return url.href;
+    } catch {}
+  }
+  return null;
+}
 export class SourceError extends Error {
   constructor(code, category) { super(code); this.code = code; this.category = category; }
 }
@@ -25,7 +38,7 @@ export function normalizeRecord(raw, category, fetchedAt) {
     locations = features.flatMap(f => { const p = f.geometry?.type === 'Point' ? coordinates(f.geometry.coordinates?.[1], f.geometry.coordinates?.[0]) : null; return p ? [{...p, district:text(f.properties?.district)}] : []; });
     position = locations[0];
     dates = category === 'event' ? list(raw.occurrence).map(o => ({ from: date(o.from), to: date(o.to || o.from), sourceFrom: o.from, sourceTo: o.to })).filter(o => o.from && o.to) : list(raw.date).map(d => ({ from: date(d), to: date(d) })).filter(o => o.from);
-    details = { activities: names(raw.category), audience: names(raw.dedicated), weekdays: names(raw.day), time: text(raw.time), addresses: list(raw.address).map(a => [text(a.name), text(a.street)].filter(Boolean).join(', ')) };
+    details = { imageUrl: eventImage(raw), activities: names(raw.category), audience: names(raw.dedicated), weekdays: names(raw.day), time: text(raw.time), addresses: list(raw.address).map(a => [text(a.name), text(a.street)].filter(Boolean).join(', ')) };
   } else if (category === 'pitch') {
     name = text(raw['Nazwa placówki oświatowej']); districts = [text(raw.Dzielnica)].filter(Boolean);
     description = [raw['Typ obiektu'], raw['Boisk uniwersalne zawiera'], raw.Uwagi].map(text).filter(Boolean).join('. ');

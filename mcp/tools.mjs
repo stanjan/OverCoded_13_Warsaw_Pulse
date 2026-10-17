@@ -4,6 +4,7 @@ const bounds = { type: 'object', properties: Object.fromEntries(['south','west',
 export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:Object.keys(SOURCES)}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0} };
 const schema = (properties, required=[]) => ({type:'object', properties, required, additionalProperties:false});
 export const mcpTools = [
+ {name:'list_data_sources',description:'Opisz dostępne kategorie miejskich danych i obsługiwane filtry, bez pobierania rekordów. Użyj dla pytań typu „jakie dane masz dostępne?”, „co możesz pokazać?” lub o możliwości aplikacji. Nie potwierdza aktualnej dostępności źródeł.',inputSchema:schema({})},
  {name:'search_places',description:'Pobierz WSZYSTKIE pasujące dane z miejskiego MCP. Kategorie: event wydarzenia, sports zajęcia, weather pomiary pogody, pitch boiska, route trasy, air_quality pomiary powietrza. Filtry wyłącznie ze znanych preferencji rozmowy. Bez limitu wyników. complete=false oznacza niedostępne źródło, nigdy pusty katalog. Daty ISO YYYY-MM-DD: rekordy bez dat wykluczone; do cyklicznych zajęć użyj weekday. Pogoda nie jest prognozą. Otwarte boiska to nazwa zbioru, godziny wymagają sprawdzenia.',inputSchema:schema(filtersSchema)},
  {name:'filter_results',description:'Zawęź ostatnie wyniki na podstawie kontekstu rozmowy. Nie pobiera nowych danych. Brakujące cechy nie spełniają filtra.',inputSchema:schema(filtersSchema)},
  {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
@@ -29,6 +30,11 @@ export async function runTool(name,args,state,provider=catalogProvider) {
  const tool=mcpTools.find(t=>t.name===name);
  if(!tool)throw new Error('Nieznane narzędzie.');
  validate(args,tool.inputSchema);
+ if(name==='list_data_sources')return {
+   sources:Object.entries(SOURCES).map(([category,source])=>({category,title:source.title})),
+   filters:Object.keys(filtersSchema),
+   limitations:['Opis skonfigurowanych źródeł; ich dostępność i liczba rekordów są sprawdzane dopiero podczas wyszukiwania.','Pogoda oznacza pomiary stacji, nie prognozę; świeżość pomiarów wymaga sprawdzenia.','Zajęcia sportowe mogą mieć dni tygodnia bez konkretnych dat.','Nazwa Otwarte boiska nie potwierdza, że obiekt jest teraz otwarty.','Nie wszystkie rekordy mają współrzędne; można pokazać je na liście bez pinezki.'],
+ };
  if(name==='search_places'||name==='filter_results')validateFilters(args);
  if(name==='search_places'){
    // Clear selection on failure so old results cannot masquerade as a fresh search.
