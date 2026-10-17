@@ -69,6 +69,8 @@ function onMapReplaced(map) {
 const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas, { onReplace: onMapReplaced }) : Promise.reject(new Error('map.js missing')))
   .then(map => {
     if (!mapWasReplaced) useMap(map);
+    // The location can arrive before the map: show it now that the map exists.
+    if (lastPosition) { cityMap?.showUser(lastPosition); if (!lastDisplayedAction) centerOnUser(); }
     if (lastDisplayedAction) showResults(lastDisplayedAction);
     return cityMap;
   })
@@ -88,9 +90,9 @@ setGpsState('idle');
 function centerOnUser() {
   if (lastPosition) cityMap?.setView({ lat: lastPosition.lat, lng: lastPosition.lng }, 15);
 }
-gpsButton.addEventListener('click', () => {
-  setExpanded(false);
-  if (!('geolocation' in navigator)) { setGpsState('denied'); cityMap?.setView(CENTER, CENTER.zoom); return; }
+// auto: started on page load (no panel change, no recentring or message on failure).
+function startLocating({ auto = false } = {}) {
+  if (!('geolocation' in navigator)) { setGpsState('denied'); if (!auto) cityMap?.setView(CENTER, CENTER.zoom); return; }
   if (watchId !== null) { if (lastPosition) centerOnUser(); return; } // still searching or tracking
   setGpsState('locating');
   let first = true;
@@ -114,6 +116,7 @@ gpsButton.addEventListener('click', () => {
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     setGpsState('denied');
+    if (auto) return;
     cityMap?.setView(CENTER, CENTER.zoom);
     // Location not found: the red button is enough. Only a refused permission explains itself.
     if (error.code === error.PERMISSION_DENIED) addMessage('Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.');
@@ -134,7 +137,10 @@ gpsButton.addEventListener('click', () => {
       }, { enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity });
     }
   }, options);
-});
+}
+gpsButton.addEventListener('click', () => { setExpanded(false); startLocating(); });
+// Ask for the user's location as soon as the app opens; the map centres on them once found.
+startLocating({ auto: true });
 
 function showResults(action) {
   lastDisplayedAction = action;
