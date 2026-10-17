@@ -21,7 +21,7 @@ The app's `server/tools.mjs` uses `createMcpClient` with a paired in-process tra
 ## Tools and matching
 
 - `list_data_sources`: configured categories, supported filters and limitations without fetching records or changing the current selection. Inventory questions do not search the full catalogue; this metadata does not assert live source availability or freshness.
-- `search_places`: all matching records. Categories: `event`, `sports`, `weather`, `pitch`, `route`, `air_quality`. Optional query, district, activity, audience, weekday, dateFrom/dateTo (YYYY-MM-DD), bounds and maxLengthKm.
+- `search_places`: all matching records. Categories: `event`, `sports`, `pitch`, `route`. Optional query, district, activity, audience, weekday, dateFrom/dateTo (YYYY-MM-DD), bounds and maxLengthKm. Weather and air-quality searches are rejected; production chat receives that data automatically from the server environment service, together with location, source times and GPS-versus-central-Warsaw basis.
 - `filter_results`: identical filters on the previous result set.
 - `display_results`: every context-selected ID, title and 1–3 unique highlightIds drawn from those IDs. Empty selection requires empty highlights. Unknown IDs and unsupported/invalid filters fail.
 - `focus_map`: validated latitude/longitude/zoom.
@@ -33,6 +33,8 @@ Each result includes source/dataset URL, dataset ID, fetchedAt, sourceUpdatedAt 
 A search response includes `total`, `complete`, per-source fetched/matched counts and explicit `errors`. Partial sources retain known-good records but `complete:false` is carried to later display actions and shown in the UI. HTTP/auth/timeouts, unknown envelopes or malformed records cannot become a successful empty search. Redirects are rejected so authorization cannot be forwarded to another host.
 
 ## Official source evidence
+
+Current MCP search uses the four activity sources only. Weather/air adapters and the six-source measurements below are historical verification evidence; those categories are no longer exposed by MCP schemas, inventory or default searches. Environment context uses the separate location-based service documented in `docs/environment.md`.
 
 Verified 2026-10-17 against the public [catalogue API](https://dane.um.warszawa.pl/api/datasets?lang=pl&page=1&size=1000), the repository's catalogue snapshot, each official parameter/example file below, and authenticated POST responses. The example files document the exact endpoints and raw authorization header. All six document a complete dataset response with **no page, limit or cursor parameters**. Accordingly adapters read every record from the full response, including 1,227 pitches; they do not fabricate pagination or silently cap records. A future paginated/unknown envelope fails explicitly until a verified pagination contract is implemented.
 

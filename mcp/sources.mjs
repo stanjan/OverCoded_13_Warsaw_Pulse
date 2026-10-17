@@ -7,3 +7,5 @@ export const SOURCES = {
  route: { title: 'Trasy turystyczne', id: '00394370-1299-4d98-9910-0983fa7e7612', action: 'get_sbt_trasy_turystyczne', spec: 'sbt_trasy_turystyczne' },
  air_quality: { title: 'Monitoring jakości powietrza', id: '6a7e64d6-b451-4aa5-99d1-2dacece4323b', action: 'get_bopipk_monitoring_jakosci_powietrza', spec: 'bopipk_monitoring_jakosci_powietrza' },
 };
+// Weather/air are supplied automatically by the server's environment context.
+export const SEARCH_CATEGORIES = ['event', 'sports', 'pitch', 'route'];
