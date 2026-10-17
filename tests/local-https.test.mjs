@@ -28,6 +28,12 @@ test('local CA is reusable, certificates cover the phone address, HTTPS shares A
   assert.equal(leaf.checkIP('192.168.1.222'), '192.168.1.222'); assert.equal(leaf.checkIP('127.0.0.1'), '127.0.0.1'); assert.equal(leaf.checkHost('localhost'), 'localhost');
   assert.ok(leaf.keyUsage.includes('1.3.6.1.5.5.7.3.1'));
   assert.equal(first.reusedCA, false);
+  const incompleteDirectory = join(directory, 'incomplete');
+  const { mkdir } = await import('node:fs/promises');
+  await mkdir(incompleteDirectory);
+  await writeFile(join(incompleteDirectory, 'ca.cer'), ca.raw);
+  await assert.rejects(generateDevCertificate({ directory: incompleteDirectory, hosts }), /Niekompletna istniejąca CA/);
+  assert.deepEqual(await readFile(join(incompleteDirectory, 'ca.cer')), ca.raw);
   const second = await generateDevCertificate({ directory, hosts: [...hosts, '192.168.1.223'] });
   assert.equal(second.reusedCA, true); assert.equal(second.fingerprint, first.fingerprint);
   assert.deepEqual(await readFile(join(directory, 'ca.key')), caKey); assert.deepEqual(await readFile(join(directory, 'ca.pem')), caBytes);

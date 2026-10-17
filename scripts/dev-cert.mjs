@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, access, rename, rm } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, isAbsolute } from 'node:path';
 import { isIP } from 'node:net';
 import { X509Certificate, createPrivateKey, createPublicKey, randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +12,7 @@ function matchingKey(cert, key) {
 }
 
 export async function generateDevCertificate({ directory = join(root, '.local', 'tls'), hosts = ['localhost', '127.0.0.1'], openssl = process.env.OPENSSL_PATH } = {}) {
+  directory = resolve(directory);
   hosts = [...new Set(hosts)];
   if (!hosts.length || hosts.some(host => !isIP(host) && !/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$/.test(host))) throw new Error('Podaj poprawne adresy IP lub nazwy hostów.');
   if (!openssl) {
@@ -24,9 +25,11 @@ export async function generateDevCertificate({ directory = join(root, '.local', 
   };
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const paths = Object.fromEntries(['ca.key', 'ca.pem', 'ca.cer', 'server.key', 'server.pem'].map(name => [name, join(directory, name)]));
-  const keyExists = await exists(paths['ca.key']), certExists = await exists(paths['ca.pem']);
-  if (keyExists !== certExists) throw new Error('Niekompletna istniejąca CA. Zachowaj pliki i napraw je przed ponowną generacją; CA nie została nadpisana.');
-  const stage = join(directory, '.generate-' + randomBytes(8).toString('hex'));
+  const keyExists = await exists(paths['ca.key']), certExists = await exists(paths['ca.pem']), publicExists = await exists(paths['ca.cer']);
+  if ((keyExists || certExists || publicExists) && !(keyExists && certExists)) throw new Error('Niekompletna istniejąca CA. Zachowaj pliki i napraw je przed ponowną generacją; CA nie została nadpisana.');
+  const stage = resolve(directory, '.generate-' + randomBytes(8).toString('hex'));
+  const relativeStage = relative(directory, stage);
+  if (!relativeStage || relativeStage.startsWith('..') || isAbsolute(relativeStage)) throw new Error('Niepoprawny katalog tymczasowy certyfikatów.');
   await mkdir(stage, { mode: 0o700 });
   try {
     if (!keyExists) {
@@ -51,7 +54,11 @@ export async function generateDevCertificate({ directory = join(root, '.local', 
     await rename(join(stage, 'server.key'), paths['server.key']);
     await rename(join(stage, 'server.pem'), paths['server.pem']);
     return { directory, hosts, fingerprint: ca.fingerprint256, reusedCA: keyExists };
-  } finally { await rm(stage, { recursive: true, force: true }); }
+  } finally {
+    // Only remove the absolute generated child checked above, never the CA directory itself.
+    if (relative(directory, stage) !== relativeStage) throw new Error('Katalog tymczasowy opuścił katalog certyfikatów.');
+    await rm(stage, { recursive: true, force: true });
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
