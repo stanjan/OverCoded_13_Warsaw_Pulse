@@ -91,6 +91,17 @@
       const y=rect.top<view.top?rect.top-view.top:rect.bottom>view.bottom?rect.bottom-view.bottom:0;
       if(x||y)map.panBy(x,y);
     });
+    const stopInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
+    let stopPopupContent;
+    const closeStopPopup = () => { stopInfo.close?.();stopPopupContent=null; };
+    stopInfo.addListener('closeclick',()=>{stopPopupContent=null;});
+    stopInfo.addListener('domready',()=>{
+      const rect=(stopPopupContent?.closest?.('[role="dialog"]')||stopPopupContent)?.getBoundingClientRect?.(),view=popupViewport(element);
+      if(!rect||!view)return;
+      const x=rect.left<view.left?rect.left-view.left:rect.right>view.right?rect.right-view.right:0;
+      const y=rect.top<view.top?rect.top-view.top:rect.bottom>view.bottom?rect.bottom-view.bottom:0;
+      if(x||y)map.panBy(x,y);
+    });
     let activeBubble, activeMarker;
     // Every result pin stays visible, even when pins overlap.
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
@@ -105,7 +116,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { vehicleInfo.close?.();vehiclePopupContent=null;routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { closeStopPopup();vehicleInfo.close?.();vehiclePopupContent=null;routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -129,7 +140,10 @@
           const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
           routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 }));
         }
-        for(const stop of activeRouteStops(route, true))routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stop.name,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150}));
+        for(const stop of activeRouteStops(route, true)){
+          const marker=new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150});
+          marker.addEventListener('gmp-click',()=>{vehicleInfo.close?.();vehiclePopupContent=null;stopPopupContent=stopDetails(stop);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
+        }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
           routeView = {points:[...points,...activeRouteStops(route),...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
@@ -143,7 +157,7 @@
         for (const vehicle of vehicles || []) {
           if (!validTransitPath([vehicle]).length || !freshVehicle(vehicle)) continue;
           const marker=new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), gmpClickable:true, zIndex:250 });
-          marker.addEventListener('gmp-click',()=>{vehiclePopupContent=vehicleDetails(vehicle);vehicleInfo.setContent(vehiclePopupContent);vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
+          marker.addEventListener('gmp-click',()=>{closeStopPopup();vehiclePopupContent=vehicleDetails(vehicle);vehicleInfo.setContent(vehiclePopupContent);vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
@@ -246,7 +260,10 @@
             for(const[color,weight]of [['#ffffff',12],['#4285F4',8]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer);
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
-        for(const stop of activeRouteStops(route, true))L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2]}),title:stop.name,keyboard:false,interactive:false,zIndexOffset:150}).addTo(transitLayer);
+        for(const stop of activeRouteStops(route, true)){
+          const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop),{className:'transit-stop-popup',maxWidth:230,...vehiclePopupPadding(element)});
+          marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(transitLayer);
+        }
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
           const destination=validTransitPath([route.destinationPoint])[0];
@@ -368,6 +385,14 @@
     }return stops;
   }
   function stopElement(){const dot=document.createElement('span');dot.className='transit-stop';dot.style.width=dot.style.height=STOP_DOT_SIZE+'px';dot.setAttribute('aria-hidden','true');return dot;}
+  function stopPlatform(stop){return typeof stop.platform==='string'?stop.platform.trim():'';}
+  function stopTitle(stop){return 'Przystanek '+(stop.name||'bez nazwy')+(stopPlatform(stop)?' · stanowisko '+stopPlatform(stop):'');}
+  function stopDetails(stop){
+    const box=document.createElement('div');box.className='transit-stop-detail';
+    const name=document.createElement('strong');name.textContent=stop.name||'Przystanek';box.append(name);
+    const platform=stopPlatform(stop);if(platform){const label=document.createElement('p');label.textContent='Stanowisko '+platform;box.append(label);}
+    return box;
+  }
   function vehicleDirection(vehicle){return vehicle.directionSource==='confirmed_gtfs_trip'&&typeof vehicle.direction==='string'&&vehicle.direction.trim()?vehicle.direction:'Kierunek niepotwierdzony';}
   function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+vehicleDirection(vehicle)+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
   function vehicleDetails(vehicle){

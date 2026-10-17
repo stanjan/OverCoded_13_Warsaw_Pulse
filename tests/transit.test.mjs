@@ -92,9 +92,9 @@ test('MCP action resolves verified destination coordinates and reports request a
 
 
 test('active stops preserve exact boarded sequence including loops without leaking earlier/later trip stops',()=>{
- const data=graph();const middle={id:'m',name:'Middle',latitude:52.21,longitude:21},before={id:'before',name:'Before',latitude:52.18,longitude:21},after={id:'after',name:'After',latitude:52.26,longitude:21};data.stops.push(middle,before,after);data.trips=[{...data.trips[0],stopTimes:[event('before','13:50:00'),event('a','14:00:00'),event('m','14:03:00'),event('a','14:06:00','14:06:00',1),event('d','14:20:00'),event('after','14:30:00')]}];
+ const data=graph();const middle={id:'m',name:'Middle',platform:'02',latitude:52.21,longitude:21},before={id:'before',name:'Before',latitude:52.18,longitude:21},after={id:'after',name:'After',latitude:52.26,longitude:21};data.stops.push(middle,before,after);data.trips=[{...data.trips[0],stopTimes:[event('before','13:50:00'),event('a','14:00:00'),event('m','14:03:00'),event('a','14:06:00','14:06:00',1),event('d','14:20:00'),event('after','14:30:00')]}];
  const ride=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')})[0].steps.find(step=>step.mode==='TRANSIT');
- assert.equal(ride.fromStopIndex,1);assert.equal(ride.toStopIndex,4);assert.equal(ride.stopPositionSource,'gtfs_stop_sequence');assert.deepEqual(ride.stopPositions.map(stop=>stop.id),['a','m','a','d']);assert.deepEqual(ride.stopPositions.map(stop=>stop.sequenceIndex),[1,2,3,4]);assert.equal(ride.stopPositions[1].latitude,middle.latitude);assert.equal(ride.stopPositions[1].name,'Middle');
+ assert.equal(ride.fromStopIndex,1);assert.equal(ride.toStopIndex,4);assert.equal(ride.stopPositionSource,'gtfs_stop_sequence');assert.deepEqual(ride.stopPositions.map(stop=>stop.id),['a','m','a','d']);assert.deepEqual(ride.stopPositions.map(stop=>stop.sequenceIndex),[1,2,3,4]);assert.equal(ride.stopPositions[1].latitude,middle.latitude);assert.equal(ride.stopPositions[1].name,'Middle');assert.equal(ride.stopPositions[1].platform,'02');assert.equal(ride.stopPositions[0].platform,undefined);
 });
 
 test('vehicle directions require fresh unambiguous confirmed same-vehicle and same-line trip binding',()=>{

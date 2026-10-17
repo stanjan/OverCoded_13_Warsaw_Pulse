@@ -208,7 +208,12 @@ button.place-card__title:hover { background: #f2f4f6; }
 .transit-destination { display: block; width: 36px; height: 44px; color: #4285F4; filter: drop-shadow(0 3px 4px #32251f40); pointer-events: none; }
 .transit-destination svg { display: block; overflow: visible; }
 
-.transit-stop { display: block; width: 6px; height: 6px; box-sizing: border-box; border: 1px solid #0003; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0002; pointer-events: none; }
+.transit-stop { position: relative; display: block; width: 6px; height: 6px; box-sizing: border-box; border: 1px solid #0003; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0002; cursor: pointer; pointer-events: auto; }
+.transit-stop::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; }
+.transit-stop-detail { padding: 4px; color: #263442; font: 12px 'Plus Jakarta Sans', sans-serif; }
+.transit-stop-detail strong { font-size: 14px; }
+.transit-stop-detail p { margin: 6px 0 0; }
+:focus-visible > .transit-stop { outline: 2px solid #0051d5; outline-offset: 4px; }
 .transit-vehicle { display: grid; place-items: center; width: 36px; height: 36px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: #fff; color: #65727f; box-shadow: 0 2px 5px #0003; cursor: pointer; }
 .transit-vehicle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .transit-vehicle-detail { padding: 4px; color: #263442; font: 12px 'Plus Jakarta Sans', sans-serif; }
