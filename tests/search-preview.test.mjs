@@ -194,17 +194,19 @@ test('8 MB record descriptions cannot overflow browser SSE, while follow-up filt
   assert.equal(huge.description.endsWith('Ukryty pełny opis'), true);
 });
 
-test('preview counts and unknown distances are disclosed by the UI independently of generated prose', async () => {
+test('result cards omit the removed heading and diagnostics while retaining search metadata', async () => {
   const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
   const render = app.slice(app.indexOf('function showResults(action)'), app.indexOf('\nconst prompts'));
   const element = tag => ({ tag, children: [], append(...children) { this.children.push(...children); },
     replaceChildren(...children) { this.children = children; }, addEventListener() {} });
   const panel = element('section');
-  runInNewContext(render + '\nshowResults(action);', { document: { createElement: element }, resultPanel: panel, lastDisplayedAction: null,
+  const context = { document: { createElement: element }, resultPanel: panel, lastDisplayedAction: null,
     cityMap: undefined, action: { title: 'Przykłady', results: [{ ...records[0], lat: undefined, lng: undefined }], highlightIds: [], complete: true,
-      narrowing: { preview: true, originalTotal: 175, selection: 'source_order' } } });
-  assert.match(panel.children[1].textContent, /Podgląd: 1 z 175/);
-  assert.match(panel.children[1].textContent, /odległość jest nieznana/);
-  assert.doesNotMatch(panel.children[1].textContent, /Najpierw najbliższe/);
+      narrowing: { preview: true, originalTotal: 175, selection: 'source_order' } } };
+  runInNewContext(render + '\nshowResults(action);', context);
+  assert.equal(panel.children.every(child => child.tag === 'article'), true);
+  assert.equal(context.lastDisplayedAction, context.action);
+  assert.equal(context.action.narrowing.originalTotal, 175);
+  assert.equal(context.action.narrowing.preview, true);
   assert.equal(panel.children.filter(child => child.tag === 'article').length, 1);
 });

@@ -21,7 +21,7 @@ for(const vendor of ['google','leaflet'])test('MCP result cards use '+vendor+' a
  const cards=panel.children.filter(e=>e.tag==='article');assert.equal(cards.length,1); // only the ★ recommended result is listed
  assert.equal(cards[0].children[0].textContent,'Koncert');
  assert.match(cards[0].children.find(c=>c.className==='rec-card__meta').children[0].textContent,/^★ /);
- assert.match(panel.children[1].textContent,/Niepełne/);
+ assert.equal(panel.children.every(child=>child.tag==='article'),true); // no redundant heading or diagnostic block
  cards[0].children.find(c=>c.tag==='button').listeners.click();
  const view=calls.find(c=>c[0]==='view');assert.equal(view[1].lat,52.23);assert.equal(view[1].lng,21.01);assert.equal(view[2],16);assert.ok(calls.some(c=>c[0]==='open'));
  const fit=calls.find(c=>c[0]==='fit');assert.equal(fit[1].length,1);assert.equal(fit[2].bottom,vendor==='google'?24:230);
@@ -38,7 +38,7 @@ test('address-only pitches remain readable on the list without implying a measur
  runInNewContext(render+'\nshowResults(action);',context);
  const card=panel.children.find(e=>e.tag==='article');assert.ok(card);
  assert.equal(card.children.find(e=>e.className==='place-card__address').textContent,'ul. Testowa 9 · Wola');
- assert.match(panel.children[1].textContent,/odległość jest nieznana/);
+ assert.equal(panel.children.every(child=>child.tag==='article'),true);
  assert.equal(card.children.some(e=>e.tag==='button'),false);
 });
 

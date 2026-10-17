@@ -6,7 +6,7 @@ body { background: #e6e8ea; min-width: 320px; }
 .weather-bar > div { gap: 6px; }
 .drawer-container { bottom: 0 !important; padding-bottom: var(--safe-bottom); }
 #sheet-content { max-height: min(48dvh, 480px); opacity: 1; transform: translateY(0); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
-.is-collapsed #sheet-content { max-height: 0; opacity: 0; transform: translateY(12px); overflow: hidden; pointer-events: none; }
+#ai-sheet.is-collapsed #sheet-content { max-height: 0; min-height: 0; opacity: 0; transform: translateY(12px); overflow: hidden; pointer-events: none; }
 #welcome-prompts[hidden] { display: none; }
 #search-bar-input { font-family: inherit; font-size: 16px; }
 #search-container { padding-bottom: 12px; }
@@ -31,8 +31,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .message-error button { text-decoration: underline; min-height: 44px; }
 #ai-submit-btn:disabled { opacity: .5; cursor: wait; }
 #place-results:not(:empty) { padding-block: 12px; }
-#place-results h2 { font-size: 16px; font-weight: 800; letter-spacing: -.03em; }
-.results-note { font-size: 11px; color: #64748b; margin: 5px 0 10px; }
 .place-card { display: flex; flex-direction: column; text-align: left; gap: 5px; width: 100%; padding: 0; margin-top: 6px; box-sizing: border-box; border: 1px solid #c5c6cd55; border-radius: 16px; background: white; box-shadow: 0 4px 12px -2px #0000000f, 0 2px 4px -2px #0000000a; }
 .place-card__title { display: block; width: 100%; min-height: 44px; padding: 12px 14px; box-sizing: border-box; text-align: left; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.35; color: #191c1e; background: none; border: 0; border-radius: 16px; }
 button.place-card__title { cursor: pointer; }
@@ -318,10 +316,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-pin__star svg { fill: currentColor; stroke-width: 1; }
 
 /* Event opened in the conversation: the panel grows to full height and shows only the event. */
-#ai-sheet.is-event-open #sheet-content { --event-full: calc(100dvh - 128px - var(--safe-bottom) - var(--safe-top, env(safe-area-inset-top, 0px))); max-height: var(--event-full); min-height: var(--event-full); transition: none; }
 #sheet-content:has(> .conversation-event) > :not(.conversation-event) { display: none; }
-.drawer-container.is-event-open > div:first-child { display: none; }
-.conversation-event { position: relative; margin: 0 -16px; background: #fffdf9; will-change: transform; overflow: hidden; }
+.conversation-event { flex: none; position: relative; margin: 0 -16px; background: #fffdf9; will-change: transform; overflow: visible; }
 .conversation-event__back { position: sticky; top: 0; z-index: 3; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; margin: 6px 0 8px 12px; padding: 4px 12px 4px 8px; border: 0; border-radius: 999px; background: #fffdf9e6; color: #342b26; font: inherit; font-size: 13px; font-weight: 700; box-shadow: 0 1px 4px #0000002e; cursor: pointer; }
 .conversation-event__back .material-symbols-outlined { width: 20px; height: 20px; }
 .conversation-event .result-detail--full .result-image--large { height: 200px; }
@@ -357,7 +353,7 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .rec-card .rec-card__when { font-size: 12px; color: #342b26; }
 
 /* Full-screen conversation (drag the handle up): the panel reaches the top and covers the weather bar. */
-#ai-sheet.is-full #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - var(--safe-top, env(safe-area-inset-top, 0px))); max-height: var(--sheet-full); min-height: var(--sheet-full); }
+#ai-sheet.is-full:not(.is-collapsed) #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - var(--safe-top, env(safe-area-inset-top, 0px))); max-height: var(--sheet-full); min-height: var(--sheet-full); }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
