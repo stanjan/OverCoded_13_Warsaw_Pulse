@@ -24,6 +24,29 @@ export function eventImage(raw) {
   }
   return null;
 }
+// The calendar publishes audience tags inside category, while sports may use dedicated.
+// Keep only explicit source audience labels here; topic categories are not suitability tags.
+const categoryAudienceLabels = new Set(['dla dzieci', 'dla mlodziezy i doroslych', 'dla seniorow', 'dla mlodziezy', 'dla doroslych', 'dla rodzin']);
+const childAudienceAliases = new Set(['dzieci', 'dziecko', 'dziecka', 'dziecmi', 'dla dzieci', 'dla dziecka', 'z dziecmi']);
+const familyAudienceAliases = new Set(['rodzina', 'rodziny', 'rodzin', 'rodzinne', 'rodzinny', 'dla rodziny', 'dla rodzin', 'rodziny z dziecmi', 'rodzin z dziecmi', 'dla rodzin z dziecmi', 'rodzina z dziecmi']);
+function audienceRequest(value) {
+  const requested = normalize(value).trim().replace(/\s+/g, ' ');
+  const parts = requested.split(/\s*[,/]\s*|\s+(?:i|lub|albo)\s+/);
+  if (!requested || !parts.every(part => childAudienceAliases.has(part) || familyAudienceAliases.has(part))) return null;
+  return { family: parts.some(part => familyAudienceAliases.has(part)) };
+}
+export function audienceFilterMapping(value) {
+  if (!audienceRequest(value)?.family) return null;
+  return { requested: value, sourceLabels: ['Dla dzieci'], note: 'Filtr rodzinny uwzględnia również etykietę źródła „Dla dzieci”; nie potwierdza ona osobnej kategorii „dla rodzin” ani wieku dzieci.' };
+}
+function audienceMatches(labels, requested) {
+  const aliases = audienceRequest(requested);
+  if (!aliases) return labels.some(label => normalize(label).includes(normalize(requested)));
+  return labels.some(label => {
+    const normalized = normalize(label).trim().replace(/\s+/g, ' ');
+    return childAudienceAliases.has(normalized) || /^(?:dla )?dzieci(?:$|[\s,(])/.test(normalized) || (aliases.family && (familyAudienceAliases.has(normalized) || /^(?:dla )?rodzin(?:y)?(?:$|[\s,(])/.test(normalized)));
+  });
+}
 export class SourceError extends Error {
   constructor(code, category) { super(code); this.code = code; this.category = category; }
 }
@@ -38,7 +61,7 @@ export function normalizeRecord(raw, category, fetchedAt) {
     locations = features.flatMap(f => { const p = f.geometry?.type === 'Point' ? coordinates(f.geometry.coordinates?.[1], f.geometry.coordinates?.[0]) : null; return p ? [{...p, district:text(f.properties?.district)}] : []; });
     position = locations[0];
     dates = category === 'event' ? list(raw.occurrence).map(o => ({ from: date(o.from), to: date(o.to || o.from), sourceFrom: o.from, sourceTo: o.to })).filter(o => o.from && o.to) : list(raw.date).map(d => ({ from: date(d), to: date(d) })).filter(o => o.from);
-    details = { imageUrl: eventImage(raw), activities: names(raw.category), audience: names(raw.dedicated), weekdays: names(raw.day), time: text(raw.time), addresses: list(raw.address).map(a => [text(a.name), text(a.street)].filter(Boolean).join(', ')) };
+    details = { imageUrl: eventImage(raw), activities: names(raw.category), audience: [...new Set([...names(raw.dedicated), ...names(raw.category).filter(label => categoryAudienceLabels.has(normalize(label).trim()))])], weekdays: names(raw.day), time: text(raw.time), addresses: list(raw.address).map(a => [text(a.name), text(a.street)].filter(Boolean).join(', ')) };
   } else if (category === 'pitch') {
     name = text(raw['Nazwa placówki oświatowej']); districts = [text(raw.Dzielnica)].filter(Boolean);
     description = [raw['Typ obiektu'], raw['Boisk uniwersalne zawiera'], raw.Uwagi].map(text).filter(Boolean).join('. ');
@@ -78,7 +101,7 @@ export function matches(record, filters) {
   if (filters.category && record.category !== filters.category) return false;
   if (filters.district && !(record.districts || [record.district]).some(d => normalize(d).includes(normalize(filters.district)))) return false;
   if (filters.activity && !(record.activities || [record.description]).some(a => normalize(a).includes(normalize(filters.activity)))) return false;
-  if (filters.audience && !(record.audience || []).some(a => normalize(a).includes(normalize(filters.audience)))) return false;
+  if (filters.audience && !audienceMatches(record.audience || [], filters.audience)) return false;
   if (filters.weekday && !(record.weekdays || Object.entries(record.schedule || {}).filter(([,hours]) => /\d{1,2}[:.]\d{2}/.test(hours) && !/zamkni|nieczyn|niedost/.test(normalize(hours))).map(([day])=>day)).some(d => normalize(d) === normalize(filters.weekday))) return false;
   if (filters.dateFrom || filters.dateTo) {
     const from = filters.dateFrom || '0000-01-01', to = filters.dateTo || '9999-12-31';
@@ -112,7 +135,9 @@ export function createCatalog({ fetchImpl = fetch, token = () => process.env.DAT
         sources.push({ category, datasetId: source.id, sourceUrl: 'https://dane.um.warszawa.pl/pl/catalogue/' + source.id, fetchedAt, fetched: rows.length, matched: matched.length, complete: true, pagination: 'full_dataset_response' });
       } catch (error) { errors.push({ category, code: error instanceof SourceError ? error.code : 'SOURCE_SCHEMA', message: source.title + ': źródło niedostępne lub niezgodne; brak wyników nie oznacza pustego katalogu.' }); }
     }
+    const audienceMapping = audienceFilterMapping(filters.audience);
     return { results, total: results.length, complete: errors.length === 0, dataMode: 'official', sources, errors,
+      ...(audienceMapping ? { audienceFilterMapping: audienceMapping } : {}),
       notice: 'Dane miejskie z oznaczeniem czasu źródłowego; pobranie nie potwierdza aktualności. Brakujące daty, współrzędne i cechy nie są zgadywane.' };
   } };
 }
