@@ -102,6 +102,20 @@ export function normalizeRecord(raw, category, fetchedAt) {
     position = raw.geometry?.type === 'Point' ? coordinates(raw.geometry.coordinates?.[1], raw.geometry.coordinates?.[0]) : null;
     details = { address, toiletType: type, operator: text(p.zarzadca), accessible: sourceFlag(p.dostepnosc), paid: sourceFlag(p.platnosc), changingTable: sourceFlag(p.przewijak), openingHours: text(p.godziny), notes: text(p.uwagi), updatedAt: text(p.aktu_dan), dataOrigin: text(p.poch_dan) };
     description = [details.openingHours && 'Godziny według źródła: ' + details.openingHours, details.paid === null ? 'Opłata: brak danych' : details.paid ? 'Płatna' : 'Bezpłatna', details.accessible === null ? 'Dostępność: brak danych' : details.accessible ? 'Dostępna dla wszystkich według źródła' : 'Źródło zgłasza bariery architektoniczne', details.changingTable === null ? 'Przewijak: brak danych' : details.changingTable ? 'Przewijak: tak' : 'Przewijak: nie', details.notes, details.updatedAt && 'Aktualizacja danych: ' + details.updatedAt].filter(Boolean).join('. ');
+  } else if (category === 'aed') {
+    const p = raw.properties;
+    if (!p || typeof p !== 'object' || Array.isArray(p) || !text(p.defibrillator_id)) throw new SourceError('SOURCE_SCHEMA', category);
+    const objectName = text(p.location_object_name);
+    const address = [text(p.location_street), text(p.location_building)].filter(Boolean).join(' ');
+    if (!objectName && !address) throw new SourceError('SOURCE_SCHEMA', category);
+    name = 'Defibrylator AED · ' + (objectName || address);
+    // The published AED Point example uses [[longitude, latitude]]. Accept the
+    // ordinary Point pair too, but never flatten arbitrary/multiple vertices.
+    const rawPoint = raw.geometry?.coordinates;
+    const point = Array.isArray(rawPoint) && rawPoint.length === 1 && Array.isArray(rawPoint[0]) ? rawPoint[0] : rawPoint;
+    position = raw.geometry?.type === 'Point' && Array.isArray(point) && point.length === 2 ? coordinates(point[1], point[0]) : null;
+    details = { aedId: text(p.defibrillator_id), address, city: text(p.location_city), postcode: text(p.location_postcode), openingHours: text(p.device_access_description), availability: text(p.device_availability), publicAccess: text(p.device_public_access), deviceLocation: text(p.device_location), locationDescription: text(p.location_description), manufacturer: text(p.device_manufacturer) };
+    description = [address, details.deviceLocation, details.locationDescription, 'Dostęp według źródła: ' + (details.publicAccess || 'brak danych'), 'Dostęp całodobowy według źródła: ' + (details.availability || 'brak danych'), 'Godziny/opis dostępu według źródła: ' + (details.openingHours || 'brak danych')].filter(Boolean).join('. ');
   } else if (category === 'weather') {
     name = text(raw.lokalizacja); position = coordinates(raw.lat, raw.lon); observedAt = [text(raw.czas)].filter(Boolean);
     details = { airTemperatureC: finite(raw.temp_pow), surfaceTemperatureC: finite(raw.temp_naw), humidityPercent: finite(raw.wilg_pow), windSpeed: finite(raw.pred_wiatru), windDirection: finite(raw.kier_wiatru), precipitationIntensity: finite(raw.int_opadu) };

@@ -59,7 +59,7 @@ function sourceCounts(sources, counts) {
   return sources?.map(source => ({ ...source, matchedBeforeNarrowing: source.matched, matched: counts[source.category] || 0 }));
 }
 
-const categoryLabels = { event: 'wydarzenia', sports: 'zajęcia sportowe', pitch: 'boiska', route: 'trasy rekreacyjne', toilet: 'toalety' };
+const categoryLabels = { event: 'wydarzenia', sports: 'zajęcia sportowe', pitch: 'boiska', route: 'trasy rekreacyjne', toilet: 'toalety', aed: 'defibrylatory AED' };
 function refinementExamples(records) {
   const values = key => {
     const counts = new Map();
@@ -89,6 +89,7 @@ function projectRecord(record, browser = false) {
     paid: record.paid, accessible: record.accessible, changingTable: record.changingTable,
     openingHours: short(record.openingHours), toiletType: short(record.toiletType), operator: short(record.operator),
     updatedAt: short(record.updatedAt), surface: short(record.surface), lengthKm: record.lengthKm,
+    ...(record.category === 'aed' ? { aedId: short(record.aedId), availability: short(record.availability), publicAccess: short(record.publicAccess), deviceLocation: short(record.deviceLocation), locationDescription: short(record.locationDescription), manufacturer: short(record.manufacturer), city: short(record.city), postcode: short(record.postcode) } : {}),
     ...(record.category === 'route' ? { geometryStatus: record.geometryStatus, traceVertexCount: record.traceVertexCount,
       ...(browser ? { traceSegments: record.traceSegments, touristPoints: record.touristPoints } : {}) } : {}),
     schedule: record.schedule && Object.fromEntries(Object.entries(record.schedule).slice(0, 7).map(([day, hours]) => [day, short(hours)])),
