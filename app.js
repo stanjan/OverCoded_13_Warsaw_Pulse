@@ -392,7 +392,7 @@ function showResults(action) {
       const actions = document.createElement('div'); actions.className = 'rec-card__actions';
       const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'rec-card__transit';
       const transitIcon = document.createElement('span'); transitIcon.className = 'material-symbols-outlined'; transitIcon.textContent = 'near_me';
-      const transitText = document.createElement('span'); transitText.textContent = 'Dojedź komunikacją';
+      const transitText = document.createElement('span'); transitText.textContent = 'Wyznacz trasę';
       transit.append(transitIcon, transitText);
       transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
       actions.append(transit);

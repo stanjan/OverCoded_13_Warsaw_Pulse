@@ -364,17 +364,18 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
-.tourist-point{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff8e8;outline:1px solid #702d46;border-radius:50%;background:#702d46;color:#fff8e8;font-family:Georgia,serif;font-size:12px;font-weight:700;box-shadow:0 2px 5px #40152a33;box-sizing:border-box}
-.tourist-point-detail{display:block;color:#552237;padding:4px;font-family:Georgia,serif;font-size:15px}
-.tourist-card-note{display:block;color:#735866;font-size:13px;margin-top:4px}
+.tourist-point{display:grid;place-items:center;width:22px;height:22px;padding:0;border:2px solid #fff8e8;outline:1px solid #3a2a22;border-radius:50%;background:#3a2a22;color:#fff8e8;font-family:Arial,sans-serif;font-size:12px;line-height:1;font-variant-numeric:lining-nums tabular-nums;font-weight:700;box-shadow:0 2px 5px #3a2a2233;box-sizing:border-box}
+.tourist-point-detail{display:block;color:#3a2a22;padding:4px;font-family:Georgia,serif;font-size:15px}
+.tourist-card-note{display:block;color:#75675f;font-size:13px;margin-top:4px}
 .tourist-result-detail .result-image--large{height:44px}
 .tourist-result-detail .result-detail__body{max-height:calc(var(--tourist-popup-height,200px) - 44px);box-sizing:border-box}
-.tourist-result-detail .result-image--large{background:#f5edf0;color:#702d46;border-bottom:1px solid #b98c9e}
+.tourist-result-detail .result-image--large{background:#f3eeea;color:#3a2a22;border-bottom:1px solid #bdb0a5}
 .tourist-result-detail .result-image__fallback{font-size:28px}
-.tourist-result-detail h3{font-family:Georgia,serif;color:#552237}
-.result-bubble[data-tourism='true'] .result-pin{background:#702d46;color:#fff8e8;border-color:#fff8e8}
-.result-bubble[data-tourism='true'] .result-image{background:#f5edf0;color:#702d46}
-.result-bubble[data-tourism='true'].result-bubble--recommended .result-pin{outline:2px solid #b98c9e;outline-offset:2px}
+.tourist-result-detail h3{font-family:Georgia,serif;color:#3a2a22}
+.result-bubble[data-tourism='true']{--pin:#3a2a22;--pin-light:#3a2a22}
+.result-bubble[data-tourism='true'] .result-pin{background:#3a2a22;color:#fff8e8;border-color:#fff8e8}
+.result-bubble[data-tourism='true'] .result-image{background:#f3eeea;color:#3a2a22}
+.result-bubble[data-tourism='true'].result-bubble--recommended .result-pin{outline:2px solid #bdb0a5;outline-offset:2px}
 
 /* Favourites: heart on place cards, top-right list button (below the weather bar on phones) and its panel. */
 .rec-card__favorite { flex: none; width: 44px; height: 44px; display: grid; place-items: center; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: #f3ece4; color: #3a2a22; cursor: pointer; }

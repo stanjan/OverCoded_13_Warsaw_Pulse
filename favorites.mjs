@@ -127,7 +127,7 @@ export function mountFavorites({ doc, host, store }) {
     if (where) row.append(el('span', 'favorites-item__address', where));
     const actions = el('div', 'favorites-item__actions');
     if (Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
-      actions.append(action('favorites-item__transit', 'near_me', 'Dojedź komunikacją', () => {
+      actions.append(action('favorites-item__transit', 'near_me', 'Wyznacz trasę', () => {
         closePanel(false);
         host.dispatchEvent(new (host.CustomEvent || CustomEvent)('city:transit', { detail: { destination: { latitude: item.lat, longitude: item.lng, label: item.name } } }));
       }, true));
