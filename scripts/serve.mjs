@@ -14,7 +14,7 @@ if (process.env.DATA_API_KEY) transitService.startTracking().catch(() => {});
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
 const httpsPort = process.env.HTTPS_PORT ? Number(process.env.HTTPS_PORT) : null;
-let tlsOptions, publicCA;
+let tlsOptions, publicCA, publicCAPem;
 if (httpsPort !== null) {
   if (!Number.isInteger(httpsPort) || httpsPort < 1 || httpsPort > 65535 || httpsPort === port) throw new Error('HTTPS_PORT musi być wolnym portem innym niż PORT.');
   if (!process.env.TLS_CERT_FILE || !process.env.TLS_KEY_FILE) throw new Error('HTTPS wymaga TLS_CERT_FILE i TLS_KEY_FILE. Uruchom npm run cert:local -- <IP komputera>.');
@@ -26,6 +26,7 @@ if (httpsPort !== null) {
     const leaf = new X509Certificate(tlsOptions.cert);
     if (!ca.ca || !leaf.verify(ca.publicKey) || leaf.ca || Date.parse(leaf.validTo) <= Date.now() || Date.parse(leaf.validFrom) > Date.now()) throw new Error('Expected a valid server certificate signed by the downloadable CA.');
     publicCA = ca.raw;
+    publicCAPem = ca.toString();
   } catch { throw new Error('Nie można uruchomić HTTPS: sprawdź lokalny certyfikat, klucz oraz .local/tls/ca.cer. HTTP nie został uruchomiony.'); }
 }
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
@@ -41,6 +42,10 @@ const handleRequest = async (req, res) => {
     if (url.pathname === '/dev-ca.cer' && ['GET', 'HEAD'].includes(req.method) && publicCA) {
       res.writeHead(200, { 'Content-Type': 'application/pkix-cert', 'Content-Disposition': 'attachment; filename="warsaw-ai-local-ca.cer"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : publicCA);
+    }
+    if (url.pathname === '/dev-ca.crt' && ['GET', 'HEAD'].includes(req.method) && publicCAPem) {
+      res.writeHead(200, { 'Content-Type': 'application/x-x509-ca-cert', 'Content-Disposition': 'attachment; filename="warsaw-ai-local-ca.crt"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(req.method === 'HEAD' ? undefined : publicCAPem);
     }
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
     // Browser map key: public by design, protected by its HTTP-referrer and API restrictions in Google Cloud.
