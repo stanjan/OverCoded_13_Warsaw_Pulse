@@ -9,6 +9,14 @@ const at='2026-10-17T12:00:00Z';
 const event=(title,labels=[])=>({title,text:'Opis wydarzenia',category:labels.map((name,i)=>({id:i+1,name})),localization:[{name:'Wola'}],occurrence:[{from:'2026-10-17T12:00:00+02',to:'2026-10-17T14:00:00+02'}],map:{features:[{geometry:{type:'Point',coordinates:[20.98,52.23]},properties:{district:'Wola'}}]}});
 const record=(labels,extra={})=>normalizeRecord({...event('Wydarzenie',labels),...extra},'event',at);
 
+test('source pitch sport inflections match their requested sport without inventing another discipline',()=>{
+ const pitch=normalizeRecord({'Nazwa placówki oświatowej':'Boisko szkolne',Dzielnica:'Wola','Typ obiektu':'boiska uniwersalne/wielozadaniowe','Boisk uniwersalne zawiera':'boiska do koszykówki-boiska do piłki ręcznej-boiska do piłki nożnej'},'pitch',at);
+ for(const activity of ['koszykówka','koszykówki','piłka ręczna','piłka nożna'])assert.equal(matches(pitch,{activity,district:'Wola'}),true);
+ for(const activity of ['siatkówka','tenis'])assert.equal(matches(pitch,{activity}),false);
+ const volleyball=normalizeRecord({'Nazwa placówki oświatowej':'Boisko','Typ obiektu':'boisko do siatkówki'},'pitch',at);
+ assert.equal(matches(volleyball,{activity:'siatkówka'}),true);assert.equal(matches(volleyball,{activity:'koszykówka'}),false);
+});
+
 test('calendar audience comes from explicit category labels and preserves legacy dedicated',()=>{
  const normalized=record(['Kultura','Dla dzieci','Dla seniorów'],{dedicated:[{name:'Seniorzy'},{name:'Dla dzieci'},{name:'Nieznana grupa'}]});
  assert.deepEqual(normalized.audience,['Seniorzy','Dla dzieci','Nieznana grupa','Dla seniorów']);

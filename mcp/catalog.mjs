@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { SOURCES, SEARCH_CATEGORIES } from './sources.mjs';
 export const normalize = value => String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
+// Match inflected names of the same sport; do not infer suitability or a new activity.
+const activityText = value => normalize(value).replace(/\bkoszykow(?:ka|ki|ke|ce)\b/g, 'koszykowka').replace(/\bsiatkow(?:ka|ki|ke|ce)\b/g, 'siatkowka').replace(/\bpilk(?:a|i|e)\b/g, 'pilka').replace(/\bnozn(?:a|ej|e)\b/g, 'nozna').replace(/\breczn(?:a|ej|e)\b/g, 'reczna');
 const text = value => typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
 const names = value => Array.isArray(value) ? value.map(v => text(v?.name)).filter(Boolean) : [];
 const finite = value => (typeof value === 'number' || (typeof value === 'string' && value.trim())) && Number.isFinite(Number(value)) ? Number(value) : null;
@@ -100,7 +102,7 @@ export function matches(record, filters) {
   if (filters.query && !normalize(JSON.stringify(record)).includes(normalize(filters.query))) return false;
   if (filters.category && record.category !== filters.category) return false;
   if (filters.district && !(record.districts || [record.district]).some(d => normalize(d).includes(normalize(filters.district)))) return false;
-  if (filters.activity && !(record.activities || [record.description]).some(a => normalize(a).includes(normalize(filters.activity)))) return false;
+  if (filters.activity && !(record.activities || [record.description]).some(a => activityText(a).includes(activityText(filters.activity)))) return false;
   if (filters.audience && !audienceMatches(record.audience || [], filters.audience)) return false;
   if (filters.weekday && !(record.weekdays || Object.entries(record.schedule || {}).filter(([,hours]) => /\d{1,2}[:.]\d{2}/.test(hours) && !/zamkni|nieczyn|niedost/.test(normalize(hours))).map(([day])=>day)).some(d => normalize(d) === normalize(filters.weekday))) return false;
   if (filters.dateFrom || filters.dateTo) {
