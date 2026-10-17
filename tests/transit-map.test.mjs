@@ -80,3 +80,12 @@ test('both maps draw all dim full-trip contexts below active legs, fit only the 
  }
  google.showRoute(route);assert.ok(lines.slice(0,5).every(line=>line.map===null));google.clearRoute();assert.ok(lines.every(line=>line.map===null));
 });
+
+test('verified walking paths use blue circles with white outlines on both maps, preserve destination coordinates and clear overlays',async()=>{
+ const{context,calls,lines,markers,groups}=setup();let leaflet;const google=await context.window.createCityMap(element('div'),{onReplace:adapter=>leaflet=adapter});
+ const selected={destinationPoint:{latitude:52.2101,longitude:21.0001},steps:[{mode:'WALK',geometry:'osm_pedestrian',path:[{latitude:52.2,longitude:21},{latitude:52.205,longitude:21.001},{latitude:52.21,longitude:21}]}]};
+ google.showRoute(selected);const line=lines[0];assert.equal(line.strokeOpacity,0);assert.equal(line.icons.length,1);assert.equal(line.icons[0].repeat,'12px');assert.equal(line.icons[0].icon.fillColor,'#4285F4');assert.equal(line.icons[0].icon.strokeColor,'#ffffff');assert.equal(line.icons[0].icon.strokeWeight,2);assert.equal(markers[0].position.lat,52.2101);assert.equal(markers[0].position.lng,21.0001);
+ context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));assert.equal(line.map,null);leaflet.showRoute(selected);const drawn=calls.filter(c=>c[0]==='leaflet-line');assert.equal(drawn.length,2);assert.deepEqual(drawn.map(c=>c[2].color),['#ffffff','#4285F4']);assert.deepEqual(drawn.map(c=>c[2].weight),[8,4]);assert.ok(drawn.every(c=>c[2].dashArray==='0 12'&&c[2].lineCap==='round'&&c[2].opacity===1));const dest=calls.filter(c=>c[0]==='leaflet-marker').at(-1);assert.equal(dest[1][0],52.2101);leaflet.clearRoute();assert.equal(groups[1].items.length,0);
+ // A schematic fallback must not inherit the verified path's blue dots.
+ leaflet.showRoute(route);assert.equal(calls.filter(c=>c[0]==='leaflet-line').at(-2)[2].color,'#61776a');
+});

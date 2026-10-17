@@ -91,13 +91,14 @@
         for (const step of route?.steps || []) {
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
           if (path.length < 2) continue;
-          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, clickable: false, zIndex: 1 }));
+          const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:3,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'12px'}]}:{}), clickable: false, zIndex: 1 }));
         }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
-          const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
+          const bounds = new google.maps.LatLngBounds();[...points,...validTransitPath([route.destinationPoint])].forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
           map.fitBounds(bounds, routePadding(element, { top }));
-          const destination = points.at(-1);
+          const destination = validTransitPath([route.destinationPoint])[0]||points.at(-1);
           routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content: destinationElement(), title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
         return routeLines.length > 0;
@@ -197,12 +198,16 @@
         for (const step of route?.steps || []) {
           const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
           if(path.length<2)continue;lineCount++;
-          L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
+          if(step.mode==='WALK'&&step.geometry==='osm_pedestrian'){
+            // Round zero-length SVG dashes form circles, with fixed pixel spacing at every zoom.
+            for(const[color,weight]of [['#ffffff',8],['#4285F4',4]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 12',dashOffset:'0',interactive:false}).addTo(transitLayer);
+          }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
-          L.marker(points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
-          const padding=routePadding(element,{top});map.fitBounds(points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});
+          const destination=validTransitPath([route.destinationPoint])[0];
+          L.marker(destination?[destination.latitude,destination.longitude]:points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
+          const padding=routePadding(element,{top});map.fitBounds(destination?[...points,[destination.latitude,destination.longitude]]:points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});
         }
         return lineCount>0;
       },
