@@ -306,6 +306,8 @@ function startLocating({ auto = false } = {}) {
     if (!hasRecentLocation()) refreshLocation();
   }, { enableHighAccuracy: false, timeout: 20000, maximumAge: LOCATION_MAX_AGE });
 }
+// In-panel actions request GPS without collapsing the conversation.
+window.requestCityLocation = () => { startLocating(); return refreshLocation(); };
 gpsButton.addEventListener('click', () => { setExpanded(false); startLocating(); });
 function refreshVisibleLocation() {
   if (document.visibilityState === 'hidden' || permissionDenied || !permissionGranted) return;

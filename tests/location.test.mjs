@@ -236,3 +236,11 @@ test('temporary refresh errors preserve an imprecise last known point for immedi
   assert.equal(h.win.getCityLocation().accuracy, 12000);
   assert.equal(h.win.getCityLocation().observedAt, now.toISOString());
 });
+
+
+test('in-panel GPS acquisition does not invoke the map button collapse action',async()=>{
+ const h=await browserLocation();let collapsed=0;h.context.setExpanded=()=>collapsed++;
+ const pending=h.win.requestCityLocation();const acquisition=h.acquisitions.at(-1);
+ acquisition.success(h.position({latitude:52.3}));const actual=await pending;
+ assert.equal(actual.status,'available');assert.equal(actual.latitude,52.3);assert.equal(collapsed,0);
+});
