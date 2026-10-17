@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bridgeCompletion, createAssistant, readSse } from '../server/assistant.mjs';
+import { provider } from './catalog-fixture.mjs';
 
 const frame = data => `data: ${typeof data === 'string' ? data : JSON.stringify(data)}\r\n\r\n`;
 async function* bytes(text) { for (const byte of Buffer.from(text)) yield Uint8Array.of(byte); }
@@ -41,10 +42,10 @@ test('bridge streams real text before final while tool JSON stays out of public 
 test('assistant publishes validated map actions and activity before final response and reuses conversation id', async () => {
   let round = 0, finished = false; const events = [];
   const call = (name, args) => ({ id: `call-${round}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
-  const assistant = createAssistant({ completion: async (history, options) => {
+  const assistant = createAssistant({ provider, completion: async (history, options) => {
     assert.ok(options.sessionId); round++;
-    if (round === 1) return { tool_calls: [call('search_places', { category: 'culture' })] };
-    if (round === 2) return { tool_calls: [call('display_results', { ids: ['demo-kopernik'], title: 'Kultura' })] };
+    if (round === 1) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (round === 2) return { tool_calls: [call('display_results', { ids: ['demo-kopernik'], highlightIds: ['demo-kopernik'], title: 'Kultura' })] };
     assert.ok(events.some(event => event.type === 'action'));
     options.onEvent({ type: 'text', delta: 'Pokazuję miejsca.' });
     await new Promise(resolve => setTimeout(resolve, 10)); finished = true;
@@ -54,4 +55,53 @@ test('assistant publishes validated map actions and activity before final respon
   assert.equal(events[0].sessionId, result.sessionId);
   assert.equal(events.filter(event => event.type === 'action').length, 1);
   assert.ok(events.some(event => event.type === 'activity' && /Zaktualizowano/.test(event.label)));
+});
+
+test('interrupted streamed display retains the displayed records and their source warnings together', async () => {
+  let round = 0;
+  const events = [];
+  const record = { id: 'official-one', name: 'Koncert', category: 'event', district: 'Wola', districts: ['Wola'] };
+  const errors = [{ category: 'sports', code: 'SOURCE_UNAVAILABLE' }];
+  const call = (name, args) => ({ id: `call-${round}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const assistant = createAssistant({ provider: { search: async () => ({ results: [record], total: 1, complete: false, dataMode: 'official', sources: [], errors }) }, completion: async () => {
+    round++;
+    if (round === 1) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (round === 2 || round === 4) return { tool_calls: [call('display_results', { ids: [record.id], highlightIds: [record.id], title: 'Wyniki' })] };
+    if (round === 3) throw new Error('Disconnected after published action');
+    return { content: 'Pokazuję koncert. Część źródeł jest niedostępna.' };
+  } });
+  await assert.rejects(assistant.chat({ message: 'Koncerty' }, undefined, event => events.push(event)), /Disconnected/);
+  const shown = events.find(event => event.type === 'action').action;
+  assert.equal(shown.complete, false);
+  const result = await assistant.chat({ message: 'Pokaż ponownie', sessionId: events[0].sessionId });
+  assert.equal(result.actions[0].results[0].id, record.id);
+  assert.equal(result.actions[0].complete, false);
+  assert.deepEqual(result.actions[0].errors, errors);
+});
+
+test('failed nonstream display preserves the existing session records, warnings and history', async () => {
+  let round = 0, searches = 0;
+  let priorHistory;
+  const call = (name, args) => ({ id: `call-${round}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const records = ['old', 'new'].map(id => ({ id, name: id, category: 'event', districts: ['Wola'] }));
+  const assistant = createAssistant({ provider: { search: async () => ({ results: [records[searches++]], total: 1, complete: searches !== 1, dataMode: 'official', sources: [], errors: searches === 1 ? [{ category: 'sports', code: 'SOURCE_UNAVAILABLE' }] : [] }) }, completion: async history => {
+    round++;
+    if (round === 1 || round === 4) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (round === 2 || round === 8) return { tool_calls: [call('display_results', { ids: ['old'], highlightIds: ['old'], title: 'Poprzednie' })] };
+    if (round === 3) { priorHistory = structuredClone(history); return { content: 'Pierwsza odpowiedź.' }; }
+    if (round === 5) return { tool_calls: [call('display_results', { ids: ['new'], highlightIds: ['new'], title: 'Nieopublikowane' })] };
+    if (round === 6) throw new Error('Failed before nonstream reply');
+    if (round === 7) {
+      assert.deepEqual(history.slice(0, priorHistory.length), priorHistory);
+      assert.equal(history.some(m => m.role === 'user' && m.content === 'Nieudane pytanie'), false);
+      return { tool_calls: [call('filter_results', { category: 'event' })] };
+    }
+    return { content: 'Wrócono do poprzednich wyników.' };
+  } });
+  const first = await assistant.chat({ message: 'Pierwsze pytanie' });
+  await assert.rejects(assistant.chat({ message: 'Nieudane pytanie', sessionId: first.sessionId }), /Failed before/);
+  const next = await assistant.chat({ message: 'Poprzednie wyniki', sessionId: first.sessionId });
+  assert.equal(next.actions[0].results[0].id, 'old');
+  assert.equal(next.actions[0].complete, false);
+  assert.equal(next.actions[0].errors[0].code, 'SOURCE_UNAVAILABLE');
 });

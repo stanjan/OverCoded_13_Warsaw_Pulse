@@ -12,7 +12,7 @@ createServer(async (req, res) => {
   try {
     if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) return json(res, 403, { error: 'Niedozwolony host.' });
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'demo' });
+    if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
     // Browser map key: public by design, protected by its HTTP-referrer and API restrictions in Google Cloud.
     if (url.pathname === '/api/config' && req.method === 'GET') return json(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null, googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID || null });
     if (url.pathname === '/api/chat' && req.method === 'POST') {
