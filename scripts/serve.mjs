@@ -9,12 +9,14 @@ const root = resolve(import.meta.dirname, '..');
 const assistant = createAssistant({ environmentProvider: getEnvironment });
 if (process.env.DATA_API_KEY) transitService.startTracking().catch(() => {});
 const port = Number(process.env.PORT || 5173);
+const host = process.env.HOST || '127.0.0.1';
+const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `${host}:${port}`]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.jpg': 'image/jpeg' };
 const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg', '/transit-ui.mjs', '/transit-core.mjs']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
-    if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) return json(res, 403, { error: 'Niedozwolony host.' });
+    if (!allowedHosts.has(req.headers.host)) return json(res, 403, { error: 'Niedozwolony host.' });
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
     // Browser map key: public by design, protected by its HTTP-referrer and API restrictions in Google Cloud.
@@ -77,4 +79,4 @@ createServer(async (req, res) => {
     if (error instanceof TransitError && !res.headersSent && !res.destroyed) return json(res, /SOURCE|GTFS_UNAVAILABLE/.test(error.code) ? 503 : 400, { error: error.message, code: error.code });
     if (!res.headersSent && !res.destroyed) json(res, error instanceof BridgeError || error instanceof EnvironmentError ? error.status : 500, { error: error instanceof BridgeError || error instanceof EnvironmentError ? error.message : 'Nie udało się obsłużyć zapytania.' });
   }
-}).listen(port, '127.0.0.1', () => console.log(`Local: http://127.0.0.1:${port}\nBridge: ${process.env.CODEX_BRIDGE_URL ? 'configured' : 'not configured'}`));
+}).listen(port, host, () => console.log(`Local: http://${host}:${port}\nBridge: ${process.env.CODEX_BRIDGE_URL ? 'configured' : 'not configured'}`));
