@@ -12,3 +12,4 @@ Both map renderers display confirmed walking geometry as blue dots with white ou
 
 Official API reference: https://valhalla.github.io/valhalla/api/route/api-reference/
 Demo service policy: https://github.com/valhalla/valhalla#demo-server
+`createTransitService({ walkingProvider })` supports an injected provider for deterministic service tests; production uses the configured Valhalla adapter by default. Continuous all-fleet delay learning is independent of the pedestrian provider and remains active while a request validates its walking legs. The service passes current exact-trip deltas into every replan, so both real walking times and learned delays affect transfer feasibility.

@@ -1,5 +1,6 @@
 import {TransitError,waypoint,departure,dateInWarsaw,serviceSeconds,serviceInstant,distanceMeters,transitAppearance} from '../transit-core.mjs';
-import {planGraph,validateGraph} from './transit-router.mjs';
+import {validateGraph} from './transit-router.mjs';
+import {planPedestrianGraph} from './walking-router.mjs';
 import {getGtfsGraph} from './transit-gtfs.mjs';
 import {createDelayModel} from './transit-live.mjs';
 export const TRANSIT_SOURCES={
@@ -29,7 +30,7 @@ export function buildBrigadeEvidence(records,line,stopId,graph,day){
   for(const row of indexed.get(event.departureClock+'|'+tripDirection(trip.headsign))||[]){const id=normalizeBrigade(row.brigade);if(!id)continue;if(!bindings.has(id))bindings.set(id,new Set());bindings.get(id).add(trip.id);}
  }}return bindings;
 }
-export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout}={}) {
+export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout,walkingProvider}={}) {
  const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),activeBindings=new Set(),lineBindings=new Map(),delayModel=createDelayModel({now,tripEvidence});
  let municipalStops=[],stopBridge=new Map();
  let modelGraph,pollTimer,pollPromise,bindingPromise,trackingController,graphGeneration=0,tracking=false;
@@ -143,9 +144,9 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
    }catch(error){signal?.throwIfAborted();errors.push({code:error.code||'SOURCE_UNAVAILABLE',part:'lines',stopId:stop.id});}
   }
   const deltas=delayModel.getDeltas();
-  if(graph)try{routes=planGraph(graph,{origin,destination,departureTime:requested.getTime(),signal,deltas,now:now()});reason=routes.length?null:'NO_VERIFIED_ROUTE';}catch(error){signal?.throwIfAborted();reason=error instanceof TransitError?error.code:'GRAPH_INVALID';errors.push({code:reason,part:'routing'});}
+  if(graph)try{routes=await planPedestrianGraph(graph,{origin,destination,departureTime:requested.getTime(),signal,deltas,now:now()},{...(walkingProvider?{provider:walkingProvider}:{})});for(const route of routes)if(route.walkingSource)sources.push(route.walkingSource);reason=routes.length?null:'NO_VERIFIED_ROUTE';}catch(error){signal?.throwIfAborted();reason=error instanceof TransitError?error.code:'GRAPH_INVALID';errors.push({code:reason,part:'routing'});}
   const relevant=snapshot.vehicles.map(vehicle=>({...vehicle,distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))})).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
-  return{status:routes.length?'ready':'limited',routes,reason,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.','Przejścia piesze są szacowane, a wyszukiwanie ogranicza zakres przystanków i przesiadek.']};
+  return{status:routes.length?'ready':'limited',routes,reason,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.',routes.length?'Czasy dojść uwzględniają ścieżki OpenStreetMap / Valhalla; ostatnie metry do punktów i tempo marszu pozostają szacunkowe. Wyszukiwanie ma ograniczony zakres przystanków, przesiadek i sprawdzanych przejść.':'Przejścia piesze nie zostały potwierdzone w żadnej zwróconej trasie; wyszukiwanie ogranicza zakres przystanków, przesiadek i sprawdzanych przejść.']};
  }
 
  return{searchStops,plan,startTracking,liveSnapshot,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};

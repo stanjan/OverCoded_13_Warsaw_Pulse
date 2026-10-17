@@ -6,11 +6,11 @@ const locations=['A','B','C','D'].map((name,index)=>({id:String(1000+index)+'-01
 const clock=seconds=>'14:'+String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
 const pairs=value=>({values:Object.entries(value).map(([key,value])=>({key,value}))});
 const events=[60,180,360,540];
-function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,departuresForStop=null}={}){
+function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,departuresForStop=null,walkingProvider={route:async()=>assert.fail('Unexpected external walking call in offline fixture')}}={}){
  let time=base+80000,latitude=locations[0].latitude-.001,timer,active=0,maxActive=0,failures=0;
  let releaseEvidence;const gate=holdEvidence?new Promise(resolve=>{releaseEvidence=resolve;}):null;
  const calls=[],graph={serviceDay:'2026-10-17',timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',version:'fixture',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:locations,trips:Array.from({length:lineCount},(_,index)=>({id:'trip-'+index,serviceDate:'2026-10-17',line:String(index+1),routeType:0,headsign:'D',stopTimes:locations.map((stop,i)=>({stopId:stop.id,arrival:base+events[i]*1000,departure:base+events[i]*1000,departureClock:clock(events[i]),pickup:0,dropOff:0}))}))};
- const service=createTransitService({now:()=>time,key:()=> 'fixture-token',graphProvider:async()=>graph,setTimeoutImpl:(callback,delay)=>{assert.ok(delay>=0&&delay<=15000);timer=callback;return{unref(){}};},clearTimeoutImpl:()=>{timer=null;},fetchImpl:async(url,options)=>{
+ const service=createTransitService({walkingProvider,now:()=>time,key:()=> 'fixture-token',graphProvider:async()=>graph,setTimeoutImpl:(callback,delay)=>{assert.ok(delay>=0&&delay<=15000);timer=callback;return{unref(){}};},clearTimeoutImpl:()=>{timer=null;},fetchImpl:async(url,options)=>{
   assert.equal(options.headers.Authorization,'fixture-token');const action=url.split('/').at(-1),args=options.body?JSON.parse(options.body):{};calls.push({action,args});
   if(action===TRANSIT_SOURCES.stops.action)return{ok:true,json:async()=>locations.map(stop=>pairs({zespol:stop.id.split('-')[0],slupek:'01',nazwa_zespolu:stop.name,szer_geo:String(stop.latitude),dlug_geo:'21'}))};
   if(action===TRANSIT_SOURCES.vehicles.action)return{ok:true,json:async()=>args.type===2?[...Array.from({length:staleCount},(_,index)=>({Lat:locations[0].latitude,Lon:21,Lines:'1',VehicleNumber:'stale-'+index,Brigade:'1',Time:'2025-01-01 14:00:00'})),...graph.trips.map((trip,index)=>({Lat:latitude,Lon:21,Lines:trip.line,VehicleNumber:String(index),Brigade:'01',Time:'2026-10-17 '+clock(Math.round((time-base)/1000))}))]:[]};
@@ -76,4 +76,11 @@ test('partial shared evidence cannot manufacture uniqueness across overlapping b
    assert.equal(f.status().liveModel.confirmedTrips,ambiguous?0:1,'only complete platform evidence assigning the competitor to another brigade resolves ambiguity');
   }finally{f.service.stopTracking();}
  }
+});
+
+test('a journey with verified walking reuses the globally learned delta without resetting the all-fleet tracker',async()=>{
+ let walkCalls=0;const f=fixture({walkingProvider:{route:async(from,to)=>{walkCalls++;return{geometry:'osm_pedestrian',durationMillis:60000,distanceMeters:70,path:[from,to],source:{name:'OpenStreetMap · Valhalla',url:'https://www.openstreetmap.org/copyright'}};}}});
+ try{await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,1);
+  const origin={latitude:locations[2].latitude-.0002,longitude:21};const result=await f.service.plan({origin,destination:locations[3],departureTime:new Date(base+225000).toISOString()});assert.equal(result.status,'ready');const route=result.routes[0],ride=route.steps.find(step=>step.mode==='TRANSIT');assert.equal(route.steps[0].geometry,'osm_pedestrian');assert.equal(route.steps[0].end,base+285000);assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);assert.equal(result.liveModel.confirmedTrips,1);assert.equal(result.liveModel.continuous,true);assert.equal(f.status().liveModel.confirmedTrips,1);assert.ok(walkCalls);assert.ok(route.walkingVerified);
+ }finally{f.service.stopTracking();}
 });
