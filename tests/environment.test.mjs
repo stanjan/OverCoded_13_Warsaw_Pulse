@@ -57,7 +57,33 @@ test('request timeout yields unavailable components and caller cancellation is p
  const controller=new AbortController();controller.abort();await assert.rejects(service(undefined,{signal:controller.signal}),{name:'AbortError'});
 });
 const browserSource=await readFile(new URL('../environment.js',import.meta.url),'utf8');
-function browser(){const context={window:{},document:{querySelector:()=>null},fetch(){throw new Error('Unexpected fetch');},AbortController,Date,Intl,URL,encodeURIComponent,setInterval,clearInterval};runInNewContext(browserSource,context);return context.window.CityEnvironment;}
+function browser(fetchImpl=()=>{throw new Error('Unexpected fetch');}){const context={window:{},document:{querySelector:()=>null},fetch:fetchImpl,AbortController,Date,Intl,URL,encodeURIComponent,setInterval,clearInterval};runInNewContext(browserSource,context);return context.window.CityEnvironment;}
+
+test('capsule presents clear air status and concise details without presenting stale data as good',async()=>{
+ const nodes=new Map();
+ const doc={querySelector:id=>{if(!nodes.has(id))nodes.set(id,{dataset:{},textContent:'',title:''});return nodes.get(id);},addEventListener(){}};
+ let data={location:{basis:'gps'},weather:{status:'ok',temperatureC:11,weatherCode:0,isDay:false,validAt:NOW.toISOString(),freshness:'current'},air:{status:'ok',europeanAqi:55,validAt:NOW.toISOString(),freshness:'current'},sun:{status:'ok',sunrise:'2026-10-17T05:04:00Z',sunset:'2026-10-17T15:37:00Z'}};
+ let fail=false;
+ const ui=browser(async()=>({ok:!fail,json:async()=>data}));
+ const controller=ui.mountEnvironment(doc,{addEventListener(){}});
+ try{
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(nodes.get('#environment-air-label').textContent,'Umiarkowana');
+  assert.equal(nodes.get('#environment-air-value').textContent,'AQI EU 55');
+  assert.equal(nodes.get('#environment-icon').dataset.tone,'night');
+  assert.equal(nodes.get('#environment-sunrise').textContent,'07:04');
+  assert.equal(nodes.get('#environment-sunset').textContent,'17:37');
+  assert.ok(nodes.get('#environment-info').textContent.length<200);
+  data={...data,air:{...data.air,europeanAqi:10,freshness:'stale'}};
+  await controller.update();
+  assert.equal(nodes.get('#environment-air-label').textContent,'Nieaktualne');
+  assert.equal(nodes.get('#environment-air').dataset.level,'unknown');
+  fail=true;await controller.update();
+  assert.equal(nodes.get('#environment-air-label').textContent,'Brak danych');
+  assert.equal(nodes.get('#environment-air-value').textContent,'AQI —');
+  assert.equal(nodes.get('#environment-sunrise').textContent,'—');
+ }finally{controller.stop();}
+});
 test('every documented WMO condition has a Polish label and icon, with day/night and unknown fallback',()=>{
  const ui=browser();for(const code of [0,1,2,3,45,48,51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,97,99]){assert.notEqual(ui.weatherCondition(code,true).icon,'help');assert.ok(ui.weatherCondition(code,false).label);}
  assert.notEqual(ui.weatherCondition(0,true).icon,ui.weatherCondition(0,false).icon);assert.equal(ui.weatherCondition(999,true).icon,'help');assert.equal(ui.weatherCondition('__proto__',true).icon,'help');assert.equal(ui.weatherCondition(0,null).icon,'cloud');

@@ -93,9 +93,23 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .weather-bar summary { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid #0000000c; border-radius: 24px; background: #f7f9fbf5; backdrop-filter: blur(18px); box-shadow: 0 8px 22px #09142624; cursor: pointer; white-space: nowrap; list-style: none; }
 .weather-bar summary::-webkit-details-marker { display: none; }
 .weather-bar summary:focus-visible { outline: 3px solid #0051d5; outline-offset: 3px; }
-#environment-icon { color: #ad7416; font-size: 21px; }
+#environment-icon { color: #ad7416; font-size: 23px; }
+#environment-icon[data-tone='sun'] { color: #b7770c; }
+#environment-icon[data-tone='night'] { color: #7653b5; }
+#environment-icon[data-tone='cloud'] { color: #647f96; }
+#environment-icon[data-tone='rain'] { color: #297da4; }
+#environment-icon[data-tone='snow'] { color: #4b91b4; }
+#environment-icon[data-tone='storm'] { color: #8752ad; }
+#environment-icon[data-tone='fog'], #environment-icon[data-tone='unknown'] { color: #7b8791; }
 #environment-weather { font-size: 14px; font-weight: 800; }
-#environment-air { font-weight: 700; }
+#environment-air { display: inline-flex; flex-direction: column; gap: 1px; font-weight: 700; line-height: 1.2; }
+#environment-air-value { font-size: 9px; font-weight: 500; color: #68747e; }
+#environment-air[data-level='unknown'] { color: #68747e; }
+#environment-sun { display: inline-flex; gap: 7px; font-size: 10px; font-variant-numeric: tabular-nums; }
+.environment-solar { display: inline-flex; align-items: center; gap: 3px; }
+.environment-solar svg { width: 16px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.environment-sunrise-icon { color: #b7770c; }
+.environment-sunset-icon { color: #b65d42; }
 #environment-air[data-level='good'] { color: #247151; }
 #environment-air[data-level='fair'] { color: #466d25; }
 #environment-air[data-level='moderate'] { color: #8a6109; }

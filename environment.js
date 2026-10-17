@@ -15,7 +15,8 @@
   };
   function weatherCondition(code, isDay) {
     const item = Object.hasOwn(conditions, code) ? conditions[code] : null;
-    return item ? { label: item[0], icon: isDay === false ? item[2] || item[1] : isDay === true || !item[2] ? item[1] : 'cloud' } : { label: 'Brak opisu pogody', icon: 'help' };
+    const tone = code <= 2 ? (isDay === false ? 'night' : isDay === true ? 'sun' : 'cloud') : code >= 95 ? 'storm' : [71,73,75,77,85,86].includes(code) ? 'snow' : code >= 51 ? 'rain' : code === 45 || code === 48 ? 'fog' : 'cloud';
+    return item ? { label: item[0], tone, icon: isDay === false ? item[2] || item[1] : isDay === true || !item[2] ? item[1] : 'cloud' } : { label: 'Brak opisu pogody', icon: 'help', tone: 'unknown' };
   }
   function aqiCategory(aqi) {
     if (!Number.isFinite(aqi) || aqi < 0) return { label: 'Brak danych', level: 'unknown' };
@@ -47,14 +48,17 @@
     const bar = doc.querySelector('#environment-bar'); if (!bar) return;
     const field = name => doc.querySelector(`#environment-${name}`);
     const weatherEl = field('weather'), airEl = field('air'), sunEl = field('sun'), locationEl = field('location'), infoEl = field('info'), icon = field('icon');
+    const airLabel = field('air-label'), airValue = field('air-value'), sunriseEl = field('sunrise'), sunsetEl = field('sunset');
+    const freshness = part => part.status === 'unavailable' ? 'brak danych' : part.freshness === 'stale' ? 'nieaktualne' : part.freshness === 'unknown' ? 'aktualność nieznana' : part.status === 'partial' ? 'dane częściowe' : '';
     function render(state) {
       bar.dataset.state = state.status;
       bar.dataset.stale = 'false';
       if (state.status !== 'ready') {
         icon.title = ''; weatherEl.title = ''; airEl.title = ''; sunEl.title = '';
         icon.textContent = state.status === 'loading' ? 'hourglass_top' : 'cloud_off';
+        icon.dataset.tone = 'unknown';
         weatherEl.textContent = state.status === 'loading' ? 'Pobieram pogodę…' : 'Pogoda niedostępna';
-        airEl.textContent = 'AQI —'; airEl.dataset.level = 'unknown'; sunEl.textContent = 'Wschód — · Zachód —';
+        airLabel.textContent = 'Brak danych'; airValue.textContent = 'AQI —'; airEl.dataset.level = 'unknown'; sunriseEl.textContent = '—'; sunsetEl.textContent = '—';
         locationEl.textContent = state.basis === 'gps' ? 'Twoja okolica' : 'Centrum Warszawy';
         infoEl.textContent = state.status === 'loading' ? 'Ładowanie danych dla wybranej lokalizacji.' : 'Nie udało się pobrać danych. Ponowna próba za kilka minut.';
         return;
@@ -62,16 +66,19 @@
       const { weather = {}, air = {}, sun = {}, location = {} } = state.data;
       const condition = weatherCondition(weather.weatherCode, weather.isDay);
       icon.textContent = weather.status === 'unavailable' ? 'cloud_off' : condition.icon;
+      icon.dataset.tone = weather.status === 'unavailable' ? 'unknown' : condition.tone;
       icon.title = condition.label;
       weatherEl.textContent = Number.isFinite(weather.temperatureC) ? `${Math.round(weather.temperatureC)}°C` : 'Pogoda —';
-      weatherEl.title = `${condition.label} · czas danych ${stamp(weather.validAt)}${weather.freshness === 'stale' ? ' · dane nieaktualne' : ''}`;
-      airEl.textContent = Number.isFinite(air.europeanAqi) ? `AQI EU ${Math.round(air.europeanAqi)}` : 'AQI —';
-      const category = aqiCategory(air.europeanAqi); airEl.dataset.level = category.level;
-      airEl.title = `${category.label} · europejski indeks · ${stamp(air.validAt)}`;
-      sunEl.textContent = `↑ ${time(sun.sunrise)} · ↓ ${time(sun.sunset)}`; sunEl.title = 'Wschód i zachód słońca · czas Warszawy';
+      weatherEl.title = [condition.label, stamp(weather.validAt), freshness(weather)].filter(Boolean).join(' · ');
+      const category = aqiCategory(air.europeanAqi);
+      const usableAir = Number.isFinite(air.europeanAqi) && air.status !== 'unavailable';
+      airValue.textContent = usableAir ? `AQI EU ${Math.round(air.europeanAqi)}` : 'AQI —';
+      airLabel.textContent = !usableAir ? 'Brak danych' : air.freshness === 'stale' ? 'Nieaktualne' : air.freshness === 'unknown' ? 'Niepotwierdzone' : category.label;
+      airEl.dataset.level = !usableAir || ['stale','unknown'].includes(air.freshness) ? 'unknown' : category.level;
+      airEl.title = ['Jakość powietrza', stamp(air.validAt), freshness(air)].filter(Boolean).join(' · ');
+      sunriseEl.textContent = time(sun.sunrise); sunsetEl.textContent = time(sun.sunset); sunEl.title = 'Wschód i zachód · czas Warszawy';
       locationEl.textContent = location.basis === 'gps' ? 'Twoja okolica' : 'Centrum Warszawy';
-      const status = part => part.status === 'unavailable' ? 'brak danych' : part.freshness === 'stale' ? 'dane nieaktualne' : part.freshness === 'unknown' ? 'nieznana aktualność' : part.status === 'partial' ? 'dane częściowe' : 'dane modelowe';
-      infoEl.textContent = `${condition.label}. Pogoda: ${stamp(weather.validAt)} (${status(weather)}). Powietrze: ${stamp(air.validAt)} (${status(air)}). Słońce: ${sun.date || '—'} (${sun.status === 'ok' ? 'wschód i zachód' : 'dane niepełne'}). Modele dla siatki w okolicy lokalizacji, nie pomiary w Twoim punkcie. Pobrano ${stamp(state.data.fetchedAt)}.`;
+      infoEl.textContent = `${condition.label}. Pogoda: ${stamp(weather.validAt)}${freshness(weather) ? ' — ' + freshness(weather) : ''}. Powietrze: ${stamp(air.validAt)}${freshness(air) ? ' — ' + freshness(air) : ''}. Dane modelowe dla okolicy.`;
       bar.dataset.stale = String(weather.freshness === 'stale' || air.freshness === 'stale');
     }
     const controller = createEnvironmentController({ render, initialLocation: win.getCityLocation?.() });
