@@ -6,6 +6,7 @@
   // Below this zoom results are small icons; zooming in turns them into bubbles with photo and name.
   const DETAIL_ZOOM = 16;
   const DESTINATION_PIN = { width: 36, height: 44 };
+  const STOP_DOT_SIZE = 6;
 
   function routePadding(element, { top = 65, bottom = 24 } = {}) {
     // The coordinate anchor sits at the tip of the destination pin.
@@ -128,7 +129,7 @@
           const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
           routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 }));
         }
-        for(const stop of activeRouteStops(route))routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stop.name,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150}));
+        for(const stop of activeRouteStops(route, true))routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stop.name,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150}));
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
           routeView = {points:[...points,...activeRouteStops(route),...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
@@ -245,7 +246,7 @@
             for(const[color,weight]of [['#ffffff',12],['#4285F4',8]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer);
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
-        for(const stop of activeRouteStops(route))L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[9,9],iconAnchor:[4.5,4.5]}),title:stop.name,keyboard:false,interactive:false,zIndexOffset:150}).addTo(transitLayer);
+        for(const stop of activeRouteStops(route, true))L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2]}),title:stop.name,keyboard:false,interactive:false,zIndexOffset:150}).addTo(transitLayer);
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
           const destination=validTransitPath([route.destinationPoint])[0];
@@ -310,16 +311,63 @@
   }
   function transitColor(record) { return /^#[0-9a-f]{6}$/i.test(record.transportColor||'')?record.transportColor:'#65727f'; }
   function freshVehicle(vehicle) { const age=Date.now()-Date.parse(vehicle.observedAt);return vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000; }
-  function activeRouteStops(route) {
+  // Display-only alignment: platforms can sit beside a GTFS shape. Match their
+  // ordered sequence to this active leg, never to the dimmed whole-trip path.
+  function alignedStopPositions(stops, points) {
+    const path=validTransitPath(points);
+    if(path.length<2||path.length!==points?.length)return stops;
+    const radius=6378137,limit=85.05112878;
+    const project=point=>({x:radius*point.longitude*Math.PI/180,y:radius*Math.log(Math.tan(Math.PI/4+Math.max(-limit,Math.min(limit,point.latitude))*Math.PI/360))});
+    const xy=path.map(project),scale=Math.cos((path[0].latitude+path.at(-1).latitude)*Math.PI/360);
+    const candidates=stops.map(stop=>{
+      const p=project(stop),result=[];
+      for(let index=0;index<xy.length-1;index++){
+        const a=xy[index],b=xy[index+1],dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy;
+        if(!length)continue;
+        const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/length)),x=a.x+t*dx,y=a.y+t*dy;
+        const distance=Math.hypot(p.x-x,p.y-y)*scale;
+        if(distance<=150)result.push({progress:index+t,distance,x,y});
+      }
+      // Allow platform offsets, but do not force a stop onto a distant loop arm
+      // just to make the sequence fit. Inconsistent geometry stays unchanged.
+      const nearest=Math.min(...result.map(candidate=>candidate.distance));
+      return result.filter(candidate=>candidate.distance<=nearest+20);
+    });
+    if(candidates.some(row=>!row.length))return stops;
+    // Dynamic ordered matching considers following stops too: a nearest-only
+    // match can prematurely jump to a later branch where a line doubles back.
+    let previous=[];
+    for(let row=0;row<candidates.length;row++){
+      const current=candidates[row];let cursor=0,best;
+      for(const candidate of current){
+        if(!row){candidate.cost=candidate.distance**2;continue;}
+        while(cursor<previous.length&&previous[cursor].progress<=candidate.progress+1e-9){
+          const option=previous[cursor++];if(!best||option.cost<best.cost)best=option;
+        }
+        candidate.cost=best?best.cost+candidate.distance**2:Infinity;candidate.previous=best;
+      }
+      previous=current;
+    }
+    let chosen=previous.reduce((best,candidate)=>!best||candidate.cost<best.cost?candidate:best,null);
+    if(!Number.isFinite(chosen?.cost))return stops;
+    const aligned=[];
+    for(let index=stops.length-1;index>=0;index--){
+      aligned[index]={...stops[index],longitude:chosen.x/radius*180/Math.PI,latitude:(2*Math.atan(Math.exp(chosen.y/radius))-Math.PI/2)*180/Math.PI};chosen=chosen.previous;
+    }
+    return aligned;
+  }
+  function activeRouteStops(route, align=false) {
     const seen=new Set(),stops=[];
     for(const step of route?.steps||[]){
       if(step.mode!=='TRANSIT'||step.stopPositionSource!=='gtfs_stop_sequence')continue;
-      for(const stop of validTransitPath(step.stopPositions)){
-        const key=stop.id+'|'+stop.latitude+'|'+stop.longitude;if(seen.has(key))continue;seen.add(key);stops.push(stop);
+      const source=validTransitPath(step.stopPositions),positions=align?alignedStopPositions(source,step.path):source;
+      for(let index=0;index<source.length;index++){
+        const stop=source[index],key=stop.id+'|'+stop.latitude+'|'+stop.longitude;
+        if(seen.has(key))continue;seen.add(key);stops.push(positions[index]);
       }
     }return stops;
   }
-  function stopElement(){const dot=document.createElement('span');dot.className='transit-stop';dot.setAttribute('aria-hidden','true');return dot;}
+  function stopElement(){const dot=document.createElement('span');dot.className='transit-stop';dot.style.width=dot.style.height=STOP_DOT_SIZE+'px';dot.setAttribute('aria-hidden','true');return dot;}
   function vehicleDirection(vehicle){return vehicle.directionSource==='confirmed_gtfs_trip'&&typeof vehicle.direction==='string'&&vehicle.direction.trim()?vehicle.direction:'Kierunek niepotwierdzony';}
   function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+vehicleDirection(vehicle)+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
   function vehicleDetails(vehicle){
