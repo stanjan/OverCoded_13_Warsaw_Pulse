@@ -9,7 +9,7 @@ function setup(stream){
  const nodes=[],actions=[],events=[],cleared=[];
  const node=()=>({textContent:'',children:[],classList:{add(){}},setAttribute(){},removeAttribute(){},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},remove(){},addEventListener(){},removeEventListener(){}});
  const context={window:{getCityLocation:()=>({status:'unavailable'}),dispatchEvent:event=>events.push(event.type)},CustomEvent:class{constructor(type){this.type=type;}},cityMap:{clearMarkers:()=>cleared.push(true)},lastDisplayedAction:{type:'display_results'},document:{createElement:node},input:{value:'Jak dojadę?'},pending:false,submit:node(),content:{...node(),scrollHeight:0,scrollTop:0,clientHeight:0},sessionId:null,resultPanel:node(),
-  setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},Date,AbortController,
+  refreshLocation:async()=>{},hasKnownLocation:()=>false,setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},Date,AbortController,
   addMessage(){const value=node();nodes.push(value);return value;},
   applyAction(action,anchor){actions.push({action,anchor,answer:anchor.children.find(child=>child.className==='assistant-answer')?.textContent});},
   fetch:async()=>({ok:true,headers:{get:()=> 'text/event-stream'},body:{}}),chatEvents:()=>stream(actions)};

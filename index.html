@@ -167,7 +167,8 @@
 </div>
 </div>
 <!-- 1. FLOATING TOP WEATHER BAR: Perfectly Centered Horizontally -->
-<details id="environment-bar" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto" data-state="loading">
+<div id="environment-bar" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto" data-state="loading">
+<details class="environment-disclosure">
 <summary aria-label="Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.">
 <span id="environment-route" class="route-chain" hidden></span>
 <span class="environment-bottom-row"><span class="environment-weather-row">
@@ -185,6 +186,8 @@
 <p class="environment-attribution">Źródła: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer">CAMS ENSEMBLE</a></p>
 </div>
 </details>
+<button id="environment-route-refresh" type="button" aria-label="Odśwież trasę" title="Odśwież trasę" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 17.9 17"/></svg></button>
+</div>
 <!-- BOTTOM SHEET CONTAINER (WITH LOCATION BUTTON SITTING DIRECTLY ABOVE IT) -->
 <div class="drawer-container absolute inset-x-0 bottom-16 z-30 flex flex-col pointer-events-none">
 <!-- 2. COMPASS / LOCATION BUTTON: Positioned on the right side immediately ABOVE the bottom sheet -->

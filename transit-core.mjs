@@ -4,7 +4,7 @@ const transportStyles = {
  bus: {transportColor:'#880077',transportLabel:'Autobus'},
  night_bus: {transportColor:'#000000',transportLabel:'Autobus nocny'},
  tram: {transportColor:'#8A0000',transportLabel:'Tramwaj'},
- skm: {transportColor:'#8A0000',transportLabel:'SKM'},
+ skm: {transportColor:'#008800',transportLabel:'SKM'},
  unknown: {transportColor:'#65727f',transportLabel:'Transport'},
 };
 export function transitAppearance(record={}) {
@@ -25,10 +25,9 @@ export function waypoint(input,label='miejsce'){
  if(!input||typeof input!=='object'||!Number.isFinite(input.latitude)||Math.abs(input.latitude)>90||!Number.isFinite(input.longitude)||Math.abs(input.longitude)>180)fail('INVALID_LOCATION','Nieprawidłowe współrzędne: '+label+'.');
  return{value:{lat:input.latitude,lng:input.longitude},label:typeof input.label==='string'?input.label.slice(0,200):input.latitude.toFixed(5)+', '+input.longitude.toFixed(5)};
 }
-export function gpsOrigin(location,now=Date.now()){
- const age=now-Date.parse(location?.observedAt);
- if(location?.status!=='available'||!Number.isFinite(age)||age< -60000||age>300000||!Number.isFinite(location.accuracy)||location.accuracy<0||location.accuracy>2000)fail('ORIGIN_REQUIRED','Brak świeżej, wystarczająco dokładnej lokalizacji. Podaj punkt startowy lub odśwież GPS.');
- const result=waypoint(location,'punkt startowy');result.label='Moja lokalizacja (dokładność ok. '+Math.round(location.accuracy)+' m)';return result;
+export function gpsOrigin(location){
+ if(location?.status!=='available'||!Number.isFinite(location.latitude)||Math.abs(location.latitude)>90||!Number.isFinite(location.longitude)||Math.abs(location.longitude)>180)fail('ORIGIN_REQUIRED','Brak lokalizacji. Podaj punkt startowy lub udostępnij lokalizację.');
+ const result=waypoint(location,'punkt startowy');result.label='Moja ostatnia znana lokalizacja'+(Number.isFinite(location.accuracy)&&location.accuracy>=0?' (dokładność ok. '+Math.round(location.accuracy)+' m)':'');return result;
 }
 export function departure(value,now=Date.now()){
  if(!value)return new Date(now);

@@ -77,7 +77,7 @@ test('an explicit future trip is narrowed inside its requested range, never to t
   });
   assert.deepEqual(singleDay.response.narrowing.attempts.map(attempt => attempt.dateTo), ['2026-11-10']);
   const pastCap = fit([event('past', '2026-10-10', 150000)], { filters: { dateTo: '2026-10-10' } });
-  assert.equal(pastCap.response.narrowing.appliedFilters.eventDate.to, '2026-10-10');
+  assert.equal(pastCap.response.narrowing.appliedFilters.requested.dateTo, '2026-10-10');
 });
 
 test('date windows precede progressively smaller measured-GPS radii, retaining every nearby match', () => {
@@ -133,20 +133,23 @@ test('automatic distance keeps unlocated pitches alongside nearby events across 
   assert.equal(fitted.records[1].lat, undefined);
 });
 
-for (const gps of [location, undefined]) test('1227 unlocated pitches require textual refinement without claiming an empty radius (GPS=' + Boolean(gps) + ')', () => {
+for (const gps of [location, undefined]) test('1227 unlocated pitches provide a disclosed preview without claiming a measured radius (GPS=' + Boolean(gps) + ')', () => {
   const original = pitchEnvelope(pitches);
   assert.ok(JSON.stringify(original).length > RESULT_LIMITS.toolCharacters);
   const fitted = fitResultBudget(original, { now, location: gps, filters: { category: 'pitch' } });
-  assert.equal(fitted.response.status, 'refinement_required');
-  assert.equal(fitted.response.total, 1227);
+  assert.equal(fitted.response.status, 'preview');
+  assert.ok(fitted.response.total > 0 && fitted.response.total < 1227);
+  assert.equal(fitted.response.originalTotal, 1227);
   assert.equal(fitted.response.narrowing.fallbackReason, 'missing_coordinates');
   assert.equal(fitted.response.narrowing.candidateTotal, 1227);
   assert.equal(fitted.response.narrowing.preserved.missingCoordinates, 1227);
   assert.equal(fitted.response.narrowing.excluded.missingCoordinates || 0, 0);
-  assert.ok(fitted.response.narrowing.attempts.every(attempt => attempt.total === 1227));
-  assert.match(fitted.response.message, /dzielnicę, nazwę, adres/);
+  assert.equal(fitted.response.narrowing.selection, 'source_order');
+  assert.equal(fitted.response.narrowing.appliedFilters.distance, undefined);
+  assert.equal(fitted.response.narrowing.allMatchingRecordsProvided, false);
   assert.deepEqual(original.results, pitches);
-  assert.ok(JSON.stringify(fitted.response).length < 4000);
+  assert.ok(JSON.stringify(fitted.response).length <= RESULT_LIMITS.toolCharacters);
+  assert.equal(requestFits([{ role: 'tool', content: JSON.stringify(fitted.response) }]), true);
 });
 
 test('a small unlocated pitch set stays complete and can be displayed without pins', async () => {
@@ -178,7 +181,7 @@ test('a district follow-up recovers unlocated pitches from the retained full set
       if (step === 2) {
         const result = JSON.parse(history.at(-1).content);
         assert.equal(result.narrowing.fallbackReason, 'missing_coordinates');
-        assert.equal(result.total, 1227);
+        assert.equal(result.originalTotal, 1227);
         return { content: 'W której dzielnicy szukasz boiska?' };
       }
       if (step === 3) return { tool_calls: [call('filter_results', { district: 'Wola' })] };
@@ -191,32 +194,38 @@ test('a district follow-up recovers unlocated pitches from the retained full set
       return { content: 'To boisko ma podany adres, ale nie ma punktu na mapie.' };
     } });
   const first = await assistant.chat({ message: 'Pokaż mi boiska', location });
-  assert.deepEqual(first.actions, []);
+  assert.equal(first.actions[0].type, 'display_results');
+  assert.ok(first.actions[0].results.length > 0);
   const next = await assistant.chat({ message: 'Na Woli', sessionId: first.sessionId, location });
   assert.equal(searches, 1);
   assert.deepEqual(next.actions[0].results.map(record => record.id), [pitches[0].id]);
   assert.equal(next.actions[0].results[0].lat, undefined);
 });
 
-for (const unavailable of [undefined, { ...location, freshness: 'stale' }, { ...location, freshness: 'unknown' },
-  { ...location, source: 'central_warsaw' }]) test('no usable GPS gives an explicit bounded refinement response (' + unavailable?.freshness + ')', () => {
+for (const unavailable of [undefined, { ...location, status: 'unavailable' }, { ...location, latitude: 91 },
+  { ...location, source: 'central_warsaw' }]) test('no usable GPS gives actual bounded examples without claiming user proximity (' + unavailable?.freshness + ')', () => {
   const fitted = fit([event('huge', '2026-10-17', 150000)], { location: unavailable });
-  assert.equal(fitted.response.status, 'refinement_required');
-  assert.equal(fitted.response.recordsProvided, 0);
-  assert.deepEqual(fitted.records, []);
-  assert.equal(fitted.response.narrowing.fallbackReason, 'no_recent_user_location');
+  assert.equal(fitted.response.status, 'preview');
+  assert.equal(fitted.response.recordsProvided, 1);
+  assert.equal(fitted.records[0].id, 'huge');
+  assert.equal(fitted.response.narrowing.fallbackReason, 'no_user_location');
   assert.equal(fitted.response.narrowing.appliedFilters.distance, undefined);
-  assert.ok(JSON.stringify(fitted.response).length < 4000);
+  assert.equal(fitted.response.narrowing.selection, 'source_order');
+  assert.equal(fitted.response.narrowing.fieldsProjected, true);
+  assert.ok(JSON.stringify(fitted.response).length < 6000);
 });
 
-test('a huge single record inside the smallest radius is never silently sliced or claimed visible', () => {
+test('a huge single record has a disclosed model projection while display retains its original fields', () => {
   const records = [event('huge', '2026-10-17', 200000)];
   const fitted = fit(records, { location });
-  assert.equal(fitted.response.status, 'refinement_required');
+  assert.equal(fitted.response.status, 'preview');
   assert.equal(fitted.response.narrowing.fallbackReason, 'no_scope_fits');
   assert.equal(fitted.response.narrowing.candidateTotal, 1);
   assert.equal(fitted.response.narrowing.attempts.at(-1).radiusKm, 0.25);
-  assert.equal(fitted.response.effectiveTotal, 0);
+  assert.equal(fitted.response.narrowing.effectiveTotal, 1);
+  assert.equal(fitted.response.narrowing.fieldsProjected, true);
+  assert.equal(fitted.response.results[0].description.length, 1500);
+  assert.equal(fitted.records[0].description.length, 200000);
   assert.equal(records[0].description.length, 200000);
 });
 
@@ -232,7 +241,7 @@ test('capacity measures actual escaped UTF-8 body, schemas and session overhead'
   const result = envelope([{ ...event('large-bytes', '2026-10-17', 0), description: '😀'.repeat(15000) }]);
   const limits = { ...RESULT_LIMITS, requestBytes: 50000 };
   const fitted = fitResultBudget(result, { now, limits });
-  assert.equal(fitted.response.status, 'refinement_required');
+  assert.equal(fitted.response.status, 'preview');
   assert.equal(requestFits([{ role: 'tool', content: JSON.stringify(fitted.response) }], {}, limits), true);
 });
 
@@ -294,7 +303,7 @@ test('multiple result calls in one round remain within serialized request capaci
       if (++step === 1) return { tool_calls: Array.from({ length: 8 }, () => call('search_places', { category: 'event' })) };
       const payloads = history.filter(message => message.role === 'tool').map(message => JSON.parse(message.content));
       assert.equal(payloads.length, 8);
-      assert.ok(payloads.some(payload => payload.status === 'historical_context_compacted' || payload.status === 'refinement_required'));
+      assert.ok(payloads.some(payload => payload.status === 'historical_context_compacted' || payload.status === 'preview'));
       return { content: 'Wyniki są gotowe.' };
     } });
   await assistant.chat({ message: 'Szukaj' });
@@ -352,4 +361,16 @@ for (const publish of [true, false]) test('failed streamed turn restores effecti
   const result = await assistant.chat({ message: 'Pokaż 25 października', sessionId: first.sessionId });
   assert.deepEqual(result.actions[0].results.map(record => record.id), [expected + '25']);
   assert.deepEqual(result.actions[0].errors, envelope([]).errors);
+});
+
+
+test('distance narrowing uses old and imprecise last known GPS while preserving its actual measurement metadata', () => {
+  for (const freshness of ['stale', 'unknown']) {
+    const known = { ...location, freshness, accuracy: 10000, observedAt: freshness === 'stale' ? '2026-10-01T12:00:00Z' : null };
+    const fitted = fit([event('huge', '2026-10-17', 200000)], { location: known });
+    const distance = fitted.response.narrowing;
+    assert.equal(fitted.response.narrowing.fallbackReason, 'no_scope_fits');
+    assert.equal(distance.positionBasis, 'last_known_location'); assert.equal(distance.freshness, freshness);
+    assert.equal(distance.observedAt, known.observedAt); assert.equal(distance.accuracyMeters, 10000);
+  }
 });

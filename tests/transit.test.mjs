@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {waypoint,gpsOrigin,departure,warsawDeparture,serviceSeconds,serviceInstant,createPlanner,computeMunicipal,TransitError,transitAppearance} from '../transit-core.mjs';
-import {runTool} from '../mcp/tools.mjs';import {normalizeStops,normalizeDepartures,normalizeVehicles,createTransitService,TRANSIT_SOURCES} from '../server/transit.mjs';import {gtfsInstant,activeServices,csvRow} from '../server/transit-gtfs.mjs';import {planGraph} from '../server/transit-router.mjs';
+import {runTool} from '../mcp/tools.mjs';import {normalizeStops,normalizeDepartures,normalizeVehicles,withVehicleDirections,createTransitService,TRANSIT_SOURCES} from '../server/transit.mjs';import {gtfsInstant,activeServices,csvRow} from '../server/transit-gtfs.mjs';import {planGraph} from '../server/transit-router.mjs';
 const now=Date.parse('2026-10-17T12:00:00Z');
 const stop=(id,name,latitude,longitude)=>({values:Object.entries({zespol:id.split('-')[0],slupek:id.split('-')[1],nazwa_zespolu:name,szer_geo:String(latitude),dlug_geo:String(longitude)}).map(([key,value])=>({key,value}))});
 const rows=[stop('1000-01','Start',52.2,21),stop('2000-01','Cel',52.23,21.02)];
@@ -11,7 +11,7 @@ test('transport colors distinguish city fleet types from GTFS route_type and kee
   [{line:'175',type:1},'bus','#880077'],
   [{line:'N31',type:1},'night_bus','#000000'],
   [{line:'17',type:2},'tram','#8A0000'],
-  [{line:'S2',routeType:2},'skm','#8A0000'],
+  [{line:'S2',routeType:2},'skm','#008800'],
   [{line:'17',routeType:0},'tram','#8A0000'],
   [{line:'175',routeType:3},'bus','#880077'],
   [{line:'R1',routeType:2},'unknown','#65727f'],
@@ -21,9 +21,9 @@ test('transport colors distinguish city fleet types from GTFS route_type and kee
  const bus=normalizeVehicles([{Lat:52.2,Lon:21,Lines:'175',VehicleNumber:'1',Time:'2026-10-17 14:00:00'}],1,now)[0];
  assert.equal(bus.transportKind,'bus');assert.equal(bus.transportColor,'#880077');
 });
-test('named/coordinate waypoint and fresh GPS validation never substitute city centre',()=>{
+test('named/coordinate waypoint and last known GPS never substitute city centre',()=>{
  assert.deepEqual(waypoint('52.2,21').value,{lat:52.2,lng:21});for(const value of ['',{latitude:91,longitude:21},'a'.repeat(201)])assert.throws(()=>waypoint(value));
- const location={status:'available',latitude:52.2,longitude:21,accuracy:20,observedAt:new Date(now).toISOString()};assert.deepEqual(gpsOrigin(location,now).value,{lat:52.2,lng:21});for(const value of [null,{...location,status:'unavailable'},{...location,observedAt:new Date(now-300001).toISOString()},{...location,accuracy:2001}])assert.throws(()=>gpsOrigin(value,now),{code:'ORIGIN_REQUIRED'});
+ const location={status:'available',latitude:52.2,longitude:21,accuracy:20,observedAt:new Date(now).toISOString()};assert.deepEqual(gpsOrigin(location,now).value,{lat:52.2,lng:21});for(const value of [{...location,observedAt:new Date(now-86400000).toISOString(),accuracy:10000},{...location,observedAt:null,accuracy:undefined}])assert.deepEqual(gpsOrigin(value,now).value,{lat:52.2,lng:21});for(const value of [null,{...location,status:'unavailable'},{...location,latitude:91},{...location,longitude:'21'}])assert.throws(()=>gpsOrigin(value,now),{code:'ORIGIN_REQUIRED'});
 });
 test('Warsaw clock, extended service times, midnight and GTFS DST use distinct documented time semantics',()=>{
  assert.equal(warsawDeparture('2026-10-17T15:00',now).toISOString(),'2026-10-17T13:00:00.000Z');assert.throws(()=>departure('2026-02-30T12:00:00Z',Date.parse('2026-02-01')));assert.throws(()=>warsawDeparture('2026-10-25T02:30',now));
@@ -57,6 +57,28 @@ test('router verifies same-trip continuation and walk/transfer feasibility; equa
  const noPickup=graph();noPickup.trips[0].stopTimes[0].pickup=1;assert.equal(planGraph(noPickup,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')}).length,0);
  assert.throws(()=>planGraph(data,{origin:data.stops[0],destination:data.stops[3],departureTime:Date.parse('2026-11-01')}),{code:'DATE_OUTSIDE_FEED'});
 });
+
+test('router returns full geometry only for the selected official trip while retaining the boarded segment and schedule',()=>{
+ const data=graph(),request={origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')};
+ const baseline=planGraph(data,request)[0];
+ const firstShape=[{latitude:52.19,longitude:21},data.stops[0],{latitude:52.21,longitude:21},data.stops[1],{latitude:52.23,longitude:21}];
+ const secondShape=[{latitude:52.21,longitude:21.002},data.stops[2],{latitude:52.23,longitude:21.001},data.stops[3],{latitude:52.25,longitude:21}];
+ data.trips[0].shape=firstShape;data.trips[2].shape=secondShape;
+ // Another direction of the same numbered line must not leak into the context.
+ data.trips.push({...data.trips[0],id:'opposite@2026-10-17',shape:[{latitude:52.4,longitude:21.2},{latitude:52.5,longitude:21.3}],stopTimes:[event('b','14:00:00'),event('a','14:10:00')]});
+ const selected=planGraph(data,request)[0],rides=selected.steps.filter(step=>step.mode==='TRANSIT');
+ assert.equal(selected.arrival,baseline.arrival);assert.equal(selected.durationMillis,baseline.durationMillis);assert.equal(selected.transfers,baseline.transfers);
+ const coords=points=>points.map(({latitude,longitude})=>({latitude,longitude}));
+ assert.deepEqual(rides.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);
+ assert.deepEqual(rides[0].path,coords(firstShape.slice(1,-1)));assert.deepEqual(rides[0].fullPath,coords(firstShape));
+ assert.deepEqual(rides[1].path,coords(secondShape.slice(1,-1)));assert.deepEqual(rides[1].fullPath,coords(secondShape));
+ assert.ok(rides.every(step=>step.geometry==='gtfs_shape'&&step.fullPathGeometry==='gtfs_shape'));
+ assert.ok(selected.steps.filter(step=>step.mode==='WALK').every(step=>!Object.hasOwn(step,'fullPath')));
+ for(const shape of [[],[{latitude:52.2,longitude:21}],firstShape.map((point,index)=>index===1?{latitude:NaN,longitude:21}:point),[{latitude:52.4,longitude:21},{latitude:52.5,longitude:21}]]){
+  data.trips[0].shape=shape;const ride=planGraph(data,request)[0].steps.find(step=>step.tripId==='first@2026-10-17');
+  assert.equal(ride.geometry,'schematic');assert.equal(Object.hasOwn(ride,'fullPath'),false);
+ }
+});
 test('calendar exceptions and escaped CSV are interpreted without inventing service',()=>{
  assert.deepEqual(csvRow('a,"b,c","x""y"'),['a','b,c','x"y']);const calendar=[{service_id:'weekday',saturday:'1',start_date:'20261016',end_date:'20261025'}];const exceptions=[{service_id:'weekday',date:'20261017',exception_type:'2'},{service_id:'special',date:'20261017',exception_type:'1'}];assert.deepEqual([...activeServices(calendar,exceptions,'2026-10-17')],['special']);
 });
@@ -66,4 +88,18 @@ test('request races/cancellation and municipal HTTP seam never reuse a stale rou
 });
 test('MCP action resolves verified destination coordinates and reports request acceptance without route/ETA',async()=>{
  const state={results:[{id:'event-1',name:'Koncert',lat:52.2,lng:21}],actions:[]};const result=await runTool('plan_transit',{destinationId:'event-1'},state);assert.equal(result.status,'planning_requested');assert.equal(result.durationMillis,undefined);assert.deepEqual(state.actions[0].destination,{latitude:52.2,longitude:21,label:'Koncert'});for(const args of [{destinationId:'unknown'},{destinationId:'event-1',destinationQuery:'A'},{}])await assert.rejects(()=>runTool('plan_transit',args,state));
+});
+
+
+test('active stops preserve exact boarded sequence including loops without leaking earlier/later trip stops',()=>{
+ const data=graph();const middle={id:'m',name:'Middle',latitude:52.21,longitude:21},before={id:'before',name:'Before',latitude:52.18,longitude:21},after={id:'after',name:'After',latitude:52.26,longitude:21};data.stops.push(middle,before,after);data.trips=[{...data.trips[0],stopTimes:[event('before','13:50:00'),event('a','14:00:00'),event('m','14:03:00'),event('a','14:06:00','14:06:00',1),event('d','14:20:00'),event('after','14:30:00')]}];
+ const ride=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')})[0].steps.find(step=>step.mode==='TRANSIT');
+ assert.equal(ride.fromStopIndex,1);assert.equal(ride.toStopIndex,4);assert.equal(ride.stopPositionSource,'gtfs_stop_sequence');assert.deepEqual(ride.stopPositions.map(stop=>stop.id),['a','m','a','d']);assert.deepEqual(ride.stopPositions.map(stop=>stop.sequenceIndex),[1,2,3,4]);assert.equal(ride.stopPositions[1].latitude,middle.latitude);assert.equal(ride.stopPositions[1].name,'Middle');
+});
+
+test('vehicle directions require fresh unambiguous confirmed same-vehicle and same-line trip binding',()=>{
+ const data=graph(),vehicle={id:'2:1',line:'17',freshness:'recent',observedAt:new Date(now).toISOString()},delta={vehicleId:'2:1',tripId:data.trips[0].id,observedAt:now,confidence:'brigade_two_stop_dwell'},decorate=(vehicles,deltas)=>withVehicleDirections(vehicles,data,new Map(deltas.map((delta,index)=>[index,delta])),now);
+ assert.equal(decorate([vehicle],[delta])[0].direction,'B');assert.equal(decorate([vehicle],[delta])[0].directionTripId,data.trips[0].id);
+ for(const value of [{...delta,observedAt:now-180001},{...delta,observedAt:now+60001},{...delta,confidence:'unconfirmed'},{...delta,vehicleId:'2:other'},{...delta,tripId:'missing'},{...delta,tripId:data.trips[2].id}])assert.equal(decorate([vehicle],[value])[0].direction,null);
+ assert.equal(decorate([vehicle],[delta,{...delta,tripId:data.trips[1].id}])[0].direction,null);assert.equal(decorate([{...vehicle,freshness:'stale'}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,observedAt:new Date(now-90001).toISOString()}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,line:'22'}],[delta])[0].direction,null);
 });

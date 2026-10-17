@@ -1,5 +1,6 @@
 import {TransitError,waypoint,departure,dateInWarsaw,serviceSeconds,serviceInstant,distanceMeters,transitAppearance} from '../transit-core.mjs';
-import {planGraph,validateGraph} from './transit-router.mjs';
+import {validateGraph} from './transit-router.mjs';
+import {planPedestrianGraph} from './walking-router.mjs';
 import {getGtfsGraph} from './transit-gtfs.mjs';
 import {createDelayModel} from './transit-live.mjs';
 export const TRANSIT_SOURCES={
@@ -24,43 +25,97 @@ export function normalizeVehicles(rows,type,now=Date.now()) {return rows.map(row
 export const normalizeBrigade=value=>/^\d+$/.test(String(value||''))?String(Number(value)):fold(value);
 const tripDirection=value=>fold(value).replace(/^.*?->\s*/,'');
 export function buildBrigadeEvidence(records,line,stopId,graph,day){
+ const indexed=new Map();for(const row of records){if(!row.direction||!normalizeBrigade(row.brigade))continue;const key=row.clock+'|'+tripDirection(row.direction);if(!indexed.has(key))indexed.set(key,[]);indexed.get(key).push(row);}
  const bindings=new Map();for(const trip of graph?.trips||[]){if(trip.line!==line)continue;for(const event of trip.stopTimes){if(event.stopId!==stopId||dateInWarsaw(event.departure)!==day)continue;
-  for(const row of records){if(!row.direction||row.clock!==event.departureClock||tripDirection(row.direction)!==tripDirection(trip.headsign))continue;const id=normalizeBrigade(row.brigade);if(!id)continue;if(!bindings.has(id))bindings.set(id,new Set());bindings.get(id).add(trip.id);}
+  for(const row of indexed.get(event.departureClock+'|'+tripDirection(trip.headsign))||[]){const id=normalizeBrigade(row.brigade);if(!id)continue;if(!bindings.has(id))bindings.set(id,new Set());bindings.get(id).add(trip.id);}
  }}return bindings;
 }
-export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300}={}) {
- const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),delayModel=createDelayModel({now,tripEvidence});
- let municipalStops=[],stopBridge=new Map();
- let modelGraph,pollTimer,pollPromise,tracking=false,latestSnapshot={vehicles:[],sources:[],errors:[]};
- async function vehicleSnapshot(signal){const vehicles=[],sources=[],errors=[];for(const type of [1,2])try{const data=await api('vehicles',{type},signal);sources.push(data.source);vehicles.push(...normalizeVehicles(data.rows,type,now()));}catch(error){signal?.throwIfAborted();errors.push({code:error.code||'SOURCE_UNAVAILABLE',part:'vehicles',type});}delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return latestSnapshot;}
- function attach(graph){if(modelGraph===graph)return;const same=Boolean(modelGraph&&modelGraph.serviceDay===graph.serviceDay&&modelGraph.source.version===graph.source.version);modelGraph=graph;delayModel.attachGraph(graph,{preserveState:same});if(same)return;bindingCache.clear();bindingQueue.clear();stopBridge.clear();const byName=new Map();for(const stop of municipalStops){const name=fold(stop.name);if(!byName.has(name))byName.set(name,[]);byName.get(name).push(stop);}for(const stop of graph.stops){const matches=(byName.get(fold(stop.name))||[]).filter(item=>!stop.platform||item.platform===stop.platform).map(item=>({stop:item,distance:distanceMeters(stop,item)})).filter(item=>item.distance<=60).sort((a,b)=>a.distance-b.distance);if(matches[0]&&(!matches[1]||matches[1].distance-matches[0].distance>=5))stopBridge.set(stop.id,matches[0].stop);}}
-
- function tripEvidence(vehicle,stopId){
-  const stop=stopBridge.get(stopId);if(!stop||!normalizeBrigade(vehicle.brigade))return null;const key=dateInWarsaw(now())+'|'+stop.id+'|'+vehicle.line+'|'+stopId,cached=bindingCache.get(key);
-  if(cached&&cached.until>now())return cached.bindings.get(normalizeBrigade(vehicle.brigade))||new Set();
-  if(!bindingQueue.has(key)){bindingQueue.set(key,{key,stop,line:vehicle.line,stopId,queuedAt:now()});while(bindingQueue.size>100)bindingQueue.delete(bindingQueue.keys().next().value);}return null;
+// Directions belong to a confirmed vehicle/trip binding, never merely a line number.
+export function withVehicleDirections(vehicles,graph,deltas,now=Date.now()) {
+ const trips=new Map((graph?.trips||[]).map(trip=>[trip.id,trip])),byVehicle=new Map();
+ for(const delta of deltas.values()){
+  const age=now-delta.observedAt,trip=trips.get(delta.tripId);
+  if(delta.confidence!=='brigade_two_stop_dwell'||!Number.isFinite(age)||age< -60000||age>180000||!trip?.headsign)continue;
+  if(!byVehicle.has(delta.vehicleId))byVehicle.set(delta.vehicleId,[]);byVehicle.get(delta.vehicleId).push(trip);
  }
- async function flushBindings(){
-  let count=0;for(const[key,item]of bindingQueue){bindingQueue.delete(key);if(now()-item.queuedAt>120000)continue;if(count++>=4){bindingQueue.set(key,item);break;}
-   try{const data=await api('departures',{busstopId:item.stop.group,busstopNr:item.stop.platform,line:item.line});const rows=normalizeDepartures(data.rows),bindings=buildBrigadeEvidence(rows,item.line,item.stopId,modelGraph,dateInWarsaw(now()));
-    bindingCache.set(key,{until:now()+600000,bindings});while(bindingCache.size>100)bindingCache.delete(bindingCache.keys().next().value);
-   }catch{}
+ return vehicles.map(vehicle=>{
+  const matches=(byVehicle.get(vehicle.id)||[]).filter(trip=>trip.line===vehicle.line),age=now-Date.parse(vehicle.observedAt),confirmed=vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000&&matches.length===1;
+  return {...vehicle,direction:confirmed?matches[0].headsign:null,directionSource:confirmed?'confirmed_gtfs_trip':null,directionTripId:confirmed?matches[0].id:null};
+ });
+}
+export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout,walkingProvider}={}) {
+ const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),activeBindings=new Set(),lineBindings=new Map(),delayModel=createDelayModel({now,tripEvidence});
+ let municipalStops=[],stopBridge=new Map();
+ let modelGraph,pollTimer,pollPromise,bindingPromise,trackingController,graphGeneration=0,tracking=false;
+ const evidenceStats={requests:0,failures:0,lastSuccessAt:null,lastFailureAt:null,lastFailureCode:null};
+ let latestSnapshot={vehicles:[],sources:[],errors:[]};
+ const trackingStats={lastPollStartedAt:null,lastPollCompletedAt:null,lastPollError:null};
+ async function vehicleSnapshot(signal){
+  const results=await Promise.all([1,2].map(async type=>{try{const data=await api('vehicles',{type},signal);return{vehicles:normalizeVehicles(data.rows,type,now()),source:data.source};}catch(error){signal?.throwIfAborted();return{error:{code:error.code||'SOURCE_UNAVAILABLE',part:'vehicles',type}};}}));
+  signal?.throwIfAborted();const vehicles=results.flatMap(result=>result.vehicles||[]),sources=results.flatMap(result=>result.source?[result.source]:[]),errors=results.flatMap(result=>result.error?[result.error]:[]);
+  delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return latestSnapshot;
+ }
+ function attach(graph){if(modelGraph===graph)return;const same=Boolean(modelGraph&&modelGraph.serviceDay===graph.serviceDay&&modelGraph.source.version===graph.source.version);modelGraph=graph;delayModel.attachGraph(graph,{preserveState:same});if(same)return;graphGeneration++;bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();stopBridge.clear();const byName=new Map();for(const stop of municipalStops){const name=fold(stop.name);if(!byName.has(name))byName.set(name,[]);byName.get(name).push(stop);}for(const stop of graph.stops){const matches=(byName.get(fold(stop.name))||[]).filter(item=>!stop.platform||item.platform===stop.platform).map(item=>({stop:item,distance:distanceMeters(stop,item)})).filter(item=>item.distance<=60).sort((a,b)=>a.distance-b.distance);if(matches[0]&&(!matches[1]||matches[1].distance-matches[0].distance>=5))stopBridge.set(stop.id,matches[0].stop);}}
+
+ const EVIDENCE_TTL=600000,QUEUE_LIMIT=512,CACHE_LIMIT=512,SHARED_BINDING_LIMIT=32768;
+ function evidenceKey(stop,line,stopId){return dateInWarsaw(now())+'|'+stop.id+'|'+line+'|'+stopId;}
+ function queueEvidence(stop,line,stopId){
+  const key=evidenceKey(stop,line,stopId),cached=bindingCache.get(key);
+  if(cached?.until>now()||bindingQueue.has(key)||activeBindings.has(key)||bindingQueue.size>=QUEUE_LIMIT)return;
+  bindingQueue.set(key,{key,stop,line,stopId,queuedAt:now(),attempts:0,retryAt:0});
+ }
+ function sharedBindingCount(){let count=0;for(const item of lineBindings.values())for(const ids of item.bindings.values())count+=ids.size;return count;}
+ function sharedEvidence(line){const item=lineBindings.get(line);if(item?.until>now())return item.bindings;lineBindings.delete(line);return null;}
+ function tripEvidence(vehicle,stopId){
+  const stop=stopBridge.get(stopId),brigade=normalizeBrigade(vehicle.brigade);if(!stop||!brigade)return null;
+  const known=sharedEvidence(vehicle.line)?.get(brigade),cached=bindingCache.get(evidenceKey(stop,vehicle.line,stopId));
+  // A complete current-platform response takes precedence. Shared positive
+  // bindings are not an exhaustive list: another branch may use this platform.
+  if(cached?.until>now())return cached.bindings.get(brigade)||new Set();
+  const observedAt=Date.parse(vehicle.observedAt);
+  const plausible=modelGraph.trips.filter(trip=>trip.line===vehicle.line&&trip.stopTimes.some(event=>event.stopId===stopId)&&trip.stopTimes[0].departure<=observedAt+900000&&trip.stopTimes.at(-1).arrival>=observedAt-900000);
+  // Reuse is safe only if it cannot hide a competing spatial/temporal trip.
+  // Otherwise obtain this platform's complete brigade evidence before matching.
+  if(known&&plausible.length&&plausible.every(trip=>known.has(trip.id)))return known;
+  queueEvidence(stop,vehicle.line,stopId);return null;
+ }
+ function prewarmEvidence(vehicles){
+  const lines=new Set(vehicles.filter(vehicle=>vehicle.freshness==='recent'&&normalizeBrigade(vehicle.brigade)).map(vehicle=>vehicle.line));
+  for(const line of lines){
+   if(sharedEvidence(line))continue;
+   // One representative platform per active line starts learning before a stop
+   // arrival or route request. Later branch-specific misses queue independently.
+   const counts=new Map();for(const trip of modelGraph?.trips||[]){if(trip.line!==line||trip.stopTimes[0].departure>now()+900000||trip.stopTimes.at(-1).arrival<now()-900000)continue;for(const event of trip.stopTimes)if(stopBridge.has(event.stopId))counts.set(event.stopId,(counts.get(event.stopId)||0)+1);}
+   const stopId=[...counts].sort((a,b)=>b[1]-a[1])[0]?.[0];if(stopId)queueEvidence(stopBridge.get(stopId),line,stopId);
   }
  }
+ async function flushBindings(signal){
+  if(bindingPromise)return bindingPromise;const generation=graphGeneration,graph=modelGraph;
+  const jobs=[];for(const[key,item]of bindingQueue){if(now()-item.queuedAt>EVIDENCE_TTL){bindingQueue.delete(key);continue;}if(item.retryAt>now())continue;bindingQueue.delete(key);activeBindings.add(key);jobs.push(item);if(jobs.length>=12)break;}
+  bindingPromise=(async()=>{let next=0;await Promise.all(Array.from({length:Math.min(4,jobs.length)},async()=>{while(next<jobs.length){const item=jobs[next++];if(signal?.aborted||generation!==graphGeneration)return;evidenceStats.requests++;
+   try{const data=await api('departures',{busstopId:item.stop.group,busstopNr:item.stop.platform,line:item.line},signal);if(signal?.aborted||generation!==graphGeneration)return;
+    const bindings=buildBrigadeEvidence(normalizeDepartures(data.rows),item.line,item.stopId,graph,dateInWarsaw(now()));
+    bindingCache.set(item.key,{until:now()+EVIDENCE_TTL,bindings});while(bindingCache.size>CACHE_LIMIT)bindingCache.delete(bindingCache.keys().next().value);
+    if(bindings.size){let shared=sharedEvidence(item.line);if(!shared)shared=new Map();let bindingCount=sharedBindingCount();for(const[brigade,ids]of bindings){if(!shared.has(brigade)&&bindingCount<SHARED_BINDING_LIMIT)shared.set(brigade,new Set());const target=shared.get(brigade);if(!target)continue;for(const id of ids)if(!target.has(id)&&bindingCount<SHARED_BINDING_LIMIT){target.add(id);bindingCount++;}}lineBindings.set(item.line,{until:now()+EVIDENCE_TTL,bindings:shared});while(lineBindings.size>256)lineBindings.delete(lineBindings.keys().next().value);}
+    evidenceStats.lastSuccessAt=new Date(now()).toISOString();
+   }catch(error){if(signal?.aborted||generation!==graphGeneration)return;evidenceStats.failures++;evidenceStats.lastFailureAt=new Date(now()).toISOString();evidenceStats.lastFailureCode=error.code||'SOURCE_UNAVAILABLE';item.attempts++;item.retryAt=now()+Math.min(120000,15000*2**Math.min(item.attempts-1,3));if(bindingQueue.size<QUEUE_LIMIT)bindingQueue.set(item.key,item);}finally{activeBindings.delete(item.key);}
+  }}));})().finally(()=>{bindingPromise=null;});return bindingPromise;
+ }
  async function startTracking(){
-  if(tracking)return;tracking=true;
+  if(tracking)return;tracking=true;trackingController=new AbortController();const signal=trackingController.signal;
   const tick=async()=>{
-   pollTimer=null;if(!tracking)return;
-   pollPromise=(async()=>{try{if(!municipalStops.length)municipalStops=(await stops()).stops;const graph=await graphProvider(now());if(graph)attach(validateGraph(graph));await vehicleSnapshot();await flushBindings();}catch{delayModel.ingest([]);}})();
-   try{await pollPromise;}finally{pollPromise=null;if(tracking){pollTimer=setTimeout(tick,15000);pollTimer.unref?.();}}
+   pollTimer=null;if(!tracking||signal.aborted)return;const startedAt=now();trackingStats.lastPollStartedAt=new Date(startedAt).toISOString();
+   pollPromise=(async()=>{try{if(!municipalStops.length)municipalStops=(await stops(signal)).stops;const graph=await graphProvider(now(),{signal});if(signal.aborted)return;if(graph)attach(validateGraph(graph));const snapshot=await vehicleSnapshot(signal);prewarmEvidence(snapshot.vehicles);void flushBindings(signal);trackingStats.lastPollCompletedAt=new Date(now()).toISOString();trackingStats.lastPollError=null;}catch(error){if(!signal.aborted){delayModel.ingest([]);trackingStats.lastPollError=error.code||'SOURCE_UNAVAILABLE';}}})();
+   try{await pollPromise;}finally{pollPromise=null;if(tracking&&!signal.aborted){pollTimer=setTimeoutImpl(tick,Math.max(0,15000-(now()-startedAt)));pollTimer.unref?.();}}
   };
   await tick();
  }
+ function liveSummary(){return{...delayModel.summary(),pollSeconds:15,continuous:tracking,pendingEvidence:bindingQueue.size,evidenceCached:bindingCache.size,evidenceLines:lineBindings.size,sharedTripBindings:sharedBindingCount(),sharedTripBindingLimit:SHARED_BINDING_LIMIT,evidenceInFlight:Boolean(bindingPromise),evidenceQueueLimit:QUEUE_LIMIT,evidenceConcurrency:4,evidenceRequestsPerCycle:12,evidenceDiagnostics:{...evidenceStats},trackingDiagnostics:{...trackingStats,pollAgeSeconds:trackingStats.lastPollCompletedAt?Math.max(0,Math.floor((now()-Date.parse(trackingStats.lastPollCompletedAt))/1000)):null,vehicleSnapshotCount:latestSnapshot.vehicles.length,recentVehicleCount:latestSnapshot.vehicles.filter(vehicle=>vehicle.freshness==='recent'&&now()-Date.parse(vehicle.observedAt)<=90000).length},matchedStopPlatforms:stopBridge.size};}
  function liveSnapshot(input){
   const start=waypoint(input?.origin,'punkt startowy'),end=waypoint(input?.destination,'cel');if(typeof start.value==='string'||typeof end.value==='string')throw new TransitError('INVALID_LOCATION','Do aktualizacji mapy wymagane są współrzędne.');
   const origin={latitude:start.value.lat,longitude:start.value.lng},destination={latitude:end.value.lat,longitude:end.value.lng};
-  const nearby=latestSnapshot.vehicles.map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent',distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))};}).filter(vehicle=>vehicle.distanceMeters<=2000).sort((a,b)=>a.distanceMeters-b.distanceMeters);
-  return{vehicles:nearby.slice(0,40),vehicleCount:nearby.length,vehicleProvided:Math.min(40,nearby.length),liveModel:{...delayModel.summary(),pollSeconds:15,continuous:tracking,pendingEvidence:bindingQueue.size,evidenceCached:bindingCache.size,matchedStopPlatforms:stopBridge.size},errors:latestSnapshot.errors};
+  const nearby=withVehicleDirections(latestSnapshot.vehicles,modelGraph,delayModel.getDeltas(),now()).map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent',distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))};}).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
+  return{vehicles:nearby.slice(0,40),vehicleCount:nearby.length,vehicleProvided:Math.min(40,nearby.length),liveModel:liveSummary(),errors:latestSnapshot.errors};
  }
 
  async function api(name,args,signal) {
@@ -71,7 +126,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   try{response=await fetchImpl('https://dane.um.warszawa.pl/api/action/'+spec.action,{method:'POST',headers:{Authorization:key(),'Content-Type':'application/json',Accept:'application/json'},...(args?{body:JSON.stringify(args)}:{}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)]):AbortSignal.timeout(timeoutMs)});}
   catch(error){signal?.throwIfAborted();throw new TransitError('SOURCE_UNAVAILABLE','Miejskie API komunikacji nie odpowiedziało na czas.');}
   if(!response.ok)throw new TransitError('SOURCE_UNAVAILABLE','Miejskie API komunikacji jest chwilowo niedostępne.');
-  const raw=await response.json();if(!Array.isArray(raw))throw new TransitError('SOURCE_SCHEMA','Miejskie API zwróciło nieznany format danych.');
+  const raw=await response.json();signal?.throwIfAborted();if(!Array.isArray(raw))throw new TransitError('SOURCE_SCHEMA','Miejskie API zwróciło nieznany format danych.');
   const result={rows:raw,source:sourceMeta(name,new Date(now()).toISOString())};
   cache.set(cacheKey,{until:now()+spec.ttl,result});while(cache.size>cacheLimit)cache.delete(cache.keys().next().value);
   return structuredClone(result);
@@ -102,11 +157,11 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
    }catch(error){signal?.throwIfAborted();errors.push({code:error.code||'SOURCE_UNAVAILABLE',part:'lines',stopId:stop.id});}
   }
   const deltas=delayModel.getDeltas();
-  if(graph)try{routes=planGraph(graph,{origin,destination,departureTime:requested.getTime(),signal,deltas,now:now()});reason=routes.length?null:'NO_VERIFIED_ROUTE';}catch(error){signal?.throwIfAborted();reason=error instanceof TransitError?error.code:'GRAPH_INVALID';errors.push({code:reason,part:'routing'});}
-  const relevant=snapshot.vehicles.map(vehicle=>({...vehicle,distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))})).filter(vehicle=>vehicle.distanceMeters<=2000).sort((a,b)=>a.distanceMeters-b.distanceMeters);
-  return{status:routes.length?'ready':'limited',routes,reason,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...delayModel.summary(),pollSeconds:15,continuous:tracking,pendingEvidence:bindingQueue.size,evidenceCached:bindingCache.size,matchedStopPlatforms:stopBridge.size,vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.','Przejścia piesze są szacowane, a wyszukiwanie ogranicza zakres przystanków i przesiadek.']};
+  if(graph)try{routes=await planPedestrianGraph(graph,{origin,destination,departureTime:requested.getTime(),signal,deltas,now:now()},{...(walkingProvider?{provider:walkingProvider}:{})});for(const route of routes)if(route.walkingSource)sources.push(route.walkingSource);reason=routes.length?null:'NO_VERIFIED_ROUTE';}catch(error){signal?.throwIfAborted();reason=error instanceof TransitError?error.code:'GRAPH_INVALID';errors.push({code:reason,part:'routing'});}
+  const relevant=withVehicleDirections(snapshot.vehicles,modelGraph,delayModel.getDeltas(),now()).map(vehicle=>({...vehicle,distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))})).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
+  return{status:routes.length?'ready':'limited',routes,reason,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.',routes.length?'Czasy dojść uwzględniają ścieżki OpenStreetMap / Valhalla; ostatnie metry do punktów i tempo marszu pozostają szacunkowe. Wyszukiwanie ma ograniczony zakres przystanków, przesiadek i sprawdzanych przejść.':'Przejścia piesze nie zostały potwierdzone w żadnej zwróconej trasie; wyszukiwanie ogranicza zakres przystanków, przesiadek i sprawdzanych przejść.']};
  }
 
- return{searchStops,plan,startTracking,liveSnapshot,stopTracking(){tracking=false;clearTimeout(pollTimer);pollTimer=null;delayModel.clear();bindingCache.clear();bindingQueue.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
+ return{searchStops,plan,startTracking,liveSnapshot,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
 }
 export const transitService=createTransitService();

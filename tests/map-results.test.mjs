@@ -19,7 +19,8 @@ for(const vendor of ['google','leaflet'])test('MCP result cards use '+vendor+' a
  runInNewContext(render+'\nshowResults(action);',{...context,action});
  assert.equal(calls.filter(c=>c[0]==='add').length,1);
  const cards=panel.children.filter(e=>e.tag==='article');assert.equal(cards.length,1); // only the ★ recommended result is listed
- assert.equal(cards[0].children[0].textContent,'★ Polecane: Koncert');
+ assert.equal(cards[0].children[0].textContent,'Koncert');
+ assert.match(cards[0].children.find(c=>c.className==='rec-card__meta').children[0].textContent,/^★ /);
  assert.match(panel.children[1].textContent,/Niepełne/);
  cards[0].children.find(c=>c.tag==='button').listeners.click();
  const view=calls.find(c=>c[0]==='view');assert.equal(view[1].lat,52.23);assert.equal(view[1].lng,21.01);assert.equal(view[2],16);assert.ok(calls.some(c=>c[0]==='open'));
@@ -74,7 +75,7 @@ test('conversation lists at most 3 recommended results, falling back to the firs
   return {titles:panel.children.filter(e=>e.tag==='article').map(card=>card.children[0].textContent),added};
  };
  const starred=run(['r1','r2','r3','r4']);
- assert.deepEqual(starred.titles,['★ Polecane: Wydarzenie 1','★ Polecane: Wydarzenie 2','★ Polecane: Wydarzenie 3']);
+ assert.deepEqual(starred.titles,['Wydarzenie 1','Wydarzenie 2','Wydarzenie 3']);
  assert.equal(starred.added.length,5);
  assert.deepEqual(run([]).titles,['Wydarzenie 1','Wydarzenie 2','Wydarzenie 3']);
 });
