@@ -42,7 +42,7 @@ export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}=
   current.open(detail);host.expandCitySheet?.();
  }
  function appendConversation(panel,detail){const welcome=doc.getElementById('welcome-prompts');if(welcome)welcome.hidden=true;const answer=doc.createElement('p');answer.className='message';answer.textContent=detail.destination?'Sprawdźmy połączenia komunikacją miejską.':'Dokąd jedziemy? Wybierz start i cel.';chat?.append(answer,panel);}
- host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());active=null;routeBar(null);});
+ host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());if(!used)sessions.push(current);active=null;routeBar(null);});
  host.addEventListener('city:transit',event=>open(event.detail));host.addEventListener('city:pulse',()=>{active?.close();});host.addEventListener('city:map',()=>active?.replay());host.addEventListener('city:location',event=>active?.location(event.detail));
  return{open,search:(...args)=>current.search(...args),refreshLive:()=>active?.refreshLive(),reset:()=>active?.reset(),getState:()=>current.getState()};
 }

@@ -26,6 +26,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('a new conversation question hides previous transport data and clears its selected map and bar',async()=>{
  const f=fixture({compute:async()=>result([route('old')])});
+ f.events['city:query']();
  f.panel.open({origin:'Dw. Centralny',destination:'Anielewicza'});await tick();
  f.ids['transit-alternatives'].children[0].click();assert.equal(f.ids['environment-bar'].dataset.route,'true');
  f.events['city:query']();
@@ -37,8 +38,8 @@ test('a new conversation question hides previous transport data and clears its s
 
 test('a late route response cannot restore previous data after a new conversation question',async()=>{
  let resolve;const f=fixture({compute:()=>new Promise(done=>resolve=done)});
- f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';
- const pending=f.panel.search();f.events['city:query']();resolve(result([route('late')]));await pending;
+ f.events['city:query']();f.panel.open({origin:'Start',destination:'Cel'});
+ f.events['city:query']();resolve(result([route('late')]));await tick();
  assert.equal(f.ids['transit-panel'].hidden,true);assert.equal(f.panel.getState().routeCount,0);
  assert.equal(f.calls.filter(c=>c[0]==='route').length,0);assert.equal(f.ids['environment-bar'].dataset.route,'false');
 });
