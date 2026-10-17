@@ -62,10 +62,10 @@ test('oversized search stays complete on server and can be refined next turn wit
     if (step === 3) return {tool_calls:[call('filter_results',{district:'Ochota'})]};
     const result = JSON.parse(history.at(-1).content);
     if (step === 2) {
-      assert.equal(result.status,'refinement_required');
-      assert.equal(result.total,201);
-      assert.equal(result.recordsProvided,0);
-      assert.equal(Object.hasOwn(result,'results'),false);
+      assert.equal(result.status,'preview');
+      assert.equal(result.originalTotal,201);
+      assert.ok(result.recordsProvided>0 && result.recordsProvided<201);
+      assert.equal(Object.hasOwn(result,'results'),true);
       assert.deepEqual(result.countsByCategory,{pitch:200,event:1});
       assert.equal(result.complete,false);
       assert.deepEqual(result.errors,errors);
@@ -78,7 +78,8 @@ test('oversized search stays complete on server and can be refined next turn wit
     return {content:'Pokazuję koncert na Ochocie. Część źródeł jest niedostępna.'};
   }});
   const first = await assistant.chat({message:'Pokaż wszystko'});
-  assert.deepEqual(first.actions,[]);
+  assert.equal(first.actions[0].type,'display_results');
+  assert.ok(first.actions[0].results.length>0);
   const next = await assistant.chat({message:'Ochota',sessionId:first.sessionId});
   assert.equal(searches,1);
   assert.deepEqual(next.actions[0].results.map(r=>r.id),['last']);

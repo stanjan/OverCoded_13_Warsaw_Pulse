@@ -317,6 +317,11 @@ function showResults(action) {
   const title = document.createElement('h2'); title.textContent = action.title;
   const note = document.createElement('p'); note.className = 'results-note';
   note.textContent = action.complete === false ? 'Niepełne wyniki · część źródeł jest niedostępna' : 'Dane miejskie · sprawdź termin i czas aktualizacji';
+  if (action.narrowing?.preview) {
+    note.textContent += ' · Podgląd: ' + action.results.length + ' z ' + action.narrowing.originalTotal + ' dopasowań.';
+    if (action.narrowing.selection === 'nearest_known_locations_first') note.textContent += ' Najpierw najbliższe miejsca z potwierdzonym położeniem.';
+  } else if (action.narrowing) note.textContent += ' · Automatycznie zawężony zakres: ' + action.results.length + ' wybranych z ' + action.narrowing.originalTotal + ' pierwotnych dopasowań.';
+  if (action.displayProjection) note.textContent += ' · Skrócony podgląd szczegółów.';
   if (action.results.some(place => !Number.isFinite(place.lat) || !Number.isFinite(place.lng) || Math.abs(place.lat) > 90 || Math.abs(place.lng) > 180)) note.textContent += ' · Wyniki bez punktu na mapie pozostają na liście; ich odległość jest nieznana.';
   if (action.audienceFilterMapping) note.textContent += ' · Filtr rodzinny uwzględnia oznaczenie „Dla dzieci”.';
   resultPanel.append(title, note);

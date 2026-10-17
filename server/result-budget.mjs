@@ -58,7 +58,57 @@ function sourceCounts(sources, counts) {
   return sources?.map(source => ({ ...source, matchedBeforeNarrowing: source.matched, matched: counts[source.category] || 0 }));
 }
 
-// No top-N truncation. Every record that matches each disclosed scope is sent.
+const categoryLabels = { event: 'wydarzenia', sports: 'zajęcia sportowe', pitch: 'boiska', route: 'trasy rekreacyjne', toilet: 'toalety' };
+function refinementExamples(records) {
+  const values = key => {
+    const counts = new Map();
+    for (const record of records) for (const value of record[key] || []) {
+      if (typeof value === 'string' && value.trim() && value.length <= 80) counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pl')).slice(0, 6).map(([value]) => value);
+  };
+  return { categories: [...new Set(records.map(record => record.category))].map(value => ({ value, label: categoryLabels[value] || value })),
+    activities: values('activities'), districts: values('districts') };
+}
+
+// Only the model's copy is projected when a single record is too large. The
+// selected original records (including descriptions, dates and provenance)
+// remain available to cards and subsequent manual filtering on the server.
+function projectRecord(record) {
+  const short = (value, length = 500) => typeof value === 'string' ? value.slice(0, length) : value;
+  const list = (value, count = 8) => Array.isArray(value) ? value.slice(0, count).map(item => short(item)) : undefined;
+  return Object.fromEntries(Object.entries({
+    id: record.id, name: short(record.name), category: record.category, description: short(record.description, 1500),
+    lat: record.lat, lng: record.lng, district: short(record.district), districts: list(record.districts),
+    address: short(record.address), addresses: list(record.addresses), activities: list(record.activities), audience: list(record.audience),
+    dates: record.dates?.slice(0, 12).map(date => Object.fromEntries(Object.entries({ from: short(date.from, 80), to: short(date.to, 80),
+      sourceFrom: short(date.sourceFrom, 80), sourceTo: short(date.sourceTo, 80) }).filter(([, value]) => value !== undefined))),
+    time: short(record.time), weekdays: list(record.weekdays), source: short(record.source),
+    imageUrl: typeof record.imageUrl === 'string' && record.imageUrl.length <= 2000 ? record.imageUrl : undefined,
+    paid: record.paid, accessible: record.accessible, changingTable: record.changingTable,
+    openingHours: short(record.openingHours), toiletType: short(record.toiletType), operator: short(record.operator),
+    updatedAt: short(record.updatedAt), surface: short(record.surface), lengthKm: record.lengthKm,
+    schedule: record.schedule && Object.fromEntries(Object.entries(record.schedule).slice(0, 7).map(([day, hours]) => [day, short(hours)])),
+    sourceUrl: typeof record.sourceUrl === 'string' && record.sourceUrl.length <= 2000 ? record.sourceUrl : undefined,
+    url: typeof record.url === 'string' && record.url.length <= 2000 ? record.url : undefined,
+    dataMode: record.dataMode, live: record.live,
+    provenance: record.provenance && { datasetId: short(record.provenance.datasetId), fetchedAt: short(record.provenance.fetchedAt, 80),
+      sourceUpdatedAt: short(record.provenance.sourceUpdatedAt, 80), freshness: short(record.provenance.freshness), timeZone: short(record.provenance.timeZone, 80) },
+  }).filter(([, value]) => value !== undefined));
+}
+
+export function boundDisplayAction(action) {
+  if (action.type !== 'display_results' || JSON.stringify(action).length <= 250000) return action;
+  // Full descriptions can be megabytes even when the model's copy fits. Keep
+  // the browser's SSE frame bounded too, without altering retained originals.
+  action.results = action.results.map(projectRecord);
+  const byId = new Map(action.results.map(record => [record.id, record]));
+  action.highlights = action.highlightIds.map(id => byId.get(id));
+  action.displayProjection = { reason: 'conversation_capacity', fieldsProjected: true, originalRecordsRetained: true };
+  return action;
+}
+
+// Complete scopes are preferred. If none fits, disclose a bounded preview.
 // The caller retains the original records independently of this effective set.
 export function fitResultBudget(result, {
   history = [], toolCallId, now = new Date(), location, filters = {}, requestOptions = {}, limits = RESULT_LIMITS,
@@ -90,7 +140,8 @@ export function fitResultBudget(result, {
     const entry = { ...scope, total: records.length };
     attempts.push(entry);
     const response = envelope(records);
-    if (toolFits(response, context)) return { response, records };
+    // An empty automatic scope says nothing about the original matches.
+    if (records.length && toolFits(response, context)) return { response, records };
     return null;
   };
   if (original.some(record => record.category === 'event')) {
@@ -116,7 +167,10 @@ export function fitResultBudget(result, {
   const knownLocation = location?.status === 'available' &&
     location.source === 'browser_geolocation' && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180;
   if (knownLocation) {
-    const dated = records;
+    // Spatial narrowing starts from the entire requested date/audience scope,
+    // rather than inheriting the last failed one-day trial.
+    const dated = original;
+    applied = { requested: filters }; excluded = {}; preserved = {};
     for (const radiusKm of [25, 10, 5, 2, 1, 0.5, 0.25]) {
       const nearby = withinRadius(dated, location, radiusKm, filters);
       records = nearby.records;
@@ -130,22 +184,51 @@ export function fitResultBudget(result, {
       if (fitted) return fitted;
     }
   }
-  const missingCoordinates = records.filter(record => !selectLocations(record, filters).length).length;
-  if (missingCoordinates) preserved = { missingCoordinates };
-  return {
-    records: [],
-    response: {
-      status: 'refinement_required', total: originalTotal, originalTotal, effectiveTotal: 0, recordsProvided: 0,
-      complete: result.complete, dataMode: result.dataMode, errors: result.errors || [], sources: result.sources || [],
-      countsByCategory,
-      narrowing: { reason: 'conversation_capacity', originalTotal, effectiveTotal: 0, candidateTotal: records.length,
-        appliedFilters: applied, excluded, preserved, attempts, allMatchingRecordsProvided: false,
-        fallbackReason: missingCoordinates ? 'missing_coordinates' : knownLocation ? 'no_scope_fits' : 'no_user_location' },
-      message: missingCoordinates
-        ? 'Zbiór jest zbyt duży do oceny w rozmowie, a ' + missingCoordinates + ' rekordów nie ma współrzędnych. Nie odrzucono ich z tego powodu ani nie potwierdzono ich odległości. Pełny zbiór pozostaje na serwerze. Poproś o dzielnicę, nazwę, adres lub rodzaj aktywności i użyj filter_results; nie pokazuj pustej listy ani nie rekomenduj niewidzianych rekordów.'
-        : 'Automatyczne zawężanie nie dało zbioru mieszczącego się w rozmowie. Pełny zbiór pozostaje na serwerze; żadne rekordy nie zostały przekazane do oceny. Poproś o dzielnicę, temat lub węższe daty; dopiero przy braku współrzędnych można poprosić o wskazanie obszaru lub udostępnienie lokalizacji. Nie rekomenduj niewidzianych rekordów.',
-    },
-  };
+  // Return to the original user-filtered set: failed automatic dates/radii
+  // must never hide every real match. GPS orders known positions nearest first;
+  // unlocated records remain eligible but never acquire an invented distance.
+  const ranked = original.map((record, index) => {
+    const nearest = knownLocation ? selectLocations(record, filters).map(point => ({ ...point,
+      distance: distanceKm(location.latitude, location.longitude, point.lat, point.lng) })).sort((a, b) => a.distance - b.distance)[0] : null;
+    return { record: nearest ? { ...record, lat: nearest.lat, lng: nearest.lng } : record, index, distance: nearest?.distance ?? Infinity };
+  }).sort((a, b) => a.distance - b.distance || a.index - b.index);
+  const suggestions = refinementExamples(original);
+  const missingCoordinates = original.filter(record => !selectLocations(record, filters).length).length;
+  const preview = (selected, projected = false) => ({
+    ...result, status: 'preview', total: selected.length, originalTotal, recordsProvided: selected.length,
+    results: selected.map(item => projected ? projectRecord(item.record) : item.record), countsByCategory,
+    sources: sourceCounts(result.sources, categoryCounts(selected.map(item => item.record))),
+    suggestedRefinements: suggestions,
+    narrowing: { reason: 'conversation_capacity', preview: true, originalTotal, effectiveTotal: selected.length,
+      candidateTotal: originalTotal, appliedFilters: { requested: filters }, attempts,
+      selection: knownLocation && ranked.some(item => Number.isFinite(item.distance)) ? 'nearest_known_locations_first' : 'source_order',
+      ...(knownLocation ? { positionBasis: 'last_known_location', observedAt: location.observedAt ?? null, accuracyMeters: location.accuracy ?? null,
+        freshness: location.freshness || 'unknown' } : {}),
+      farthestKnownDistanceKm: selected.reduce((distance, item) => Number.isFinite(item.distance) ? Math.max(distance ?? 0, item.distance) : distance, null),
+      excluded: { notInPreview: originalTotal - selected.length, missingCoordinates: 0 }, preserved: { missingCoordinates },
+      allMatchingRecordsProvided: selected.length === originalTotal, fieldsProjected: projected,
+      fallbackReason: missingCoordinates === originalTotal ? 'missing_coordinates' : knownLocation ? 'no_scope_fits' : 'no_user_location' },
+    message: 'To jawny podgląd rzeczywistych dopasowań, nie pełny zbiór ani ranking najlepszych. Pokaż te przykłady na mapie i liście przez display_results, potem krótko zapytaj o preferencje z przykładami z suggestedRefinements. Pełny pierwotny zbiór pozostaje na serwerze do filter_results. Brak współrzędnych oznacza listę bez pinezki i nieznaną odległość. Nie twierdź, że nic nie pominięto.',
+  });
+  // The largest fitting prefix has an explicit count and deterministic order.
+  // If even its first full record is huge, use a disclosed bounded model copy.
+  for (const projected of [false, true]) {
+    const first = preview(ranked.slice(0, 1), projected);
+    compactHistory(history, requestOptions, limits, [{ role: 'tool', tool_call_id: toolCallId, content: JSON.stringify(first) }]);
+    if (!toolFits(first, context)) continue;
+    let low = 1, high = ranked.length;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      if (toolFits(preview(ranked.slice(0, middle), projected), context)) low = middle; else high = middle - 1;
+    }
+    const selected = ranked.slice(0, low);
+    return { response: preview(selected, projected), records: selected.map(item => item.record) };
+  }
+  // Only an already exhausted request envelope can reach this branch; never
+  // misrepresent it as no matching records or a successful empty radius.
+  return { records: [], response: { status: 'refinement_required', total: originalTotal, originalTotal, recordsProvided: 0,
+    complete: result.complete, dataMode: result.dataMode, errors: result.errors || [],
+    message: 'Brak miejsca nawet na pojedynczy podgląd w tej rozmowie. Rozpocznij nową rozmowę; pasujące dane istnieją.' } };
 }
 
 // Preserve normal CLI conversation prefixes exactly. Only when capacity is at
