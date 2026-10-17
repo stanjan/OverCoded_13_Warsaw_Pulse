@@ -140,7 +140,7 @@
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
       for (const place of touristPlaces) for (const segment of touristSegments(place)) {
         const opacity=place===selected?1:.25;
-        touristLines.push(new google.maps.Polyline({ map, path: segment.map(([lat,lng]) => ({lat,lng})), strokeColor: '#8a6537', strokeWeight: 4, strokeOpacity: 0, icons:['#fff8e8','#8a6537'].map((color,index)=>({icon:{path:'M 0,-3 0,3',scale:1,strokeColor:color,strokeWeight:index?3:7,strokeOpacity:opacity},offset:'0',repeat:'14px'})), clickable: false, zIndex: place === selected ? 5 : 0 }));
+        touristLines.push(new google.maps.Polyline({ map, path: segment.map(([lat,lng]) => ({lat,lng})), strokeColor: '#702d46', strokeWeight: 4, strokeOpacity: 0, icons:['#fff8e8','#702d46'].map((color,index)=>({icon:{path:'M 0,-3 0,3',scale:1,strokeColor:color,strokeWeight:index?3:7,strokeOpacity:opacity},offset:'0',repeat:'14px'})), clickable: false, zIndex: place === selected ? 5 : 0 }));
       }
       for (const [index, point] of touristPoints(selected).entries()) {
         const marker = new AdvancedMarkerElement({map,position:{lat:point.lat,lng:point.lng},content:touristPointElement(index),title:point.name,gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:210});
@@ -297,7 +297,7 @@
       clearTourism(); touristPlaces = places.filter(place => place.category === 'route');
       touristRecommendedId=recommendedId;
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
-      for (const place of touristPlaces) for (const segment of touristSegments(place)) for(const [color,weight] of [['#fff8e8',8],['#8a6537',3]])L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer);
+      for (const place of touristPlaces) for (const segment of touristSegments(place)) for(const [color,weight] of [['#fff8e8',8],['#702d46',3]])L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer);
       for (const [index, point] of touristPoints(selected).entries()) {
         const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point),{className:'tourist-point-popup',maxWidth:230,...vehiclePopupPadding(element)});
         marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(touristLayer);
