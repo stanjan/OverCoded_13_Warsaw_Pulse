@@ -124,3 +124,28 @@ test('replacing an event keeps the original conversation scroll for the final ba
   assert.equal(env.content.scrollTop, 143);
   assert.deepEqual(env.content.children, env.originalChildren);
 });
+
+test('back settles a transitioning full viewport before restoring conversation scroll near the bottom', () => {
+  const env = setup({ reducedMotion: false });
+  let layoutHeight = 384, scroll = 0;
+  env.content.getBoundingClientRect = () => {
+    // Model the browser retaining the old full viewport during a CSS height transition.
+    if (env.sheet.classList.contains('is-full')) layoutHeight = 672;
+    else if (env.content.style.transition === 'none') layoutHeight = 384;
+    return { height: layoutHeight };
+  };
+  Object.defineProperty(env.content, 'scrollTop', {
+    get: () => scroll,
+    set: value => { scroll = Math.max(0, Math.min(value, 800 - layoutHeight)); },
+  });
+  env.content.scrollTop = 400; env.open();
+  env.content.getBoundingClientRect(); // event is now fully expanded
+  back(env);
+  assert.equal(layoutHeight, 384);
+  assert.equal(env.content.scrollTop, 400); // old full viewport would clamp this to 128
+  assert.equal(env.content.style.transition, '');
+  assert.equal(env.content.style.maxHeight, undefined);
+  assert.equal(env.content.style.minHeight, undefined);
+  clickChevron(env);
+  assert.equal(env.sheet.classList.contains('is-collapsed'), true);
+});

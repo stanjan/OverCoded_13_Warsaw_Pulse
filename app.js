@@ -132,6 +132,8 @@ function closeEventInConversation(restore) {
   const view = content.querySelector('.conversation-event');
   if (!view) return;
   const back = eventReturn; eventReturn = null;
+  const transition = content.style.transition || '';
+  content.style.transition = 'none';
   // Restore state synchronously. A late animation callback must never reopen a
   // collapsed panel or overwrite the height of a new drag, query or event.
   view.remove();
@@ -140,7 +142,11 @@ function closeEventInConversation(restore) {
   if (restore) setExpanded(true); // "Wróć do rozmowy" always opens the conversation.
   setSheetFull(Boolean(back?.wasFull) && expanded);
   resumeSheetFull = Boolean(back?.wasFull);
+  // Settle full -> half geometry before restoring scroll: a still-tall scroll
+  // viewport would clamp a saved position near the bottom of the conversation.
+  content.getBoundingClientRect();
   if (back) content.scrollTop = back.scrollTop;
+  content.style.transition = transition;
   if (restore && content.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     content.animate([
       { opacity: 0.6, transform: 'translateY(12px)' },
