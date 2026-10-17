@@ -238,31 +238,43 @@ function showResults(action) {
   const listed = new Set((recommended.length ? recommended : action.results).slice(0, 3));
   for (const place of action.results) {
     const spatial = Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180;
-    // Cards show only the event title; details live in the map cloud. A title with a map point is a button that focuses it.
-    const card = document.createElement('article'); card.className = 'place-card';
-    const label = (highlighted.has(place.id) ? '★ Polecane: ' : '') + place.name;
-    if (cityMap && spatial) {
-      const marker = cityMap.addMarker(place, { recommended: highlighted.has(place.id), onOpen: () => setExpanded(false) });
-      const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'place-card__title'; focus.textContent = label;
-      focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); });
-      card.append(focus);
-      if (listed.has(place)) resultPanel.append(card);
-      points.push([place.lat, place.lng]);
-    } else if (listed.has(place)) {
-      const name = document.createElement('strong'); name.className = 'place-card__title'; name.textContent = label;
-      card.append(name);
-      resultPanel.append(card);
-    }
-    if (!spatial && listed.has(place) && (place.address || place.addresses?.length)) {
-      const address = document.createElement('span'); address.className = 'place-card__address';
-      address.textContent = [place.address || place.addresses.join(', '), place.district].filter(Boolean).join(' · ');
-      card.append(address);
-    }
+    const isRecommended = highlighted.has(place.id);
+    const marker = cityMap && spatial ? cityMap.addMarker(place, { recommended: isRecommended, onOpen: () => setExpanded(false) }) : null;
+    if (spatial) points.push([place.lat, place.lng]);
+    if (!listed.has(place)) continue;
+    // Recommended card (Stitch prototype, our warm style): tag + when/price, title, address, photo, actions.
+    const info = globalThis.cityCardInfo?.(place) || {};
+    const card = document.createElement('article'); card.className = 'place-card rec-card' + (info.theme ? ' rec-card--' + info.theme : '');
+    const focusMap = () => { if (!cityMap || !marker) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); };
+    const title = document.createElement(marker ? 'button' : 'strong'); title.className = 'place-card__title rec-card__title'; title.textContent = place.name;
+    if (marker) { title.type = 'button'; title.addEventListener('click', focusMap); }
+    const meta = document.createElement('div'); meta.className = 'rec-card__meta';
+    const tag = document.createElement('span'); tag.className = 'rec-card__tag'; tag.textContent = (isRecommended ? '★ ' : '') + (info.themeLabel || 'Polecane');
+    const when = document.createElement('span'); when.className = 'rec-card__when'; when.textContent = [info.when, info.price].filter(Boolean).join(' · ');
+    meta.append(tag, when);
+    card.append(title, meta);
+    const where = [place.address || (place.addresses || []).join(', '), place.district].filter(Boolean).join(' · ');
+    if (where) { const address = document.createElement('span'); address.className = 'place-card__address'; address.textContent = where; card.append(address); }
+    const thumb = document.createElement('div'); thumb.className = 'rec-card__thumb';
+    if (info.imageUrl) { const img = document.createElement('img'); img.src = info.imageUrl; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.addEventListener('error', () => img.remove()); thumb.append(img); }
+    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined rec-card__glyph'; glyph.textContent = info.icon || 'local_activity';
+    thumb.append(glyph); card.append(thumb);
     if (spatial) {
-      const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';
-      transit.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('city:transit',{detail:{destination:{latitude:place.lat,longitude:place.lng,label:place.name}}})));
-      card.append(transit);
+      const actions = document.createElement('div'); actions.className = 'rec-card__actions';
+      const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'rec-card__transit';
+      const transitIcon = document.createElement('span'); transitIcon.className = 'material-symbols-outlined'; transitIcon.textContent = 'near_me';
+      const transitText = document.createElement('span'); transitText.textContent = 'Dojedź komunikacją';
+      transit.append(transitIcon, transitText);
+      transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
+      actions.append(transit);
+      if (marker) {
+        const show = document.createElement('button'); show.type = 'button'; show.className = 'rec-card__map'; show.setAttribute?.('aria-label', 'Pokaż na mapie');
+        const showIcon = document.createElement('span'); showIcon.className = 'material-symbols-outlined'; showIcon.textContent = 'map';
+        show.append(showIcon); show.addEventListener('click', focusMap); actions.append(show);
+      }
+      card.append(actions);
     }
+    resultPanel.append(card);
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
 }
