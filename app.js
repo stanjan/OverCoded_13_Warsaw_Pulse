@@ -46,22 +46,38 @@ new ResizeObserver(() => {
   const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
   appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
 }).observe(document.querySelector('#ai-sheet'));
-const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas) : Promise.reject(new Error('map.js missing')))
+let mapWasReplaced = false;
+const mapContainer = document.querySelector('#map-canvas-container');
+function showMapUnavailable() {
+  mapContainer.classList.remove('map-ready', 'map-google', 'map-leaflet');
+  document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+}
+function useMap(map) {
+  cityMap = map;
+  mapContainer.classList.remove('map-google', 'map-leaflet');
+  mapContainer.classList.add('map-ready', `map-${map.vendor}`);
+  return map;
+}
+// If Google rejects the key after loading, continue on OpenStreetMap with the same state.
+function onMapReplaced(map) {
+  mapWasReplaced = true;
+  if (!map) { cityMap = undefined; showMapUnavailable(); return; }
+  useMap(map);
+  if (lastPosition) map.showUser(lastPosition);
+  if (lastDisplayedAction) showResults(lastDisplayedAction);
+}
+const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas, { onReplace: onMapReplaced }) : Promise.reject(new Error('map.js missing')))
   .then(map => {
-    cityMap = map;
-    document.querySelector('#map-canvas-container').classList.add('map-ready', `map-${map.vendor}`);
+    if (!mapWasReplaced) useMap(map);
     if (lastDisplayedAction) showResults(lastDisplayedAction);
-    return map;
+    return cityMap;
   })
-  .catch(error => {
-    console.warn('[map]', error.message);
-    document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
-  });
+  .catch(error => { console.warn('[map]', error.message); showMapUnavailable(); });
 const CENTER = window.CITY_CENTER || { lat: 52.2318, lng: 21.006, zoom: 12 };
 // User location: first tap asks permission, then the blue dot follows the user.
 const gpsButton = document.querySelector('#gps-button');
 let watchId = null;
-let lastPosition = null;
+let lastPosition = null; // { lat, lng, accuracy }
 function setGpsState(state) {
   gpsButton.dataset.state = state;
   const labels = { idle: 'Pokaż moją lokalizację', locating: 'Szukam lokalizacji…', active: 'Wyśrodkuj na mojej lokalizacji', denied: 'Lokalizacja niedostępna — wyśrodkuj mapę Warszawy' };
@@ -70,7 +86,7 @@ function setGpsState(state) {
 }
 setGpsState('idle');
 function centerOnUser() {
-  if (lastPosition) cityMap?.setView(lastPosition, 15);
+  if (lastPosition) cityMap?.setView({ lat: lastPosition.lat, lng: lastPosition.lng }, 15);
 }
 gpsButton.addEventListener('click', () => {
   setExpanded(false);
@@ -80,11 +96,13 @@ gpsButton.addEventListener('click', () => {
   let first = true;
   watchId = navigator.geolocation.watchPosition(position => {
     const { latitude: lat, longitude: lng, accuracy } = position.coords;
-    lastPosition = { lat, lng };
-    cityMap?.showUser({ lat, lng, accuracy });
+    lastPosition = { lat, lng, accuracy };
+    cityMap?.showUser(lastPosition);
     setGpsState('active');
     if (first) { first = false; centerOnUser(); }
   }, error => {
+    // After a first fix, a timeout or lost signal is temporary: keep watching and keep the dot.
+    if (!first && error.code !== error.PERMISSION_DENIED) return;
     navigator.geolocation.clearWatch(watchId); watchId = null;
     setGpsState('denied');
     cityMap?.setView(CENTER, CENTER.zoom);
@@ -128,7 +146,7 @@ function showResults(action) {
     if (cityMap && spatial) {
       const marker = cityMap.addMarker(place);
       const focus = document.createElement('button'); focus.type = 'button'; focus.textContent = 'Pokaż na mapie';
-      focus.addEventListener('click', () => { setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); }); card.append(focus);
+      focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); }); card.append(focus);
       points.push([place.lat, place.lng]);
     }
   }

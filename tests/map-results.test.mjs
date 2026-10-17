@@ -31,3 +31,26 @@ test('result cards remain available while asynchronous map is not ready',()=>{
  runInNewContext(render+'\nshowResults(action);',context);
  assert.equal(panel.children.filter(e=>e.tag==='article').length,3);assert.equal(context.lastDisplayedAction,action);
 });
+
+for(const early of [false,true])test('MCP results follow a replacement map without stale markers (early='+early+')',async()=>{
+ const panel=element('section'),calls=[];
+ const node={classList:{add(){},remove(){}},textContent:''};
+ let replace,resolveMap;
+ const map=vendor=>({vendor,clearMarkers(){calls.push([vendor,'clear']);},addMarker(place){calls.push([vendor,'add',place.id]);return{open(){calls.push([vendor,'open']);}};},setView(){calls.push([vendor,'view']);},fitTo(){},showUser(){calls.push([vendor,'user']);}});
+ const google=map('google'),leaflet=map('leaflet');
+ const startup=app.slice(app.indexOf('let mapWasReplaced ='),app.indexOf('const CENTER ='));
+ const context={console,Promise,document:{querySelector(){return node;},createElement:element},window:{createCityMap(_element,options){replace=options.onReplace;return new Promise(resolve=>{resolveMap=resolve;});}},resultPanel:panel,mapCanvas:{clientHeight:700},drawer:{offsetHeight:150},setExpanded(){},lastPosition:{lat:52,lng:21,accuracy:10}};
+ runInNewContext('let cityMap,lastDisplayedAction;\n'+startup+render+'\nglobalThis.hooks={showResults,mapReady,getMap:()=>cityMap};',context);
+ context.hooks.showResults(action);
+ if(early)replace(leaflet);
+ resolveMap(google);await context.hooks.mapReady;
+ if(!early)replace(leaflet);
+ assert.equal(context.hooks.getMap(),leaflet);
+ assert.equal(panel.children.filter(e=>e.tag==='article').length,3);
+ assert.ok(calls.some(c=>c[0]==='leaflet'&&c[1]==='add'&&c[2]==='valid'));
+ assert.equal(calls.some(c=>c[1]==='add'&&c[2]!=='valid'),false);
+ if(early)assert.equal(calls.some(c=>c[0]==='google'&&c[1]==='add'),false);
+ const focus=panel.children.find(e=>e.tag==='article').children.find(e=>e.tag==='button');
+ focus.listeners.click();assert.ok(calls.some(c=>c[0]==='leaflet'&&c[1]==='open'));
+ replace(null);assert.equal(context.hooks.getMap(),undefined);assert.doesNotThrow(()=>focus.listeners.click());
+});

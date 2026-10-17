@@ -4,12 +4,18 @@
   const WARSAW = { lat: 52.2318, lng: 21.006 };
   const START_ZOOM = 12;
 
+  // Google reports a rejected key (wrong referrer, API disabled, billing off) through
+  // window.gm_authFailure, often AFTER the script loaded and the map was created.
+  let authFailed = false;
+  const authFailureHandlers = new Set();
+  window.gm_authFailure = () => { authFailed = true; authFailureHandlers.forEach(handler => handler()); };
+
   function loadGoogle(key) {
     if (window.google?.maps?.importLibrary) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const callback = '__warsawMapsReady';
       window[callback] = () => { delete window[callback]; resolve(); };
-      window.gm_authFailure = () => reject(new Error('Google Maps odrzuciło klucz API.'));
+      authFailureHandlers.add(() => reject(new Error('Google Maps odrzuciło klucz API.')));
       const script = document.createElement('script');
       const params = new URLSearchParams({ key, v: 'weekly', loading: 'async', callback, language: 'pl', region: 'PL' });
       script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
@@ -124,11 +130,35 @@
     } catch { return {}; }
   }
 
-  window.createCityMap = async element => {
+  // Swap a broken Google map for OpenStreetMap in the same container.
+  function replaceWithLeaflet(element) {
+    element.replaceChildren();
+    element.removeAttribute('style'); // drop inline styles Google set on the container
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:absolute;inset:0;';
+    element.append(holder);
+    return createLeafletMap(holder);
+  }
+
+  // onReplace(map) is called if Google fails after the map was already returned.
+  window.createCityMap = async (element, { onReplace } = {}) => {
     const config = await readConfig();
-    if (config.googleMapsApiKey) {
-      try { return await createGoogleMap(element, { apiKey: config.googleMapsApiKey, mapId: config.googleMapsMapId }); }
-      catch (error) { console.warn('[map] Google Maps unavailable, using OpenStreetMap:', error.message); }
+    if (config.googleMapsApiKey && !authFailed) {
+      try {
+        const google = await createGoogleMap(element, { apiKey: config.googleMapsApiKey, mapId: config.googleMapsMapId });
+        let replaced = false;
+        const fallBack = () => {
+          if (replaced) return;
+          replaced = true;
+          console.warn('[map] Google Maps rejected the API key, switching to OpenStreetMap.');
+          try { onReplace?.(replaceWithLeaflet(element)); } catch (error) { console.warn('[map]', error.message); onReplace?.(null); }
+        };
+        if (authFailed) { queueMicrotask(fallBack); } else { authFailureHandlers.add(fallBack); }
+        return google;
+      } catch (error) {
+        console.warn('[map] Google Maps unavailable, using OpenStreetMap:', error.message);
+        if (element.childElementCount) return replaceWithLeaflet(element);
+      }
     }
     return createLeafletMap(element);
   };
