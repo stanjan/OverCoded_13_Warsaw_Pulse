@@ -5,6 +5,7 @@ import {nextAvailableTransit} from '../server/next-transit.mjs';
 import {createWalkingVerification,planPedestrianGraph} from '../server/walking-router.mjs';
 import {graphForDay,gtfsInstant} from '../server/transit-gtfs.mjs';
 import {dateInWarsaw,serviceInstant,TransitError} from '../transit-core.mjs';
+import {walkingKey} from '../server/walking.mjs';
 const stops=[{id:'a',name:'A',latitude:52.2,longitude:21},{id:'b',name:'B',latitude:52.23,longitude:21}];
 const instant=(day,clock)=>gtfsInstant(day,clock);
 function graph(day,trips=[],validTo='2026-10-25'){return{serviceDay:day,timeZone:'Europe/Warsaw',stops,trips,source:{url:'https://gtfs.ztm.waw.pl/last',validFrom:'2026-10-16',validTo,version:'test'}};}
@@ -41,7 +42,15 @@ test('feed exhaustion, unavailable future graphs, caller abort and request deadl
  const day='2026-10-18',g=graph(day,[],day),{options,walking}=setup(day);const result=await nextAvailableTransit(g,options,{walking});assert.deepEqual(result.routes,[]);assert.equal(result.search.exhausted,true);assert.equal(result.search.feedValidTo,day);
  await assert.rejects(()=>nextAvailableTransit(graph(day),options,{walking,graphProvider:async()=>{throw new TransitError('GTFS_UNAVAILABLE','offline');}}),{code:'GTFS_UNAVAILABLE'});
  const controller=new AbortController();controller.abort();await assert.rejects(()=>nextAvailableTransit(g,{...options,signal:controller.signal},{walking}),{name:'AbortError'});
- walking.verification.deadlineAt=0;await assert.rejects(()=>nextAvailableTransit(g,options,{walking}),{code:'LOOKAHEAD_LIMIT'});walking.verification.signal=AbortSignal.abort(new DOMException('deadline','TimeoutError'));await assert.rejects(()=>nextAvailableTransit(g,options,{walking}),{name:'TimeoutError'});
+ walking.verification.deadlineAt=0;walking.verification.signal=AbortSignal.abort(new DOMException('deadline','TimeoutError'));assert.equal((await nextAvailableTransit(g,options,{walking})).search.exhausted,true);
+});
+test('an expired network walking budget still searches later calendar days using verified access edges',async()=>{
+ const day='2026-10-18',tomorrow='2026-10-19',origin={latitude:52.1998,longitude:21,label:'GPS'},initial={...graph(day),nextDayHours:24},{options,walking}=setup(day,'00:00:00',{origin});walking.verification.edges.set(walkingKey(origin,stops[0]),{geometry:'osm_pedestrian',durationMillis:180000,distanceMeters:200,path:[origin,stops[0]]});walking.provider={route:async()=>assert.fail('expired budget must not start another network call')};
+ const result=await nextAvailableTransit(initial,options,{walking,graphProvider:async()=>{walking.verification.deadlineAt=0;walking.verification.signal=AbortSignal.abort(new DOMException('walking deadline','TimeoutError'));return graph(tomorrow,[trip(tomorrow,'09:00:00','09:30:00')]);}});assert.equal(result.routes[0].firstBoarding,instant(tomorrow,'09:00:00'));assert.equal(result.routes[0].walkingVerified,true);assert.equal(result.search.firstBoardingComplete,true);assert.equal(walking.verification.calls,0);
+});
+test('walking budget expiry while checking an earlier departure preserves an already verified later route',async()=>{
+ const day='2026-10-18',origin={latitude:52.1998,longitude:21,label:'GPS'},c={id:'c',name:'C',latitude:52.2003,longitude:21},g=graph(day,[trip(day,'10:00:00','10:10:00','verified'),{...trip(day,'09:00:00','11:00:00','unverified'),stopTimes:trip(day,'09:00:00','11:00:00').stopTimes.map((event,index)=>index?event:{...event,stopId:'c'})}]);g.stops=[...stops,c];const {options,walking}=setup(day,'00:00:00',{origin});walking.verification.edges.set(walkingKey(origin,stops[0]),{geometry:'osm_pedestrian',durationMillis:180000,distanceMeters:200,path:[origin,stops[0]]});walking.verification.deadlineAt=0;walking.verification.signal=AbortSignal.abort(new DOMException('walking deadline','TimeoutError'));walking.provider={route:async()=>assert.fail('expired budget must not start another network call')};
+ const result=await nextAvailableTransit(g,options,{walking});assert.equal(result.routes[0].firstBoarding,instant(day,'10:00:00'));assert.equal(result.routes[0].walkingVerified,true);assert.equal(result.routes[0].walkingCoverage.bounded,true);assert.equal(result.search.firstBoardingComplete,false);assert.match(result.routes[0].warnings.at(-1),/wcześniejszych odjazdów/);assert.equal(walking.verification.calls,0);
 });
 test('transit service keeps successful ordinary routes and only asks later dates after an empty range',async()=>{
  const day='2026-10-18',now=instant(day,'00:00:00'),rawStops=stops.map((stop,index)=>({values:Object.entries({zespol:String(1000+index),slupek:'01',nazwa_zespolu:stop.name,szer_geo:String(stop.latitude),dlug_geo:String(stop.longitude)}).map(([key,value])=>({key,value}))}));
