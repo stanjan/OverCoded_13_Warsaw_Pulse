@@ -2,6 +2,7 @@ import {distanceMeters} from '../transit-core.mjs';
 
 export const LIVE_PROGRESS_CONFIDENCE='brigade_route_progress';
 const MAX_OFFSET=900000,MAX_SHAPE_ERROR=120;
+const AMBIGUOUS_PROGRESS=Symbol('ambiguous_route_projection');
 const validPoint=p=>Number.isFinite(p?.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p?.longitude)&&Math.abs(p.longitude)<=180;
 // Projection is onto the official directed shape, never a circle around a stop.
 function projections(shape,point){
@@ -51,7 +52,7 @@ function projectVehicle(prepared,vehicle,prior){
  let items=projections(prepared.shape,vehicle).filter(p=>p.distance<=MAX_SHAPE_ERROR);
  if(!items.length)return null;const best=Math.min(...items.map(p=>p.distance));items=items.filter(p=>p.distance<=best+8);
 
- const matches=distinctProjections(items,30);if(matches.length!==1)return null;
+ const matches=distinctProjections(items,30);if(matches.length>1)return AMBIGUOUS_PROGRESS;if(!matches.length)return null;
  const progress=matches[0].progress;if(prior&&progress<prior.progressMeters-25)return null;if(progress<prepared.positions[0]-25||progress>prepared.positions.at(-1)+25)return null;
  return Math.max(prepared.positions[0],Math.min(prepared.positions.at(-1),progress));
 }
@@ -82,7 +83,7 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
   const matches=[];let unresolved=false;
   for(const trip of byLine.get(vehicle.line)||[]){
    if(trip.stopTimes[0].departure>observedAt+MAX_OFFSET||trip.stopTimes.at(-1).arrival<observedAt-MAX_OFFSET)continue;
-   const path=geometry(trip);if(!path)continue;const previous=sameIdentity&&prior.tripId===trip.id?prior:null,progress=projectVehicle(path,vehicle,previous);if(progress===null)continue;
+   const path=geometry(trip);if(!path)continue;const previous=sameIdentity&&prior.tripId===trip.id?prior:null,progress=projectVehicle(path,vehicle,previous);if(typeof progress!=='number')continue;
    const scheduledPassageAt=scheduledAt(path,progress);if(Math.abs(observedAt-scheduledPassageAt)>MAX_OFFSET)continue;
    const nextIndex=path.positions.findIndex(p=>p>progress+0.01),evidenceIndex=nextIndex<0?trip.stopTimes.length-1:Math.max(0,nextIndex-1);
    // Warm the registered next platform ahead of crossing, while current-leg
@@ -90,16 +91,17 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
    // current delta before the vehicle reaches that branch.
    if(previous?.nextStopIndex>=0&&progress<path.positions[previous.nextStopIndex])tripEvidence(vehicle,trip.stopTimes[previous.nextStopIndex].stopId);
    const evidenceStopId=trip.stopTimes[evidenceIndex].stopId,evidence=tripEvidence(vehicle,evidenceStopId);if(evidence===null){unresolved=true;continue;}if(!evidence.has(trip.id))continue;
-   // Missing/ambiguous geometry cannot eliminate another positively brigade-
-   // bound, temporally plausible trip sharing this platform.
-   if((byLine.get(vehicle.line)||[]).some(other=>other.id!==trip.id&&evidence.has(other.id)&&other.stopTimes[0].departure<=observedAt+MAX_OFFSET&&other.stopTimes.at(-1).arrival>=observedAt-MAX_OFFSET&&other.stopTimes.some(event=>event.stopId===evidenceStopId)&&!geometry(other)))unresolved=true;
+   // Missing geometry or an ambiguous projection cannot eliminate another
+   // positively brigade-bound, plausible trip sharing this platform. Off-shape
+   // competitors can still be excluded, unlike overlapping loop occurrences.
+   if((byLine.get(vehicle.line)||[]).some(other=>other.id!==trip.id&&evidence.has(other.id)&&other.stopTimes[0].departure<=observedAt+MAX_OFFSET&&other.stopTimes.at(-1).arrival>=observedAt-MAX_OFFSET&&other.stopTimes.some(event=>event.stopId===evidenceStopId)&&(!geometry(other)||projectVehicle(geometry(other),vehicle,sameIdentity&&prior.tripId===other.id?prior:null)===AMBIGUOUS_PROGRESS)))unresolved=true;
    matches.push({path,trip,progress,scheduledPassageAt,nextIndex});
   }
   if(unresolved||matches.length!==1){
    invalidate(prior);let waiting=null;
    if(unresolved&&matches.length<=1&&sameIdentity&&prior.tripId){
     const trip=(byLine.get(vehicle.line)||[]).find(t=>t.id===prior.tripId),path=trip&&geometry(trip),progress=path&&projectVehicle(path,vehicle,prior);
-    if(progress!==null&&progress!==undefined){
+    if(typeof progress==='number'){
      let pending=prior.pending;
      if(prior.nextStopIndex>=0&&progress+0.01>=path.positions[prior.nextStopIndex]){
       let crossed=prior.nextStopIndex;while(crossed+1<path.positions.length&&path.positions[crossed+1]<=progress+0.01)crossed++;

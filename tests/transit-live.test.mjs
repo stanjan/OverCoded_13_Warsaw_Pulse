@@ -64,3 +64,14 @@ test('missing brigades and two simultaneous vehicles claiming the same trip cann
 test('a positively brigade-bound competing trip cannot be dismissed just because its shape is unavailable',()=>{
  const other={...trip,id:'unresolved-shape',shape:[]},f=fixture({trips:[trip,other]});f.sample(.2,at(.7));f.sample(1.5,at(2));assert.equal(f.model.getDeltas().size,0);
 });
+
+test('a positively brigade-bound loop with ambiguous current projections cannot create a unique straight-trip match',()=>{
+ const shape=[stops[0],stops[1],{...stops[1],longitude:21.002},{...stops[0],longitude:21.002},stops[0],stops[1]].map((point,index)=>({...point,shapeDistance:index*100}));
+ const loop={...trip,id:'loop',shape,stopTimes:[{...trip.stopTimes[0],shapeDistance:0},{...trip.stopTimes[1],shapeDistance:100},{...trip.stopTimes[2],stopId:'a',shapeDistance:400},{...trip.stopTimes[3],stopId:'b',shapeDistance:500}]};
+ const f=fixture({trips:[trip,loop]});f.sample(.2,at(.7));f.sample(1.005,at(1.5));assert.equal(f.model.getDeltas().size,0);assert.equal(f.model.summary().tentativeTrips,0);
+});
+test('a positively bound competitor genuinely away from the current position can be excluded',()=>{
+ const mainStops=stops.map((stop,index)=>({...stop,latitude:52.2+index*.01})),branchStops=mainStops.map((stop,index)=>index?{...stop,id:'branch-'+index,longitude:21.02}:stop);
+ const main={...trip,shape:mainStops},other={...trip,id:'far-branch',shape:[branchStops[0],{...branchStops[0],longitude:21.02},...branchStops.slice(1)],stopTimes:trip.stopTimes.map((event,index)=>({...event,stopId:branchStops[index].id}))};
+ const f=fixture({trips:[main,other],catalog:[...mainStops,...branchStops.slice(1)]});f.sample(.2,at(.7),{latitude:52.202});f.sample(1.5,at(2),{latitude:52.215});assert.equal(f.model.getDeltas().size,1);close(f.model.getDeltas().get(trip.id).deltaMs,30000);
+});
