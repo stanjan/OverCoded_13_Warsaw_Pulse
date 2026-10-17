@@ -74,3 +74,31 @@ test('Leaflet stays pending until its real tiles load and rejects an all-tile fa
   await flush(); broken.tileEvents.tileerror(); broken.tileEvents.load();
   await assert.rejects(failure, /kafelków/);
 });
+
+
+for (const outcome of ['success', 'all-tile-failure']) test('auth fallback supersedes old Google tile readiness: ' + outcome, async () => {
+  const f = fixture(undefined, { tileReadiness: true }); const replacements = []; let settled = false;
+  const result = f.window.createCityMap(f.element(), { onReplace: map => replacements.push(map) }).then(map => { settled = true; return map; });
+  await flush(); f.window.google = f.google; f.window.__warsawMapsReady(); await flush();
+  f.window.gm_authFailure(); await flush();
+  assert.equal(f.leafletCount, 1); assert.equal(settled, false); assert.equal(replacements.length, 0);
+  f.listeners.get('tilesloaded')(); await flush();
+  assert.equal(settled, false); assert.equal(replacements.length, 0);
+  f.window.gm_authFailure(); assert.equal(f.leafletCount, 1);
+  f.tileEvents[outcome === 'success' ? 'tileload' : 'tileerror'](); f.tileEvents.load();
+  const map = await result;
+  assert.equal(replacements.length, 1);
+  if (outcome === 'success') { assert.equal(map.vendor, 'leaflet'); assert.equal(map, replacements[0]); }
+  else { assert.equal(map, null); assert.equal(replacements[0], null); }
+  f.window.gm_authFailure(); assert.equal(replacements.length, 1); assert.equal(f.leafletCount, 1);
+});
+
+test('already-ready Google reports one ready replacement even if consumer callback throws', async () => {
+  const f = fixture(undefined, { tileReadiness: true }); let callbacks = 0;
+  const result = f.window.createCityMap(f.element(), { onReplace() { callbacks++; throw new Error('consumer failed'); } });
+  await flush(); f.window.google = f.google; f.window.__warsawMapsReady(); await flush(); f.listeners.get('tilesloaded')();
+  assert.equal((await result).vendor, 'google');
+  f.window.gm_authFailure(); await flush(); assert.equal(callbacks, 0);
+  f.tileEvents.tileload(); f.tileEvents.load(); await flush();
+  assert.equal(callbacks, 1); f.window.gm_authFailure(); assert.equal(callbacks, 1); assert.equal(f.leafletCount, 1);
+});

@@ -289,14 +289,19 @@
         const fallBack = async () => {
           if (replaced) return;
           replaced = true;
+          authFailureHandlers.delete(fallBack);
           console.warn('[map] Google Maps rejected the API key, switching to OpenStreetMap.');
-          try { const replacement = await replaceWithLeaflet(element); onReplace?.(replacement); } catch (error) { console.warn('[map]', error.message); onReplace?.(null); }
-          finally { finishReplacement(); }
+          let replacement = null;
+          try { replacement = await replaceWithLeaflet(element); } catch (error) { console.warn('[map]', error.message); }
+          // Consumer callback errors must not turn one handoff into a second callback.
+          try { onReplace?.(replacement); } catch (error) { console.warn('[map]', error.message); }
+          finally { finishReplacement(replacement); }
         };
         if (authFailed) { queueMicrotask(fallBack); } else { authFailureHandlers.add(fallBack); }
-        // A rejected map hands ownership to its ready replacement before resolving.
         await Promise.race([google.ready, replacementReady]);
-        return google;
+        // Once fallback owns the container, old Google readiness cannot complete
+        // startup. Wait for the replacement's ready adapter or unavailable result.
+        return replaced ? await replacementReady : google;
       } catch (error) {
         console.warn('[map] Google Maps unavailable, using OpenStreetMap:', error.message);
         if (element.childElementCount) return replaceWithLeaflet(element);
