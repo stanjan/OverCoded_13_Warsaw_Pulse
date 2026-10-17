@@ -198,13 +198,13 @@ test('a district follow-up recovers unlocated pitches from the retained full set
   assert.equal(next.actions[0].results[0].lat, undefined);
 });
 
-for (const unavailable of [undefined, { ...location, freshness: 'stale' }, { ...location, freshness: 'unknown' },
+for (const unavailable of [undefined, { ...location, status: 'unavailable' }, { ...location, latitude: 91 },
   { ...location, source: 'central_warsaw' }]) test('no usable GPS gives an explicit bounded refinement response (' + unavailable?.freshness + ')', () => {
   const fitted = fit([event('huge', '2026-10-17', 150000)], { location: unavailable });
   assert.equal(fitted.response.status, 'refinement_required');
   assert.equal(fitted.response.recordsProvided, 0);
   assert.deepEqual(fitted.records, []);
-  assert.equal(fitted.response.narrowing.fallbackReason, 'no_recent_user_location');
+  assert.equal(fitted.response.narrowing.fallbackReason, 'no_user_location');
   assert.equal(fitted.response.narrowing.appliedFilters.distance, undefined);
   assert.ok(JSON.stringify(fitted.response).length < 4000);
 });
@@ -352,4 +352,16 @@ for (const publish of [true, false]) test('failed streamed turn restores effecti
   const result = await assistant.chat({ message: 'Pokaż 25 października', sessionId: first.sessionId });
   assert.deepEqual(result.actions[0].results.map(record => record.id), [expected + '25']);
   assert.deepEqual(result.actions[0].errors, envelope([]).errors);
+});
+
+
+test('distance narrowing uses old and imprecise last known GPS while preserving its actual measurement metadata', () => {
+  for (const freshness of ['stale', 'unknown']) {
+    const known = { ...location, freshness, accuracy: 10000, observedAt: freshness === 'stale' ? '2026-10-01T12:00:00Z' : null };
+    const fitted = fit([event('huge', '2026-10-17', 200000)], { location: known });
+    const distance = fitted.response.narrowing.appliedFilters.distance;
+    assert.equal(fitted.response.narrowing.fallbackReason, 'no_scope_fits');
+    assert.equal(distance.positionBasis, 'last_known_location'); assert.equal(distance.freshness, freshness);
+    assert.equal(distance.observedAt, known.observedAt); assert.equal(distance.accuracyMeters, 10000);
+  }
 });

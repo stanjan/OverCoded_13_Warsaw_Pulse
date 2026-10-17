@@ -21,9 +21,9 @@ test('transport colors distinguish city fleet types from GTFS route_type and kee
  const bus=normalizeVehicles([{Lat:52.2,Lon:21,Lines:'175',VehicleNumber:'1',Time:'2026-10-17 14:00:00'}],1,now)[0];
  assert.equal(bus.transportKind,'bus');assert.equal(bus.transportColor,'#880077');
 });
-test('named/coordinate waypoint and fresh GPS validation never substitute city centre',()=>{
+test('named/coordinate waypoint and last known GPS never substitute city centre',()=>{
  assert.deepEqual(waypoint('52.2,21').value,{lat:52.2,lng:21});for(const value of ['',{latitude:91,longitude:21},'a'.repeat(201)])assert.throws(()=>waypoint(value));
- const location={status:'available',latitude:52.2,longitude:21,accuracy:20,observedAt:new Date(now).toISOString()};assert.deepEqual(gpsOrigin(location,now).value,{lat:52.2,lng:21});for(const value of [null,{...location,status:'unavailable'},{...location,observedAt:new Date(now-300001).toISOString()},{...location,accuracy:2001}])assert.throws(()=>gpsOrigin(value,now),{code:'ORIGIN_REQUIRED'});
+ const location={status:'available',latitude:52.2,longitude:21,accuracy:20,observedAt:new Date(now).toISOString()};assert.deepEqual(gpsOrigin(location,now).value,{lat:52.2,lng:21});for(const value of [{...location,observedAt:new Date(now-86400000).toISOString(),accuracy:10000},{...location,observedAt:null,accuracy:undefined}])assert.deepEqual(gpsOrigin(value,now).value,{lat:52.2,lng:21});for(const value of [null,{...location,status:'unavailable'},{...location,latitude:91},{...location,longitude:'21'}])assert.throws(()=>gpsOrigin(value,now),{code:'ORIGIN_REQUIRED'});
 });
 test('Warsaw clock, extended service times, midnight and GTFS DST use distinct documented time semantics',()=>{
  assert.equal(warsawDeparture('2026-10-17T15:00',now).toISOString(),'2026-10-17T13:00:00.000Z');assert.throws(()=>departure('2026-02-30T12:00:00Z',Date.parse('2026-02-01')));assert.throws(()=>warsawDeparture('2026-10-25T02:30',now));

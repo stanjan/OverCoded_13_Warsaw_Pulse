@@ -91,6 +91,9 @@ function updateLocationSnapshot(snapshot) {
   locationSnapshot = snapshot;
   window.dispatchEvent(new CustomEvent('city:location', { detail: { ...snapshot } }));
 }
+function hasKnownLocation() {
+  return locationSnapshot.status === 'available' && Number.isFinite(locationSnapshot.latitude) && Math.abs(locationSnapshot.latitude) <= 90 && Number.isFinite(locationSnapshot.longitude) && Math.abs(locationSnapshot.longitude) <= 180;
+}
 function hasRecentLocation() {
   const measured = Date.parse(locationSnapshot.observedAt);
   const age = Date.now() - measured;
@@ -153,10 +156,8 @@ function refreshLocation({ force = false } = {}) {
   const fail = error => {
     if (locationRequest !== request || generation !== locationGeneration) return;
     if (error?.code === 1) { denyLocation(); return; }
-    if (!hasRecentLocation()) {
-      updateLocationSnapshot({ status: 'unavailable', reason: 'unavailable' });
-      setGpsState('stale');
-    } else setGpsState('active');
+    if (!hasKnownLocation()) updateLocationSnapshot({ status: 'unavailable', reason: 'unavailable' });
+    setGpsState(hasRecentLocation() ? 'active' : 'stale');
     finishLocationRequest();
   };
   request.timer = setTimeout(() => fail(), LOCATION_REFRESH_TIMEOUT);
@@ -178,7 +179,7 @@ function startLocating({ auto = false } = {}) {
   const generation = ++locationGeneration;
   setGpsState('locating'); updateLocationSnapshot({ status: 'unavailable', reason: 'locating' });
   firstFixTimer = setTimeout(() => {
-    if (generation !== locationGeneration || hasRecentLocation()) return;
+    if (generation !== locationGeneration || hasKnownLocation()) return;
     updateLocationSnapshot({ status: 'unavailable', reason: 'unavailable' }); setGpsState('stale');
   }, 30000);
   watchId = navigator.geolocation.watchPosition(position => acceptPosition(position, generation), error => {
@@ -347,7 +348,10 @@ async function send() {
   const renderStatus = () => { stageLabel.textContent = stage; status.setAttribute('aria-label', stage); };
   renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
   try {
-    await refreshLocation();
+    // A known point is enough to answer; refresh it in the background without
+    // holding up the message or discarding it after a temporary provider error.
+    const refreshing = refreshLocation();
+    if (!hasKnownLocation()) await refreshing;
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true, location: window.getCityLocation() }), signal: controller.signal });
     if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Nie udało się uzyskać odpowiedzi.'); }
     if (!response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('Serwer nie obsługuje transmisji odpowiedzi. Odśwież aplikację.');

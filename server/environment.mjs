@@ -7,10 +7,10 @@ const value = number => finite(number) ? number : null;
 const instant = seconds => finite(seconds) && seconds > 0 && seconds < 8640000000000 ? new Date(seconds * 1000).toISOString() : null;
 const dateInWarsaw = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 function point(input) {
-  if (!input || input.status === 'unavailable' || input.freshness === 'stale') return { ...CENTRAL_WARSAW, basis: 'central_warsaw' };
+  if (!input || input.status === 'unavailable') return { ...CENTRAL_WARSAW, basis: 'central_warsaw' };
   const { latitude, longitude } = input;
   if (!finite(latitude) || !finite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) throw new EnvironmentError('Nieprawidłowe współrzędne lokalizacji.');
-  return { latitude, longitude, basis: 'gps' };
+  return { latitude, longitude, basis: 'gps', positionBasis: 'last_known_location', observedAt: input.observedAt ?? null, freshness: input.freshness || 'unknown' };
 }
 const sources = {
   weather: { name: 'Open-Meteo', url: 'https://open-meteo.com/en/docs', kind: 'weather_model' },

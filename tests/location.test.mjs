@@ -16,7 +16,7 @@ test('location normalization preserves measurements and excludes invented fields
   assert.equal(actual.ageSeconds,30);
   assert.equal(actual.freshness,'recent');
   for (const key of ['address','speed','heading']) assert.equal(Object.hasOwn(actual,key),false);
-  for (const patch of [{latitude:91},{longitude:-181},{accuracy:-1},{latitude:'52.24'},{latitude:NaN}]) assert.deepEqual(normalizeLocation({...fix,...patch},now),{status:'unavailable',reason:'invalid_measurement'});
+  for (const patch of [{latitude:91},{longitude:-181},{latitude:'52.24'},{latitude:NaN}]) assert.deepEqual(normalizeLocation({...fix,...patch},now),{status:'unavailable',reason:'invalid_measurement'});
   assert.deepEqual(normalizeLocation(undefined,now),{status:'unavailable',reason:'not_provided'});
   assert.deepEqual(normalizeLocation({status:'unavailable',reason:'denied',latitude:52},now),{status:'unavailable',reason:'denied'});
   assert.equal(normalizeLocation({...fix,observedAt:'2026-10-17T15:00:00Z'},now).freshness,'stale');
@@ -61,8 +61,10 @@ test('environment is supplied automatically each turn from server data with loca
   assert.equal(locations.length,5);
   assert.equal(locations[0].latitude,fix.latitude);
   assert.equal(locations[1].status,'unavailable');
-  assert.equal(locations[3].status,'unavailable');
-  assert.equal(locations[4].status,'unavailable');
+  assert.equal(locations[3].status,'available');
+  assert.equal(locations[3].freshness,'stale');
+  assert.equal(locations[4].status,'available');
+  assert.equal(locations[4].freshness,'unknown');
   const contexts=histories.map(h=>h.at(-2).content);
   assert.match(contexts[0],/"basis":"gps"/);
   assert.match(contexts[0],/"temperatureC":11/);
@@ -128,15 +130,18 @@ test('browser GPS sends the measured snapshot and fresh fixes do not trigger ext
   assert.equal(Object.hasOwn(h.win.getCityLocation(), 'latitude'), false);
 });
 
-test('a silent stationary GPS is refreshed before sending and all real measurements reach this turn', async () => {
+test('last known GPS sends immediately while background refresh supplies all measurements to the next turn', async () => {
   const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(6 * 60000);
   const sending = h.context.sendChat();
-  assert.equal(h.requests.length, 0);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].location.observedAt, now.toISOString());
+  assert.equal(h.requests[0].location.latitude, 52.24);
   const acquisition = h.acquisitions.at(-1);
   assert.equal(acquisition.options.maximumAge, 0);
   acquisition.success(h.position({ latitude: 52.3, longitude: 21.05, accuracy: 12, altitude: 120, altitudeAccuracy: 4, heading: 180, speed: 2 }));
   await sending;
-  const location = h.requests[0].location;
+  h.context.input.value = 'A teraz?'; await h.context.sendChat();
+  const location = h.requests[1].location;
   assert.equal(location.latitude, 52.3); assert.equal(location.longitude, 21.05);
   assert.equal(location.observedAt, new Date(now.getTime() + 6 * 60000).toISOString());
   for (const [key, value] of Object.entries({ accuracy: 12, altitude: 120, altitudeAccuracy: 4, heading: 180, speed: 2 })) assert.equal(location[key], value);
@@ -151,7 +156,8 @@ test('focus, visibility, periodic refresh and chat share one acquisition, which 
   assert.equal(h.acquisitions.length, before + 1);
   h.watches[0].success(h.position({ latitude: 52.31 }));
   await sending;
-  assert.equal(h.requests[0].location.latitude, 52.31);
+  assert.equal(h.requests[0].location.latitude, 52.24);
+  assert.equal(h.win.getCityLocation().latitude, 52.31);
   // A delayed single-shot callback cannot overwrite the newer watcher measurement.
   h.acquisitions.at(-1).success({ ...h.position({ latitude: 52.1 }), timestamp: now.getTime() });
   assert.equal(h.win.getCityLocation().latitude, 52.31);
@@ -166,12 +172,13 @@ test('GPS button requests a fresh measurement even while watching', async () => 
   assert.equal(h.win.getCityLocation().latitude, 52.32);
 });
 
-test('unresponsive browser cannot block chat indefinitely or turn cached timestamps into fresh measurements', async () => {
+test('unresponsive refresh never blocks a known point or clears its real old timestamp', async () => {
   const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(6 * 60000);
   const sending = h.context.sendChat(); h.tick(5000); await sending;
   assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].location.status, 'unavailable');
-  assert.equal(Object.hasOwn(h.requests[0].location, 'latitude'), false);
+  assert.equal(h.requests[0].location.status, 'available');
+  assert.equal(h.requests[0].location.latitude, 52.24);
+  assert.equal(h.win.getCityLocation().observedAt, now.toISOString());
   h.watches[0].success({ ...h.position(), timestamp: now.getTime() });
   assert.equal(h.win.getCityLocation().observedAt, now.toISOString());
   assert.equal(h.context.gpsButton.dataset.state, 'stale');
@@ -179,8 +186,8 @@ test('unresponsive browser cannot block chat indefinitely or turn cached timesta
 
 test('revoking permission cancels acquisition, clears coordinates and ignores late callbacks without automatic reprompting', async () => {
   const h = await browserLocation(); h.watches[0].success(h.position()); h.tick(61000);
-  const sending = h.context.sendChat(), acquisition = h.acquisitions.at(-1);
-  h.revoke(); acquisition.success(h.position({ latitude: 52.35 })); h.watches[0].success(h.position({ latitude: 52.36 }));
+  h.listeners.focus(); const acquisition = h.acquisitions.at(-1);
+  h.revoke(); const sending = h.context.sendChat(); acquisition.success(h.position({ latitude: 52.35 })); h.watches[0].success(h.position({ latitude: 52.36 }));
   await sending;
   assert.equal(h.requests[0].location.reason, 'denied');
   assert.equal(Object.hasOwn(h.requests[0].location, 'latitude'), false);
@@ -190,13 +197,42 @@ test('revoking permission cancels acquisition, clears coordinates and ignores la
   assert.equal(h.context.gpsButton.dataset.state, 'denied');
 });
 
-test('unknown, invalid and stale timestamps never become a fresh context during refresh', async () => {
+test('undated and old valid points stay usable without inventing a fresh timestamp', async () => {
   for (const timestamp of [undefined, NaN, now.getTime() - 360000, now.getTime() + 360000]) {
     const h = await browserLocation();
     const sending = h.context.sendChat();
     h.acquisitions.at(-1).success({ ...h.position(), timestamp });
     await sending;
-    assert.equal(h.requests[0].location.status, 'unavailable');
+    assert.equal(h.requests[0].location.status, 'available');
+    assert.equal(h.requests[0].location.latitude, 52.24);
+    assert.equal(h.requests[0].location.observedAt, timestamp === now.getTime() - 360000 ? new Date(timestamp).toISOString() : null);
     assert.notEqual(h.context.gpsButton.dataset.state, 'active');
   }
+});
+
+
+test('normalization retains old and imprecise points and omits unknown accuracy without blocking use', () => {
+  for (const accuracy of [10000, undefined, null, -1]) {
+    const point = normalizeLocation({ ...fix, accuracy, observedAt: '2026-10-01T12:00:00Z' }, now);
+    assert.equal(point.status, 'available'); assert.equal(point.latitude, fix.latitude);
+    assert.equal(point.freshness, 'stale'); assert.equal(point.observedAt, '2026-10-01T12:00:00.000Z');
+    assert.equal(point.accuracy, accuracy === 10000 ? 10000 : undefined);
+  }
+});
+
+test('a first unknown location still has a bounded acquisition wait when no point exists', async () => {
+  const h = await browserLocation(); const sending = h.context.sendChat();
+  assert.equal(h.requests.length, 0); h.tick(5000); await sending;
+  assert.equal(h.requests[0].location.status, 'unavailable');
+});
+
+
+test('temporary refresh errors preserve an imprecise last known point for immediate chat', async () => {
+  const h = await browserLocation(); h.watches[0].success(h.position({ accuracy: 12000 })); h.tick(86400000);
+  const sending = h.context.sendChat();
+  assert.equal(h.requests.length, 1); assert.equal(h.requests[0].location.accuracy, 12000);
+  h.acquisitions.at(-1).error({ code: 2 }); await sending;
+  assert.equal(h.win.getCityLocation().latitude, 52.24);
+  assert.equal(h.win.getCityLocation().accuracy, 12000);
+  assert.equal(h.win.getCityLocation().observedAt, now.toISOString());
 });
