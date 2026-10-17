@@ -277,14 +277,12 @@ async function send() {
   const activity = document.createElement('span'); activity.className = 'assistant-activity'; activity.setAttribute('aria-label', 'Wykonane kroki');
   const activities = [];
   const answer = document.createElement('span'); answer.className = 'assistant-answer';
-  const stop = document.createElement('button'); stop.type = 'button'; stop.className = 'stop-response'; stop.textContent = 'Przerwij';
-  progress.append(status, activity, answer, stop);
+  progress.append(status, activity, answer);
   let followResponse = true;
   const onScroll = () => { followResponse = content.scrollHeight - content.scrollTop - content.clientHeight < 80; };
   const keepVisible = () => { if (followResponse) content.scrollTop = content.scrollHeight; };
   content.addEventListener('scroll', onScroll, { passive: true });
   const controller = new AbortController(), startedAt = Date.now(); let stage = 'Łączę się z asystentem…', completed = false;
-  stop.addEventListener('click', () => controller.abort());
   // While thinking only the dots show; the stage text is used for error messages.
   const renderStatus = () => { stageLabel.textContent = stage; status.setAttribute('aria-label', stage); };
   renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
@@ -317,7 +315,7 @@ async function send() {
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Spróbuj ponownie';
     retry.addEventListener('click', () => { if (pending) return; input.value = value; progress.remove(); send(); });
     progress.append(retry); renderStatus();
-  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); stop.remove(); progress.classList.add('is-finished'); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
+  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); progress.classList.add('is-finished'); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
 }
 submit.addEventListener('click', event => { event.stopPropagation(); send(); });
 input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); } });

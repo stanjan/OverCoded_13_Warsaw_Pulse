@@ -30,8 +30,11 @@ test('expanded details contain the source data and omit unsafe links and image U
  const card=ui.resultDetails({name:'Koncert',category:'event',district:'Wola',addresses:['Sala koncertowa'],description:'Treść <script> z danych',dates:[{from:'2026-10-17',to:'2026-10-17',sourceFrom:'2026-10-17T17:30:00Z',sourceTo:'2026-10-17T19:30:00Z'}],url:'javascript:alert(1)',imageUrl:'data:image/svg+xml,unsafe'},false);
  assert.equal(card.children[0].children.some(child=>child.tag==='img'),false);
  const body=card.children[1];assert.ok(body.children.some(child=>child.textContent==='Koncert'));
- assert.ok(body.children.some(child=>child.textContent==='17 października 2026 · 19:30–21:30'));
- assert.ok(body.children.some(child=>child.textContent==='Wola · Sala koncertowa'));
+ const facts=body.children.find(child=>child.className==='result-detail__facts');
+ const fact=kind=>facts.children.find(row=>row.dataset.kind===kind).children[1].textContent;
+ assert.equal(fact('time'),'17 października 2026 · 19:30–21:30');
+ assert.equal(fact('place'),'Wola · Sala koncertowa');
+ assert.equal(fact('price'),'Cena: sprawdź u organizatora');
  assert.ok(body.children.some(child=>child.textContent==='Treść <script> z danych'));
  assert.equal(body.children.some(child=>child.tag==='a'),false);
 });
@@ -57,4 +60,13 @@ test('Leaflet shows every overlapping result pin and opens a result from its car
  assert.ok(markers[0].popup.children[1].children.some(child=>child.textContent==='Pierwszy koncert'));
  markers[0].events.popupclose();assert.equal(markers[0].options.icon.html.attributes['aria-expanded'],'false');
  assert.equal(markers[1].icon.style.visibility,'');
+});
+
+test('event cloud marks free and paid events from the source text',()=>{
+ const ui=helpers();
+ const price=place=>{const facts=ui.resultDetails({category:'event',...place},false).children[1].children.find(c=>c.className==='result-detail__facts');return facts.children.find(r=>r.dataset.kind==='price').dataset.price;};
+ assert.equal(price({name:'Koncert',description:'Wstęp wolny dla wszystkich'}),'free');
+ assert.equal(price({name:'Spektakl',description:'Zajęcia bezpłatne'}),'free');
+ assert.equal(price({name:'Koncert',description:'Bilety 40 zł'}),'paid');
+ assert.equal(price({name:'Wystawa',description:'Otwarcie wystawy'}),'unknown');
 });
