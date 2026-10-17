@@ -19,6 +19,17 @@
     return { top, bottom, left: 24, right: 24 };
   }
 
+  // Popups must fit the visible map, including overlays unknown to either map SDK.
+  function popupViewport(element) {
+    const rect=element.getBoundingClientRect?.();if(!rect)return null;
+    const bar=document.querySelector?.('#environment-bar')?.getBoundingClientRect?.(),sheet=document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
+    return {left:rect.left+12,right:rect.right-12,top:Math.max(rect.top,bar?.bottom??rect.top)+8,bottom:Math.min(rect.bottom,sheet?.top??rect.bottom)-12};
+  }
+  function vehiclePopupPadding(element) {
+    const rect=element.getBoundingClientRect?.(),view=popupViewport(element);
+    return view?{autoPanPaddingTopLeft:[12,view.top-rect.top],autoPanPaddingBottomRight:[12,rect.bottom-view.bottom]}:{autoPanPaddingTopLeft:[12,12],autoPanPaddingBottomRight:[12,12]};
+  }
+
   function observeRouteViewport(element, fit) {
     let timer;
     const observer = new ResizeObserver(() => {
@@ -69,7 +80,16 @@
     const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
     // headerDisabled removes Google's empty title row; the cloud draws its own close button over the photo.
     const info = new InfoWindow({ maxWidth: 290, headerDisabled: true });
-    const vehicleInfo = new InfoWindow({ maxWidth: 230 });
+    const vehicleInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
+    let vehiclePopupContent;
+    vehicleInfo.addListener('closeclick',()=>{vehiclePopupContent=null;});
+    vehicleInfo.addListener('domready',()=>{
+      const rect=(vehiclePopupContent?.closest?.('[role="dialog"]')||vehiclePopupContent)?.getBoundingClientRect?.(),view=popupViewport(element);
+      if(!rect||!view)return;
+      const x=rect.left<view.left?rect.left-view.left:rect.right>view.right?rect.right-view.right:0;
+      const y=rect.top<view.top?rect.top-view.top:rect.bottom>view.bottom?rect.bottom-view.bottom:0;
+      if(x||y)map.panBy(x,y);
+    });
     let activeBubble, activeMarker;
     // Every result pin stays visible, even when pins overlap.
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
@@ -84,7 +104,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { vehicleInfo.close?.();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { vehicleInfo.close?.();vehiclePopupContent=null;routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -118,11 +138,11 @@
         return routeLines.length > 0;
       },
       showVehicles(vehicles) {
-        vehicleInfo.close?.();vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
+        vehicleInfo.close?.();vehiclePopupContent=null;vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
         for (const vehicle of vehicles || []) {
           if (!validTransitPath([vehicle]).length || !freshVehicle(vehicle)) continue;
           const marker=new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), gmpClickable:true, zIndex:250 });
-          marker.addEventListener('gmp-click',()=>{vehicleInfo.setContent(vehicleDetails(vehicle));vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
+          marker.addEventListener('gmp-click',()=>{vehiclePopupContent=vehicleDetails(vehicle);vehicleInfo.setContent(vehiclePopupContent);vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
@@ -238,7 +258,8 @@
         vehicleLayer.clearLayers();
         for(const vehicle of vehicles||[]) {
           if(!validTransitPath([vehicle]).length||!freshVehicle(vehicle))continue;
-          L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}),title:vehicleTitle(vehicle),keyboard:true,zIndexOffset:250}).bindPopup(vehicleDetails(vehicle),{className:'transit-vehicle-popup',maxWidth:230}).addTo(vehicleLayer);
+          const marker=L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}),title:vehicleTitle(vehicle),keyboard:true,zIndexOffset:250}).bindPopup(vehicleDetails(vehicle),{className:'transit-vehicle-popup',maxWidth:230,...vehiclePopupPadding(element)});
+          marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(vehicleLayer);
         }
       },
 
