@@ -30,6 +30,19 @@ export function buildBrigadeEvidence(records,line,stopId,graph,day){
   for(const row of indexed.get(event.departureClock+'|'+tripDirection(trip.headsign))||[]){const id=normalizeBrigade(row.brigade);if(!id)continue;if(!bindings.has(id))bindings.set(id,new Set());bindings.get(id).add(trip.id);}
  }}return bindings;
 }
+// Directions belong to a confirmed vehicle/trip binding, never merely a line number.
+export function withVehicleDirections(vehicles,graph,deltas,now=Date.now()) {
+ const trips=new Map((graph?.trips||[]).map(trip=>[trip.id,trip])),byVehicle=new Map();
+ for(const delta of deltas.values()){
+  const age=now-delta.observedAt,trip=trips.get(delta.tripId);
+  if(delta.confidence!=='brigade_two_stop_dwell'||!Number.isFinite(age)||age< -60000||age>180000||!trip?.headsign)continue;
+  if(!byVehicle.has(delta.vehicleId))byVehicle.set(delta.vehicleId,[]);byVehicle.get(delta.vehicleId).push(trip);
+ }
+ return vehicles.map(vehicle=>{
+  const matches=(byVehicle.get(vehicle.id)||[]).filter(trip=>trip.line===vehicle.line),age=now-Date.parse(vehicle.observedAt),confirmed=vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000&&matches.length===1;
+  return {...vehicle,direction:confirmed?matches[0].headsign:null,directionSource:confirmed?'confirmed_gtfs_trip':null,directionTripId:confirmed?matches[0].id:null};
+ });
+}
 export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout,walkingProvider}={}) {
  const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),activeBindings=new Set(),lineBindings=new Map(),delayModel=createDelayModel({now,tripEvidence});
  let municipalStops=[],stopBridge=new Map();
@@ -101,7 +114,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  function liveSnapshot(input){
   const start=waypoint(input?.origin,'punkt startowy'),end=waypoint(input?.destination,'cel');if(typeof start.value==='string'||typeof end.value==='string')throw new TransitError('INVALID_LOCATION','Do aktualizacji mapy wymagane są współrzędne.');
   const origin={latitude:start.value.lat,longitude:start.value.lng},destination={latitude:end.value.lat,longitude:end.value.lng};
-  const nearby=latestSnapshot.vehicles.map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent',distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))};}).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
+  const nearby=withVehicleDirections(latestSnapshot.vehicles,modelGraph,delayModel.getDeltas(),now()).map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent',distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))};}).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
   return{vehicles:nearby.slice(0,40),vehicleCount:nearby.length,vehicleProvided:Math.min(40,nearby.length),liveModel:liveSummary(),errors:latestSnapshot.errors};
  }
 
@@ -145,7 +158,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   }
   const deltas=delayModel.getDeltas();
   if(graph)try{routes=await planPedestrianGraph(graph,{origin,destination,departureTime:requested.getTime(),signal,deltas,now:now()},{...(walkingProvider?{provider:walkingProvider}:{})});for(const route of routes)if(route.walkingSource)sources.push(route.walkingSource);reason=routes.length?null:'NO_VERIFIED_ROUTE';}catch(error){signal?.throwIfAborted();reason=error instanceof TransitError?error.code:'GRAPH_INVALID';errors.push({code:reason,part:'routing'});}
-  const relevant=snapshot.vehicles.map(vehicle=>({...vehicle,distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))})).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
+  const relevant=withVehicleDirections(snapshot.vehicles,modelGraph,delayModel.getDeltas(),now()).map(vehicle=>({...vehicle,distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))})).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
   return{status:routes.length?'ready':'limited',routes,reason,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.',routes.length?'Czasy dojść uwzględniają ścieżki OpenStreetMap / Valhalla; ostatnie metry do punktów i tempo marszu pozostają szacunkowe. Wyszukiwanie ma ograniczony zakres przystanków, przesiadek i sprawdzanych przejść.':'Przejścia piesze nie zostały potwierdzone w żadnej zwróconej trasie; wyszukiwanie ogranicza zakres przystanków, przesiadek i sprawdzanych przejść.']};
  }
 

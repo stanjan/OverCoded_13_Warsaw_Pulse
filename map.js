@@ -69,6 +69,7 @@
     const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
     // headerDisabled removes Google's empty title row; the cloud draws its own close button over the photo.
     const info = new InfoWindow({ maxWidth: 290, headerDisabled: true });
+    const vehicleInfo = new InfoWindow({ maxWidth: 230 });
     let activeBubble, activeMarker;
     // Every result pin stays visible, even when pins overlap.
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
@@ -83,7 +84,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { vehicleInfo.close?.();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -107,19 +108,21 @@
           const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
           routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 }));
         }
+        for(const stop of activeRouteStops(route))routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stop.name,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150}));
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
-          routeView = {points:[...points,...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
+          routeView = {points:[...points,...activeRouteStops(route),...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
           const destination = validTransitPath([route.destinationPoint])[0]||points.at(-1);
           routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content: destinationElement(), title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
         return routeLines.length > 0;
       },
       showVehicles(vehicles) {
-        vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
+        vehicleInfo.close?.();vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
         for (const vehicle of vehicles || []) {
           if (!validTransitPath([vehicle]).length || !freshVehicle(vehicle)) continue;
-          vehicleMarkers.push(new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), zIndex:250 }));
+          const marker=new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), gmpClickable:true, zIndex:250 });
+          marker.addEventListener('gmp-click',()=>{vehicleInfo.setContent(vehicleDetails(vehicle));vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
@@ -205,7 +208,7 @@
     return {
       vendor: 'leaflet',
       ready,
-      clearRoute() { routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      clearRoute() { map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
         routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
         const points=(route?.steps || []).flatMap(step=>validTransitPath(step.path)).map(point=>[point.latitude,point.longitude]);
@@ -222,11 +225,12 @@
             for(const[color,weight]of [['#ffffff',12],['#4285F4',8]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer);
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
+        for(const stop of activeRouteStops(route))L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[9,9],iconAnchor:[4.5,4.5]}),title:stop.name,keyboard:false,interactive:false,zIndexOffset:150}).addTo(transitLayer);
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
           const destination=validTransitPath([route.destinationPoint])[0];
           L.marker(destination?[destination.latitude,destination.longitude]:points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
-          routeView={points:destination?[...points,[destination.latitude,destination.longitude]]:points,options:{top}};fitRoute();
+          routeView={points:[...points,...activeRouteStops(route).map(stop=>[stop.latitude,stop.longitude]),...(destination?[[destination.latitude,destination.longitude]]:[])],options:{top}};fitRoute();
         }
         return lineCount>0;
       },
@@ -234,7 +238,7 @@
         vehicleLayer.clearLayers();
         for(const vehicle of vehicles||[]) {
           if(!validTransitPath([vehicle]).length||!freshVehicle(vehicle))continue;
-          L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[44,30],iconAnchor:[22,15]}),title:vehicleTitle(vehicle),zIndexOffset:250}).addTo(vehicleLayer);
+          L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}),title:vehicleTitle(vehicle),keyboard:true,zIndexOffset:250}).bindPopup(vehicleDetails(vehicle),{className:'transit-vehicle-popup',maxWidth:230}).addTo(vehicleLayer);
         }
       },
 
@@ -285,8 +289,30 @@
   }
   function transitColor(record) { return /^#[0-9a-f]{6}$/i.test(record.transportColor||'')?record.transportColor:'#65727f'; }
   function freshVehicle(vehicle) { const age=Date.now()-Date.parse(vehicle.observedAt);return vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000; }
-  function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+(vehicle.freshness==='recent'?'świeży pomiar':'pomiar nieaktualny lub bez czasu')+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
-  function vehicleElement(vehicle) { const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.backgroundColor=transitColor(vehicle);element.textContent=vehicle.line;element.title=vehicleTitle(vehicle);return element; }
+  function activeRouteStops(route) {
+    const seen=new Set(),stops=[];
+    for(const step of route?.steps||[]){
+      if(step.mode!=='TRANSIT'||step.stopPositionSource!=='gtfs_stop_sequence')continue;
+      for(const stop of validTransitPath(step.stopPositions)){
+        const key=stop.id+'|'+stop.latitude+'|'+stop.longitude;if(seen.has(key))continue;seen.add(key);stops.push(stop);
+      }
+    }return stops;
+  }
+  function stopElement(){const dot=document.createElement('span');dot.className='transit-stop';dot.setAttribute('aria-hidden','true');return dot;}
+  function vehicleDirection(vehicle){return vehicle.directionSource==='confirmed_gtfs_trip'&&typeof vehicle.direction==='string'&&vehicle.direction.trim()?vehicle.direction:'Kierunek niepotwierdzony';}
+  function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+vehicleDirection(vehicle)+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
+  function vehicleDetails(vehicle){
+    const box=document.createElement('div');box.className='transit-vehicle-detail';
+    const line=document.createElement('strong');line.textContent=(vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line;
+    const direction=document.createElement('p');direction.textContent=vehicleDirection(vehicle);box.append(line,direction);return box;
+  }
+  function vehicleElement(vehicle) {
+    const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.backgroundColor=transitColor(vehicle);element.title=vehicleTitle(vehicle);
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
+    const rail=vehicle.transportKind==='tram'||vehicle.transportKind==='skm'||vehicle.type===2;
+    const paths=rail?['M7 4h10a2 2 0 0 1 2 2v11H5V6a2 2 0 0 1 2-2Z','M5 12h14M9 4l1-3h4l1 3M8 20l-2 2m10-2 2 2M8 15h.01M16 15h.01']:['M6 3h12a2 2 0 0 1 2 2v13H4V5a2 2 0 0 1 2-2Z','M4 12h16M7 18v3m10-3v3M7 15h.01M17 15h.01M8 6h8'];
+    for(const d of paths){const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);svg.append(path);}element.append(svg);return element;
+  }
 
   function userDotElement(vendor) {
     const wrap = document.createElement('div');

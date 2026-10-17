@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {waypoint,gpsOrigin,departure,warsawDeparture,serviceSeconds,serviceInstant,createPlanner,computeMunicipal,TransitError,transitAppearance} from '../transit-core.mjs';
-import {runTool} from '../mcp/tools.mjs';import {normalizeStops,normalizeDepartures,normalizeVehicles,createTransitService,TRANSIT_SOURCES} from '../server/transit.mjs';import {gtfsInstant,activeServices,csvRow} from '../server/transit-gtfs.mjs';import {planGraph} from '../server/transit-router.mjs';
+import {runTool} from '../mcp/tools.mjs';import {normalizeStops,normalizeDepartures,normalizeVehicles,withVehicleDirections,createTransitService,TRANSIT_SOURCES} from '../server/transit.mjs';import {gtfsInstant,activeServices,csvRow} from '../server/transit-gtfs.mjs';import {planGraph} from '../server/transit-router.mjs';
 const now=Date.parse('2026-10-17T12:00:00Z');
 const stop=(id,name,latitude,longitude)=>({values:Object.entries({zespol:id.split('-')[0],slupek:id.split('-')[1],nazwa_zespolu:name,szer_geo:String(latitude),dlug_geo:String(longitude)}).map(([key,value])=>({key,value}))});
 const rows=[stop('1000-01','Start',52.2,21),stop('2000-01','Cel',52.23,21.02)];
@@ -88,4 +88,18 @@ test('request races/cancellation and municipal HTTP seam never reuse a stale rou
 });
 test('MCP action resolves verified destination coordinates and reports request acceptance without route/ETA',async()=>{
  const state={results:[{id:'event-1',name:'Koncert',lat:52.2,lng:21}],actions:[]};const result=await runTool('plan_transit',{destinationId:'event-1'},state);assert.equal(result.status,'planning_requested');assert.equal(result.durationMillis,undefined);assert.deepEqual(state.actions[0].destination,{latitude:52.2,longitude:21,label:'Koncert'});for(const args of [{destinationId:'unknown'},{destinationId:'event-1',destinationQuery:'A'},{}])await assert.rejects(()=>runTool('plan_transit',args,state));
+});
+
+
+test('active stops preserve exact boarded sequence including loops without leaking earlier/later trip stops',()=>{
+ const data=graph();const middle={id:'m',name:'Middle',latitude:52.21,longitude:21},before={id:'before',name:'Before',latitude:52.18,longitude:21},after={id:'after',name:'After',latitude:52.26,longitude:21};data.stops.push(middle,before,after);data.trips=[{...data.trips[0],stopTimes:[event('before','13:50:00'),event('a','14:00:00'),event('m','14:03:00'),event('a','14:06:00','14:06:00',1),event('d','14:20:00'),event('after','14:30:00')]}];
+ const ride=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')})[0].steps.find(step=>step.mode==='TRANSIT');
+ assert.equal(ride.fromStopIndex,1);assert.equal(ride.toStopIndex,4);assert.equal(ride.stopPositionSource,'gtfs_stop_sequence');assert.deepEqual(ride.stopPositions.map(stop=>stop.id),['a','m','a','d']);assert.deepEqual(ride.stopPositions.map(stop=>stop.sequenceIndex),[1,2,3,4]);assert.equal(ride.stopPositions[1].latitude,middle.latitude);assert.equal(ride.stopPositions[1].name,'Middle');
+});
+
+test('vehicle directions require fresh unambiguous confirmed same-vehicle and same-line trip binding',()=>{
+ const data=graph(),vehicle={id:'2:1',line:'17',freshness:'recent',observedAt:new Date(now).toISOString()},delta={vehicleId:'2:1',tripId:data.trips[0].id,observedAt:now,confidence:'brigade_two_stop_dwell'},decorate=(vehicles,deltas)=>withVehicleDirections(vehicles,data,new Map(deltas.map((delta,index)=>[index,delta])),now);
+ assert.equal(decorate([vehicle],[delta])[0].direction,'B');assert.equal(decorate([vehicle],[delta])[0].directionTripId,data.trips[0].id);
+ for(const value of [{...delta,observedAt:now-180001},{...delta,observedAt:now+60001},{...delta,confidence:'unconfirmed'},{...delta,vehicleId:'2:other'},{...delta,tripId:'missing'},{...delta,tripId:data.trips[2].id}])assert.equal(decorate([vehicle],[value])[0].direction,null);
+ assert.equal(decorate([vehicle],[delta,{...delta,tripId:data.trips[1].id}])[0].direction,null);assert.equal(decorate([{...vehicle,freshness:'stale'}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,observedAt:new Date(now-90001).toISOString()}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,line:'22'}],[delta])[0].direction,null);
 });

@@ -37,7 +37,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
      const existing=next.get(stop.id);if(!existing||event.arrival<existing.time){
       const from=byId.get(boarding.event.stopId),sequence=trip.stopTimes.slice(boarding.index,index+1).map(item=>byId.get(item.stopId)).filter(Boolean);
       const shapePath=validShape(trip.shape)?shapeSlice(trip.shape,boarding.event,event,byId):[];
-      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:shapePath.length>1?shapePath:sequence.map(coordinate),geometry:shapePath.length>1?'gtfs_shape':'schematic'}]});
+      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,fromStopIndex:boarding.index,toStopIndex:index,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:shapePath.length>1?shapePath:sequence.map(coordinate),geometry:shapePath.length>1?'gtfs_shape':'schematic'}]});
      }
     }
     const label=previous.get(stop.id),buffer=round>1&&label?.path.some(segment=>segment.mode==='TRANSIT')?TRANSFER_BUFFER:0;
@@ -56,6 +56,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
  const tripsById=new Map(graph.trips.map(trip=>[trip.id,trip]));
  return [...distinct.values()].slice(0,3).map(route=>({...route,steps:route.steps.map(step=>{
   const trip=tripsById.get(step.tripId);
+  if(step.mode==='TRANSIT'&&trip)step={...step,stopPositionSource:'gtfs_stop_sequence',stopPositions:trip.stopTimes.slice(step.fromStopIndex,step.toStopIndex+1).map((event,offset)=>{const stop=byId.get(event.stopId);return stop?{id:stop.id,name:stop.name,...coordinate(stop),sequenceIndex:step.fromStopIndex+offset}:null;}).filter(Boolean)};
   return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&validShape(trip?.shape)?{...step,fullPath:trip.shape.map(coordinate),fullPathGeometry:'gtfs_shape'}:step;
  })}));
 }
