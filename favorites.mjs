@@ -104,7 +104,11 @@ export function mountFavorites({ doc, host, store }) {
   panel.append(head, note, empty, list);
   shell.append(trigger, panel);
 
-  const cardButtons = new Set();
+  // Weakly held: map popups build their heart before they are attached and reattach it on every open,
+  // so detached buttons must keep syncing until they are garbage-collected.
+  const cardButtons = new Set(), weak = typeof WeakRef === 'function';
+  const trackButton = button => cardButtons.add(weak ? new WeakRef(button) : button);
+  const syncButtons = () => { for (const ref of cardButtons) { const button = weak ? ref.deref() : ref; if (button) syncButton(button); else cardButtons.delete(ref); } };
   let removeButtons = new Map();
   const syncButton = button => {
     const on = store.has(button.dataset.favoriteId), label = on ? 'Usuń z ulubionych' : 'Dodaj do ulubionych';
@@ -149,7 +153,7 @@ export function mountFavorites({ doc, host, store }) {
     badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = !count;
     note.hidden = store.persistent; empty.hidden = count > 0;
     removeButtons = new Map(); list.replaceChildren(...items.map(entry));
-    cardButtons.forEach(syncButton);
+    syncButtons();
   };
   const open = () => { render(); panel.hidden = false; trigger.setAttribute('aria-expanded', 'true'); close.focus(); };
   trigger.addEventListener('click', () => panel.hidden ? open() : closePanel());
@@ -176,16 +180,14 @@ export function mountFavorites({ doc, host, store }) {
 
   return {
     open, close: closePanel, render, trigger, panel,
-    // Heart toggle for a place card; null when the place cannot be saved (no id or name).
+    // Heart toggle for a place card or map detail; null when the place cannot be saved (no id or name).
     button(place) {
       const id = favoriteId(place?.id);
       if (!id || !favoriteSnapshot(place)) return null;
       const button = el('button', 'rec-card__favorite'); button.type = 'button'; button.dataset.favoriteId = id;
       button.append(icon('favorite'));
       button.addEventListener('click', event => { event?.stopPropagation?.(); store.toggle(place); });
-      // Cards from earlier answers are already detached when a new answer renders.
-      for (const old of cardButtons) if (old.isConnected === false) cardButtons.delete(old);
-      syncButton(button); cardButtons.add(button);
+      syncButton(button); trackButton(button);
       return button;
     },
   };

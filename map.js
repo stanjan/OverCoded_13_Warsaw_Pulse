@@ -643,11 +643,16 @@
       source.textContent = place.category === 'event' || place.category === 'sports' ? 'Szczegóły u organizatora ↗' : 'Zobacz źródło ↗';
       source.target = '_blank'; source.rel = 'noopener noreferrer'; body.append(source);
     }
+    // Transit link and favourite heart share one row, in the popup and in the full-screen view.
+    const actions = document.createElement('div'); actions.className = 'result-detail__actions';
     if (Number.isFinite(place.lat) && Math.abs(place.lat) <= 90 && Number.isFinite(place.lng) && Math.abs(place.lng) <= 180) {
       const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'result-detail__transit'; transit.textContent = 'Wyznacz trasę';
       transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
-      body.append(transit);
+      actions.append(transit);
     }
+    const favorite = globalThis.cityFavorites?.button(place);
+    if (favorite) { favorite.classList.add('result-detail__favorite'); actions.append(favorite); }
+    if (actions.children.length) body.append(actions);
     card.append(body);
     if (!full) {
       // Expand button on the photo's top-left corner (the close button sits top-right).

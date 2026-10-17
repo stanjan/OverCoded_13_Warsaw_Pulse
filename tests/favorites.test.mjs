@@ -145,3 +145,13 @@ test('panel warns when favourites cannot be saved and omits map/route actions wi
   assert.equal(row.find(n => n.className === 'favorites-item__map'), null);
   assert.ok(row.find(n => n.className === 'favorites-item__remove'));
 });
+
+test('detached map-popup hearts keep syncing so a reopened popup shows the current state', () => {
+  const { ui, store } = fixture();
+  const popupHeart = ui.button(place('p')); popupHeart.isConnected = false;
+  ui.button(place('later'));
+  store.toggle(place('p'));
+  assert.equal(popupHeart.attributes['aria-pressed'], 'true');
+  store.remove('p');
+  assert.equal(popupHeart.attributes['aria-pressed'], 'false');
+});

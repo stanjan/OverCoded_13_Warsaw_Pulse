@@ -201,6 +201,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 [data-transit='external'], [data-transit='itinerary'] a { display: inline-flex; align-items: center; color: #a14d32; text-decoration: underline; font-weight: 700; }
 .transit-attribution { border-top: 1px solid #e1e5e8; padding-top: 9px; margin-top: 12px; }
 .result-detail__transit { display: block; min-height: 44px; color: #a14d32; font-size: 12px; font-weight: 800; }
+.result-detail__actions { display: flex; align-items: center; gap: 8px; }
+.result-detail__actions .result-detail__favorite { margin-left: auto; }
 .app-shell > nav a[aria-current='page'] { color: #b95637; }
 
 .app-shell > nav a:not([aria-current='page']) { color: #65727f; }
