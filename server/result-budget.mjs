@@ -113,9 +113,9 @@ export function fitResultBudget(result, {
       if (fitted) return fitted;
     }
   }
-  const freshLocation = location?.status === 'available' && location.freshness === 'recent' &&
-    location.source === 'browser_geolocation' && Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
-  if (freshLocation) {
+  const knownLocation = location?.status === 'available' &&
+    location.source === 'browser_geolocation' && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180;
+  if (knownLocation) {
     const dated = records;
     for (const radiusKm of [25, 10, 5, 2, 1, 0.5, 0.25]) {
       const nearby = withinRadius(dated, location, radiusKm, filters);
@@ -123,7 +123,8 @@ export function fitResultBudget(result, {
       excluded = { ...excluded, missingCoordinates: 0, outsideRadius: nearby.outsideRadius };
       preserved = { missingCoordinates: nearby.missingCoordinates };
       applied = { ...applied, distance: { radiusKm, basis: 'browser_geolocation', latitude: location.latitude,
-        longitude: location.longitude, accuracyMeters: location.accuracy, observedAt: location.observedAt,
+        longitude: location.longitude, accuracyMeters: location.accuracy ?? null, observedAt: location.observedAt ?? null,
+        positionBasis: 'last_known_location', freshness: location.freshness || 'unknown',
         unlocatedIncluded: nearby.missingCoordinates > 0 } };
       const fitted = attempt({ radiusKm });
       if (fitted) return fitted;
@@ -139,10 +140,10 @@ export function fitResultBudget(result, {
       countsByCategory,
       narrowing: { reason: 'conversation_capacity', originalTotal, effectiveTotal: 0, candidateTotal: records.length,
         appliedFilters: applied, excluded, preserved, attempts, allMatchingRecordsProvided: false,
-        fallbackReason: missingCoordinates ? 'missing_coordinates' : freshLocation ? 'no_scope_fits' : 'no_recent_user_location' },
+        fallbackReason: missingCoordinates ? 'missing_coordinates' : knownLocation ? 'no_scope_fits' : 'no_user_location' },
       message: missingCoordinates
         ? 'Zbiór jest zbyt duży do oceny w rozmowie, a ' + missingCoordinates + ' rekordów nie ma współrzędnych. Nie odrzucono ich z tego powodu ani nie potwierdzono ich odległości. Pełny zbiór pozostaje na serwerze. Poproś o dzielnicę, nazwę, adres lub rodzaj aktywności i użyj filter_results; nie pokazuj pustej listy ani nie rekomenduj niewidzianych rekordów.'
-        : 'Automatyczne zawężanie nie dało zbioru mieszczącego się w rozmowie. Pełny zbiór pozostaje na serwerze; żadne rekordy nie zostały przekazane do oceny. Poproś o dzielnicę, temat lub węższe daty; przy braku świeżej lokalizacji można też poprosić o jej udostępnienie. Nie rekomenduj niewidzianych rekordów.',
+        : 'Automatyczne zawężanie nie dało zbioru mieszczącego się w rozmowie. Pełny zbiór pozostaje na serwerze; żadne rekordy nie zostały przekazane do oceny. Poproś o dzielnicę, temat lub węższe daty; dopiero przy braku współrzędnych można poprosić o wskazanie obszaru lub udostępnienie lokalizacji. Nie rekomenduj niewidzianych rekordów.',
     },
   };
 }

@@ -19,14 +19,14 @@ test('environment service requests current models and daily sun with source time
  assert.equal(data.air.europeanAqi,43.5);assert.equal(data.air.pm25,18.4);assert.equal(data.air.source.kind,'air_quality_model');
  assert.equal(data.sun.date,'2026-10-17');assert.equal(data.sun.sunrise,'2026-10-17T05:00:00.000Z');assert.equal(data.complete,true);
 });
-test('location validation, stale fallback and cache retain the requested location without mutating cached source data',async()=>{
+test('location validation, last known basis and cache retain the requested location without mutating cached source data',async()=>{
  const calls=[],service=createEnvironmentService({fetchImpl:fixtureFetch(calls),now:()=>NOW});
  for(const input of [{latitude:NaN,longitude:21},{latitude:91,longitude:21},{latitude:52,longitude:'21'}]) await assert.rejects(service(input),/współrzędne/);
  assert.equal(calls.length,0);
  const first=await service({latitude:52.23001,longitude:21.01001});first.weather.temperatureC=100;
  const second=await service({latitude:52.23002,longitude:21.01002});
  assert.equal(calls.length,2);assert.equal(second.cached,true);assert.equal(second.location.latitude,52.23002);assert.equal(second.location.basis,'gps');assert.equal(second.weather.temperatureC,11.4);
- const fallback=await service({status:'available',freshness:'stale',latitude:52.3,longitude:21.2});assert.equal(fallback.location.basis,'central_warsaw');
+ const fallback=await service({status:'available',freshness:'stale',latitude:52.3,longitude:21.2});assert.equal(fallback.location.basis,'gps');assert.equal(fallback.location.latitude,52.3);assert.equal(fallback.location.freshness,'stale');
 });
 test('independent provider failure and nulls never become fabricated current zero measurements',async()=>{
  let count=0;
@@ -101,8 +101,8 @@ test('browser starts on Warsaw, follows location events, discards older requests
  timer();assert.equal(requests[3].url,'/api/environment');controller.stop();requests[3].resolve({ok:true,json:async()=>({})});await new Promise(resolve=>setImmediate(resolve));assert.equal(cleared,true);assert.equal(renders.at(-1).status,'loading');
 });
 
-test('browser does not keep expired or undated GPS as an authoritative location',async()=>{
+test('browser keeps old or undated GPS as the last known weather area',async()=>{
  const ui=browser(),urls=[];const controller=ui.createEnvironmentController({now:()=>NOW.getTime(),render:()=>{},setTimer:()=>0,clearTimer:()=>{},fetchImpl:async url=>{urls.push(url);return {ok:true,json:async()=>({})};}});
  await controller.update({status:'available',latitude:52.3,longitude:21.1,observedAt:'2026-10-17T15:54:00Z'});
- await controller.update({status:'available',latitude:52.3,longitude:21.1});assert.deepEqual(urls,['/api/environment','/api/environment']);controller.stop();
+ await controller.update({status:'available',latitude:52.3,longitude:21.1});assert.deepEqual(urls,['/api/environment?latitude=52.3&longitude=21.1','/api/environment?latitude=52.3&longitude=21.1']);controller.stop();
 });

@@ -30,8 +30,7 @@
     async function update(next = location) {
       if (stopped) return;
       location = next; const current = ++generation; active?.abort(); active = new AbortController();
-      const age = location?.observedAt ? now() - Date.parse(location.observedAt) : Infinity;
-      const available = location?.status === 'available' && age >= -60000 && age <= 300000 && Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
+      const available = location?.status === 'available' && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180;
       const query = available ? `?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}` : '';
       render({ status: 'loading', basis: available ? 'gps' : 'central_warsaw' });
       try {
