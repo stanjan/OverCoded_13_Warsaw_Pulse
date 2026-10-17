@@ -157,3 +157,58 @@ test('selecting a route collapses only a panel that leaves too little map beneat
   assert.equal(f.calls.filter(call=>call[0]==='collapse').length,visibleBottom===203?1:0);assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'selected');
  }
 });
+
+
+test('an event handoff reveals its planner even when the old conversation was scrolled away',()=>{
+ const frames=[],f=fixture();f.host.requestAnimationFrame=callback=>frames.push(callback);
+ f.ids['transit-panel'].scrollIntoView=options=>f.calls.push(['reveal',options]);
+ f.events['city:transit']({detail:{destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie na E. Plater 31'}}});
+ assert.equal(f.ids['transit-editor'].open,true);assert.match(f.ids['transit-status'].textContent,/skąd/);
+ frames.splice(0).forEach(callback=>callback());
+ assert.deepEqual(f.calls.filter(call=>call[0]==='reveal').at(-1)[1],{block:'start',behavior:'smooth'});
+});
+
+test('event routes use a known location without freshness or accuracy gates',async()=>{
+ let request;const f=fixture({compute:async value=>{request=value;return result([route('event')]);}});
+ f.host.getCityLocation=()=>({status:'available',latitude:52.23,longitude:21.01,observedAt:'2020-01-01T00:00:00Z',accuracy:5000});
+ f.events['city:transit']({detail:{destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}}});await tick();
+ assert.deepEqual(request.origin.value,{lat:52.23,lng:21.01});assert.deepEqual(request.destination.value,{lat:52.2259,lng:21.0015});assert.equal(f.panel.getState().status,'ready');
+});
+
+test('GPS from an event planner keeps it open and resumes the destination once location arrives',async()=>{
+ let finish,request,location={status:'unavailable'};const f=fixture({compute:async value=>{request=value;return result([route('event')]);}});
+ f.host.getCityLocation=()=>location;f.host.requestCityLocation=()=>new Promise(resolve=>finish=value=>{location=value;resolve(value);});
+ let globalClicks=0;f.ids['gps-button']={click(){globalClicks++;}};
+ f.panel.open({destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}});
+ const when=new Date(Date.now()+3600000),chosen=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Warsaw',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(when).replace(' ','T');f.ids['transit-time'].value=chosen;
+ const pending=f.ids['transit-gps'].click();assert.equal(f.ids['transit-panel'].hidden,false);assert.match(f.ids['transit-status'].textContent,/Ustalam/);assert.equal(globalClicks,0);
+ finish({status:'available',latitude:52.23,longitude:21.01});await pending;
+ assert.equal(f.ids['transit-panel'].hidden,false);assert.equal(f.panel.getState().status,'ready');assert.deepEqual(request.destination.value,{lat:52.2259,lng:21.0015});
+ assert.deepEqual(request.origin.value,{lat:52.23,lng:21.01});assert.equal(globalClicks,0);assert.equal(f.ids['transit-time'].value,chosen);assert.ok(Math.abs(request.departureTime.getTime()-when.getTime())<60000);
+});
+
+test('unavailable GPS leaves the event editor open with an actionable start error',async()=>{
+ let computes=0;const f=fixture({compute:async()=>{computes++;return result([]);}});f.host.requestCityLocation=async()=>({status:'unavailable',reason:'denied'});
+ f.panel.open({destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}});await f.ids['transit-gps'].click();
+ assert.equal(computes,0);assert.equal(f.ids['transit-panel'].hidden,false);assert.equal(f.ids['transit-editor'].open,true);assert.match(f.ids['transit-status'].textContent,/Podaj punkt startowy/);assert.equal(f.ids['transit-origin'].focused,true);
+});
+
+test('late GPS cannot replace a manually entered origin or revive a hidden event plan',async()=>{
+ for(const action of ['manual','new-question']){
+  let finish,computes=0;const f=fixture({compute:async()=>{computes++;return result([]);}});f.host.requestCityLocation=()=>new Promise(resolve=>finish=resolve);
+  f.panel.open({destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}});const pending=f.ids['transit-gps'].click();
+  if(action==='manual'){f.ids['transit-origin'].value='Dw. Centralny';f.ids['transit-origin'].listeners.input();}else f.events['city:query']();
+  finish({status:'available',latitude:52.23,longitude:21.01});await pending;
+  assert.equal(computes,0);assert.equal(f.ids['transit-origin'].value,action==='manual'?'Dw. Centralny':'');assert.equal(f.ids['transit-panel'].hidden,action==='new-question');
+ }
+});
+
+
+for(const action of ['cancel','clear'])test('explicit '+action+' discards pending event GPS without resuming route search',async()=>{
+ let finish,computes=0,location={status:'unavailable'};const f=fixture({compute:async()=>{computes++;return result([]);}});
+ f.host.getCityLocation=()=>location;f.host.requestCityLocation=()=>new Promise(resolve=>finish=value=>{location=value;resolve(value);});
+ f.panel.open({destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}});const pending=f.ids['transit-gps'].click();
+ f.ids['transit-'+action].click();const expected=action==='cancel'?'cancelled':'idle';assert.equal(f.panel.getState().status,expected);
+ finish({status:'available',latitude:52.23,longitude:21.01});await pending;
+ assert.equal(computes,0);assert.equal(f.panel.getState().status,expected);assert.equal(f.ids['transit-origin'].value,'');assert.equal(f.ids['environment-bar'].dataset.route,'false');
+});
