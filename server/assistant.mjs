@@ -28,7 +28,7 @@ export async function bridgeCompletion(messages, { signal, fetchImpl = fetch } =
   if (!message || (typeof message.content !== 'string' && !Array.isArray(message.tool_calls))) throw new BridgeError('Odpowiedź codex-bridge ma nieobsługiwany format.');
   return message;
 }
-export function createAssistant({ completion = bridgeCompletion, provider } = {}) {
+export function createAssistant({ completion = bridgeCompletion, provider, now = () => new Date() } = {}) {
   const sessions = new Map();
   return { async chat({ message, sessionId }, signal) {
     if (typeof message !== 'string' || !message.trim() || message.length > 4000) throw new BridgeError('Wpisz pytanie o długości do 4000 znaków.', 400);
@@ -41,7 +41,8 @@ export function createAssistant({ completion = bridgeCompletion, provider } = {}
     if (session.busy) throw new BridgeError('Poczekaj na poprzednią odpowiedź.', 409);
     session.busy = true;
     const state = { results: [...session.results], actions: [], searchMeta: session.searchMeta };
-    const history = [{ role: 'system', content: SYSTEM_PROMPT + '\nData i czas rozmowy (Europe/Warsaw): ' + new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', dateStyle: 'full', timeStyle: 'short' }).format(new Date()) }, ...session.messages, { role: 'user', content: message.trim() }];
+    const timeContext = { role: 'system', content: 'Data i czas rozmowy (Europe/Warsaw): ' + new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', dateStyle: 'full', timeStyle: 'short' }).format(now()) };
+    const history = [{ role: 'system', content: SYSTEM_PROMPT }, ...session.messages, timeContext, { role: 'user', content: message.trim() }];
     try {
       for (let round = 0; round < 6; round++) {
         const reply = await completion(history, { signal });

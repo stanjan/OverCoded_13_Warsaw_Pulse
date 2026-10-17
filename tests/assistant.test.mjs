@@ -25,8 +25,8 @@ test('tool arguments reject out-of-range coordinates and unsupported filters', a
 test('assistant runs tools and retains context without sharing sessions', async () => {
   let turn = 0;
   const assistant = createAssistant({ completion: async history => {
-    assert.ok(history[0].content.startsWith(SYSTEM_PROMPT));
-    assert.match(history[0].content,/Europe\/Warsaw/);
+    assert.equal(history[0].content, SYSTEM_PROMPT);
+    assert.ok(history.some(m => m.role === 'system' && m.content.startsWith('Data i czas rozmowy (Europe/Warsaw): ')));
     if (++turn === 1) return { content: null, tool_calls: [call('search_places', { category: 'event' })] };
     if (turn === 2) {
       assert.equal(JSON.parse(history.at(-1).content).results.length, 2);
@@ -103,4 +103,30 @@ test('bridge rejects oversized complete result payload explicitly before network
   await assert.rejects(bridgeCompletion([{role:'tool',content:'x'.repeat(1000001)}],{fetchImpl:async()=>{called=true;}}),error=>error.status===413&&/żaden wynik/.test(error.message));
   assert.equal(called,false);
  }finally{if(old===undefined)delete process.env.CODEX_BRIDGE_URL;else process.env.CODEX_BRIDGE_URL=old;}
+});
+
+test('new turn time context preserves exact prior history prefix across minute changes', async () => {
+  const histories = [];
+  let time = new Date('2026-10-17T15:00:00Z');
+  const assistant = createAssistant({
+    now: () => time,
+    completion: async history => {
+      histories.push(structuredClone(history));
+      return { content: histories.length === 1 ? 'Pierwsza odpowiedź.' : 'Druga odpowiedź.' };
+    },
+  });
+  const first = await assistant.chat({ message: 'Pierwsze pytanie' });
+  time = new Date('2026-10-17T15:01:00Z');
+  await assistant.chat({ message: 'Drugie pytanie', sessionId: first.sessionId });
+  const [before, after] = histories;
+  assert.deepEqual(before[0], { role: 'system', content: SYSTEM_PROMPT });
+  assert.deepEqual(after[0], before[0]);
+  assert.deepEqual(after.slice(0, before.length), before);
+  assert.deepEqual(after[before.length], { role: 'assistant', content: 'Pierwsza odpowiedź.' });
+  assert.equal(before[1].role, 'system');
+  assert.match(before[1].content, /Europe\/Warsaw.*17:00/);
+  assert.equal(after.at(-2).role, 'system');
+  assert.match(after.at(-2).content, /Europe\/Warsaw.*17:01/);
+  assert.notEqual(after.at(-2).content, before[1].content);
+  assert.deepEqual(after.at(-1), { role: 'user', content: 'Drugie pytanie' });
 });
