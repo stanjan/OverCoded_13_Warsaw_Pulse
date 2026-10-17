@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeRecord,createCatalog} from '../mcp/catalog.mjs';
 import {fitResultBudget,boundDisplayAction} from '../server/result-budget.mjs';
-import {createAssistant} from '../server/assistant.mjs';
+import {createAssistant,SYSTEM_PROMPT} from '../server/assistant.mjs';
 import {runTool} from '../mcp/tools.mjs';
 
 // Published city example: sbt_trasy_turystyczne_pw.json, verified 2026-10-18.
@@ -32,4 +32,17 @@ test('assistant exposes geometry to browser actions without sending vertices in 
  const histories=[];let turn=0;const record=normalize(raw);
  const assistant=createAssistant({provider:{search:async()=>({results:[record],total:1,complete:true,sources:[],errors:[]})},completion:async history=>{histories.push(structuredClone(history));turn++;if(turn===1)return{tool_calls:[{id:'search',type:'function',function:{name:'search_places',arguments:'{"category":"route"}'}}]};if(turn===2)return{tool_calls:[{id:'display',type:'function',function:{name:'display_results',arguments:JSON.stringify({ids:[record.id],highlightIds:[record.id],title:'Spacer'})}}]};return{content:'Oto trasa.'};}});
  const result=await assistant.chat({message:'Pokaż spacer'});assert.deepEqual(result.actions.find(action=>action.type==='display_results').results[0].traceSegments,[raw.traces]);for(const history of histories)for(const item of history.filter(item=>item.role==='tool'))assert.doesNotMatch(item.content,/traceSegments/);
+});
+
+test('MCP and browser boundaries permit one tourist highlight while keeping three event highlights',async()=>{
+ const records=[1,2,3].map(number=>({...normalize(raw),id:'route'+number}));const events=[1,2,3].map(number=>({id:'event'+number,category:'event',name:'Event '+number}));
+ const display=async(results,highlightIds)=>runTool('display_results',{ids:results.map(record=>record.id),highlightIds,title:'Propozycje'},{results,actions:[],searchMeta:{complete:true}});
+ assert.deepEqual((await display(records,records.map(record=>record.id))).highlightIds,['route1']);assert.deepEqual((await display(events,events.map(record=>record.id))).highlightIds,['event1','event2','event3']);assert.deepEqual((await display([...records,...events],['route2','event1','route1'])).highlightIds,['route2','event1']);
+ const action={type:'display_results',results:records,highlightIds:['route3','route2'],highlights:[records[2],records[1]]};boundDisplayAction(action);assert.deepEqual(action.highlightIds,['route3']);assert.equal(action.highlights[0],records[2]);
+});
+test('tourist selection guidance uses explicit needs and fallback gives one sourced proposal before asking a useful question',async()=>{
+ assert.match(SYSTEM_PROMPT,/JEDNĄ polecaną trasę/);assert.match(SYSTEM_PROMPT,/lengthKm.*touristPoints/);assert.match(SYSTEM_PROMPT,/maxLengthKm/);assert.match(SYSTEM_PROMPT,/krótko uzasadnij/);assert.match(SYSTEM_PROMPT,/Nie wnioskuj dostępności/);
+ const records=[{...normalize(raw),id:'short',name:'Krótki szlak',lengthKm:2},{...normalize(raw),id:'long',name:'Długi szlak',lengthKm:8}];let turn=0;
+ const assistant=createAssistant({provider:{search:async()=>({results:records,total:2,complete:true,sources:[],errors:[]})},completion:async()=>++turn===1?{tool_calls:[{id:'search',type:'function',function:{name:'search_places',arguments:'{"category":"route"}'}}]}:{content:'Jaka trasa Cię interesuje?'}});
+ const reply=await assistant.chat({message:'Pokaż trasy turystyczne'});const display=reply.actions.find(action=>action.type==='display_results');assert.deepEqual(display.highlightIds,['short']);assert.match(reply.message,/Krótki szlak/);assert.match(reply.message,/2 km według źródła/);assert.match(reply.message,/Palma na rondzie/);assert.match(reply.message,/Wolisz krótszy spacer czy konkretny temat\?/);
 });

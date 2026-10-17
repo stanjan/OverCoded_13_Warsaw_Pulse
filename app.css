@@ -364,6 +364,14 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
-.tourist-point{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff;border-radius:50%;background:#237653;color:#fff;font-size:11px;font-weight:700;box-shadow:0 1px 4px #0004;box-sizing:border-box}
-.tourist-point-detail{display:block;color:#234f3c;padding:4px;font-size:14px}
+.tourist-point{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff8e8;outline:1px solid #8a6537;border-radius:50%;background:#8a6537;color:#fff8e8;font-family:Georgia,serif;font-size:12px;font-weight:700;box-shadow:0 2px 5px #49361944;box-sizing:border-box}
+.tourist-point-detail{display:block;color:#624725;padding:4px;font-family:Georgia,serif;font-size:15px}
 .tourist-card-note{display:block;color:#617565;font-size:13px;margin-top:4px}
+.tourist-result-detail .result-image--large{height:44px}
+.tourist-result-detail .result-detail__body{max-height:calc(var(--tourist-popup-height,200px) - 44px);box-sizing:border-box}
+.tourist-result-detail .result-image--large{background:#f4ebd7;color:#8a6537;border-bottom:1px solid #b49a6c}
+.tourist-result-detail .result-image__fallback{font-size:28px}
+.tourist-result-detail h3{font-family:Georgia,serif;color:#624725}
+.result-bubble[data-tourism='true'] .result-pin{background:#8a6537;color:#fff8e8;border-color:#fff8e8}
+.result-bubble[data-tourism='true'] .result-image{background:#f4ebd7;color:#8a6537}
+.result-bubble[data-tourism='true'].result-bubble--recommended .result-pin{outline:2px solid #b49a6c;outline-offset:2px}

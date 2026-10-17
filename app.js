@@ -387,7 +387,7 @@ function showResults(action) {
     resultPanel.append(card);
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
-  cityMap?.showTouristRoutes?.(action.results, {selectedId:action.selectedTouristId});
+  cityMap?.showTouristRoutes?.(action.results, {selectedId:action.selectedTouristId,recommendedId:action.results.find(place=>place.category==='route'&&highlighted.has(place.id))?.id});
 }
 
 const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia komunikacji ZTM?', 'Gdzie znajdę najbliższe Veturilo?'];

@@ -1,6 +1,7 @@
 import { waypoint, departure } from '../transit-core.mjs';
 import { catalogProvider, matches, coordinates, locate, audienceFilterMapping } from './catalog.mjs';
 import { SOURCES, SEARCH_CATEGORIES } from './sources.mjs';
+import { touristHighlightIds } from './tourism.mjs';
 import { addressProvider as defaultAddressProvider, addressRequest, addressQueryKey, addressWaypoint, retainedAddresses, ADDRESS_TTL_MS, ADDRESS_SOURCE } from './addresses.mjs';
 const bounds = { type: 'object', properties: Object.fromEntries(['south','west','north','east'].map(k => [k,{type:'number'}])), required: ['south','west','north','east'], additionalProperties:false };
 export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:SEARCH_CATEGORIES}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string',description:'Oznaczenie odbiorców ze źródła, np. Dla dzieci, Dla młodzieży i dorosłych, Dla seniorów; rodziny mapuje także na Dla dzieci z jawnym audienceFilterMapping.'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0}, paid:{type:'boolean',description:'Tylko toalety: true płatne, false bezpłatne według źródła; nieznane wykluczone.'}, accessible:{type:'boolean',description:'Tylko toalety: true dostępne dla wszystkich, false z barierami architektonicznymi według źródła; nieznane wykluczone.'}, changingTable:{type:'boolean',description:'Tylko toalety: potwierdzony przewijak (true) lub jego brak (false); nieznane wykluczone.'} };
@@ -12,7 +13,7 @@ export const mcpTools = [
  {name:'list_data_sources',description:'Opisz dostępne kategorie miejskich danych, wyszukiwanie adresów GUGiK i obsługiwane filtry, bez pobierania rekordów. Użyj dla pytań typu „jakie dane masz dostępne?”, „co możesz pokazać?” lub o możliwości aplikacji. Nie potwierdza aktualnej dostępności źródeł.',inputSchema:schema({})},
  {name:'search_places',description:'Pobierz WSZYSTKIE pasujące dane z miejskiego MCP. Kategorie: event wydarzenia, sports zajęcia, pitch boiska, route trasy, toilet toalety z miejskiego katalogu (także w budynkach dostępnych publicznie). Filtry wyłącznie ze znanych preferencji rozmowy. Bez limitu wyników. complete=false oznacza niedostępne źródło, nigdy pusty katalog. Daty ISO YYYY-MM-DD: rekordy bez dat wykluczone; do cyklicznych zajęć użyj weekday. Otwarte boiska to nazwa zbioru. Godziny toalet nie potwierdzają otwarcia teraz; paid/accessible/changingTable filtrują tylko potwierdzone cechy toalet.',inputSchema:schema(filtersSchema)},
  {name:'filter_results',description:'Zawęź ostatnie wyniki na podstawie kontekstu rozmowy. Nie pobiera nowych danych. Brakujące cechy nie spełniają filtra.',inputSchema:schema(filtersSchema)},
- {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
+ {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. Dla tras turystycznych route wybierz tylko JEDNĄ rekomendację według potrzeb rozmowy i danych źródłowych; krótko uzasadnij wybór. Wydarzenia nadal mogą mieć trzy. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
  {name:'focus_map',description:'Ustaw widok mapy; nie dodaje rekordów.',inputSchema:schema({latitude:{type:'number',minimum:-90,maximum:90},longitude:{type:'number',minimum:-180,maximum:180},zoom:{type:'integer',minimum:10,maximum:18}},['latitude','longitude','zoom'])},
 ];
 export function validate(value, rule) {
@@ -88,11 +89,12 @@ export async function runTool(name,args,state,provider=catalogProvider,addressPr
  }
  if(name==='display_results'){
    if(!state.searchMeta)throw new Error('Najpierw wyszukaj rekordy.');
-   const ids=[...new Set(args.ids)],highlights=[...new Set(args.highlightIds)];
+   const ids=[...new Set(args.ids)];let highlights=[...new Set(args.highlightIds)];
    if(ids.length!==args.ids.length||highlights.length!==args.highlightIds.length||highlights.some(id=>!ids.includes(id))||(ids.length&&highlights.length<1)||(!ids.length&&highlights.length))throw new Error('Wybierz 1–3 unikalne rekomendacje spośród wyników.');
    const byId=new Map(state.results.map(p=>[p.id,p]));
    if(ids.some(id=>!byId.has(id)))throw new Error('Najpierw wyszukaj wskazane rekordy.');
    const results=ids.map(id=>byId.get(id));
+   highlights=touristHighlightIds(results,highlights);
    const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[],...(state.searchMeta.audienceFilterMapping?{audienceFilterMapping:state.searchMeta.audienceFilterMapping}:{})};
    state.actions.push(action);
    return {displayed:results.length,highlightIds:highlights,action};
