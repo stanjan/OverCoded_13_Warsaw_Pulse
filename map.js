@@ -248,18 +248,32 @@
   const categoryLabels = { event: 'Wydarzenie', sports: 'Zajęcia sportowe', pitch: 'Boisko', route: 'Trasa', toilet: 'Toaleta', weather: 'Pogoda', air_quality: 'Jakość powietrza' };
   const themeIcons = { culture: 'palette', sport: 'directions_run', education: 'school', meeting: 'forum', family: 'family_restroom', seniors: 'elderly', outdoor: 'park' };
   // Sorts a result into one of the 7 pastel themes from its category and the words in its source data.
+  // Theme order matters: the city's own event categories decide first, then the title, then the description.
+  // Culture is checked before sport so "Kultura" events never get a sport pin from a stray word.
+  const THEME_RULES = [
+    ['family', /(^|[^a-ząćęłńóśźż])(dzieci|dziecko|dziecięc|rodzin|maluch|najmłodsz)/],
+    ['seniors', /(^|[^a-ząćęłńóśźż])senior/],
+    ['culture', /(^|[^a-ząćęłńóśźż])(kultur|koncert|spektakl|teatr|wystaw|muze|film|kino|festiwal|muzyk|sztuk|literat|taniec|tańc|opera|galeri|wernisaż|recital|jazz|kabaret)/],
+    ['education', /(^|[^a-ząćęłńóśźż])(edukac|nauk|wykład|warsztat|szkoleni|kurs|lekcj|seminari)/],
+    ['meeting', /(^|[^a-ząćęłńóśźż])(spotkani|debat|dyskusj|konferenc|panel|konsultac)/],
+    ['sport', /(^|[^a-ząćęłńóśźż])(sport|biegi?($|[^a-ząćęłńóśźż])|bieg |maraton|joga|jogi|fitness|turniej|mecz|zawody|rowerow)/],
+    ['outdoor', /(^|[^a-ząćęłńóśźż])(piknik|plener|festyn|spacer|ogród|park|czas woln|rekreac|wycieczk)/],
+  ];
+  function matchTheme(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    for (const [theme, pattern] of THEME_RULES) if (pattern.test(lower)) return theme;
+    return null;
+  }
   function themeFor(place) {
     if (place.category === 'sports' || place.category === 'pitch') return 'sport';
     if (['route', 'toilet', 'weather', 'air_quality'].includes(place.category)) return 'outdoor';
-    const words = [place.name, place.description, ...(place.activities || []), ...(place.audience || [])].filter(Boolean).join(' ').toLowerCase();
-    if (/dzieci|dziecko|rodzin|maluch/.test(words)) return 'family';
-    if (/senior/.test(words)) return 'seniors';
-    if (/sport|bieg|joga|fitness|rower|turniej/.test(words)) return 'sport';
-    if (/piknik|plener|festyn|spacer|ogród|park/.test(words)) return 'outdoor';
-    if (/warsztat|edukac|nauk|wykład|szkoleni|kurs/.test(words)) return 'education';
-    if (/spotkani|debat|dyskusj|konferenc|panel/.test(words)) return 'meeting';
-    return 'culture';
+    return matchTheme([...(place.audience || []), ...(place.activities || [])].join(' · '))
+      || matchTheme(place.name)
+      || matchTheme(place.description)
+      || 'culture';
   }
+
   const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'sports_basketball', route: 'forest', toilet: 'wc', weather: 'partly_cloudy_day', air_quality: 'air' };
   function safeUrl(value, image = false) {
     try {
@@ -387,13 +401,19 @@
       expand.setAttribute('aria-label', 'Pełny ekran'); expand.title = 'Pełny ekran';
       const expandIcon = document.createElement('span'); expandIcon.className = 'material-symbols-outlined'; expandIcon.setAttribute('aria-hidden', 'true'); expandIcon.textContent = 'open_in_full';
       expand.append(expandIcon);
-      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended); });
+      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended, card.getBoundingClientRect()); });
       card.append(expand); // absolutely positioned; kept last so the photo and body stay first
     }
     return card;
   }
   // Full-screen event view over the whole app; closes with the back button, Escape or a swipe down.
-  function openFullDetails(place, recommended) {
+  function openFullDetails(place, recommended, fromRect) {
+    // Preferred: open inside the conversation panel with an expand animation (app.js).
+    if (window.openEventInConversation) {
+      const details = resultDetails(place, recommended, true); details.classList.add('result-detail--full');
+      window.openEventInConversation(details, { title: place.name, fromRect });
+      return;
+    }
     const shell = document.querySelector('.app-shell') || document.body;
     shell.querySelector('.event-full')?.remove();
     const overlay = document.createElement('div'); overlay.className = 'event-full';

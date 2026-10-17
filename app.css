@@ -308,3 +308,12 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-pin__star { display: none; }
 :is(#city-map.markers-compact, #city-map .markers-compact) .result-pin__star { display: block; width: 10px; height: 10px; transform: rotate(45deg); color: #fff; }
 .result-pin__star svg { fill: currentColor; stroke-width: 1; }
+
+/* Event opened in the conversation: the panel grows to full height and shows only the event. */
+#ai-sheet.is-event-open #sheet-content { --event-full: calc(100dvh - 128px - var(--safe-bottom) - env(safe-area-inset-top, 0px)); max-height: var(--event-full); min-height: var(--event-full); transition: none; }
+#sheet-content:has(> .conversation-event) > :not(.conversation-event) { display: none; }
+.drawer-container.is-event-open > div:first-child { display: none; }
+.conversation-event { position: relative; margin: 0 -16px; background: #fffdf9; will-change: transform; overflow: hidden; }
+.conversation-event__back { position: sticky; top: 0; z-index: 3; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; margin: 6px 0 8px 12px; padding: 4px 12px 4px 8px; border: 0; border-radius: 999px; background: #fffdf9e6; color: #342b26; font: inherit; font-size: 13px; font-weight: 700; box-shadow: 0 1px 4px #0000002e; cursor: pointer; }
+.conversation-event__back .material-symbols-outlined { width: 20px; height: 20px; }
+.conversation-event .result-detail--full .result-image--large { height: 200px; }
