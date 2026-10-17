@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mountTransit,routeChain,timingLabel,compactTime} from '../transit-ui.mjs';
+import {mountTransit,routeChain,timingLabel,compactTime,departureLabel} from '../transit-ui.mjs';
 import {TransitError} from '../transit-core.mjs';
 function element(tag='div') {
  const node={tag,children:[],listeners:{},attributes:{},dataset:{},style:{},hidden:false,value:'',textContent:'',
@@ -23,6 +23,12 @@ function fixture({vendor='google',compute,fetchImpl}={}) {
 const route=id=>({id,origin:'Start <script>',destination:'Cel',durationMillis:1200000,departure:Date.parse('2026-10-17T12:00Z'),arrival:Date.parse('2026-10-17T12:20Z'),transfers:0,steps:[{mode:'TRANSIT',line:'17',from:'Dw. Centralny',to:'Anielewicza',headsign:'Nowodwory',start:Date.parse('2026-10-17T12:02Z'),end:Date.parse('2026-10-17T12:18Z'),stops:5,path:[{latitude:52.2,longitude:21},{latitude:52.25,longitude:21.02}],geometry:'gtfs_shape'}],warnings:['Sprawdź komunikat']});
 const result=routes=>({routes,origin:{latitude:52.2,longitude:21},destination:{latitude:52.25,longitude:21.02},stops:[],departures:[],vehicles:[],sources:[],errors:[]});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('later connections show dated departure and separate waiting on cards and the selected ETA bar',async()=>{
+ const future={...route('future'),nextAvailable:true,departure:Date.parse('2026-10-23T06:57:00Z'),firstBoarding:Date.parse('2026-10-23T07:00:00Z'),arrival:Date.parse('2026-10-23T07:20:00Z'),durationMillis:23*60000,waitingMillis:86400000};const f=fixture({compute:async()=>result([future])});
+ f.panel.open({origin:'A',destination:'B'});await tick();const button=f.ids['transit-alternatives'].children[0],text=button.children.map(node=>node.textContent).join(' ');assert.match(text,/Najbliższe późniejsze/);assert.match(text,/23 min/);assert.match(text,/Wyjście 23 paź/);assert.match(text,/odjazd 23 paź/);assert.match(text,/Oczekiwanie przed wyjściem: 24 godz/);assert.match(departureLabel(future),/23 paź/);
+ button.click();const eta=f.ids['environment-eta'];assert.equal(eta.children.length,2);assert.match(eta.children[0].textContent,/23 paź/);assert.match(eta.children[1].textContent,/Wyjście 23 paź/);assert.match(eta.attributes['aria-label'],/odjazd 23 paź/);f.panel.close?.();f.events['city:query']();
+});
 
 test('a new conversation question hides previous transport data and clears its selected map and bar',async()=>{
  const f=fixture({compute:async()=>result([route('old')])});

@@ -65,7 +65,7 @@ const handleRequest = async (req, res) => {
       let size=0;const chunks=[];
       for await (const chunk of req) {size+=chunk.length;if(size>5000)return json(res,413,{error:'Zapytanie jest zbyt długie.'});chunks.push(chunk);}
       let data;try{data=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return json(res,400,{error:'Nieprawidłowy JSON.'});}
-      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),url.pathname==='/api/transit/plan'?140000:90000);
       res.on('close',()=>{if(!res.writableEnded)controller.abort();});
       try{return json(res,200,url.pathname==='/api/transit/live'?transitService.liveSnapshot(data):await transitService.plan(data,{signal:controller.signal}));}finally{clearTimeout(timer);}
     }
