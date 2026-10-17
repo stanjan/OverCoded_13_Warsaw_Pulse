@@ -5,6 +5,25 @@ Mobile web app imported from Stitch’s **Warszawa Pulse — Dodane Cieniowanie 
 Run `npm run dev` (or `node --env-file-if-exists=.env scripts/serve.mjs`) and open http://127.0.0.1:5173. Requires Node.js 24+.
 Run `npm run build` (or `node scripts/build.mjs`) to produce the static app in `dist/`.
 
+## HTTPS on a phone in the local network
+
+Phone geolocation requires a trusted secure origin. Generate a local development CA and a separate server certificate with `npm run cert:local -- 192.168.1.222` (replace the IP if this computer's LAN address changes). Requires OpenSSL; Windows uses the OpenSSL bundled with Git when available, or set `OPENSSL_PATH` to its executable. This does not install trust on any device. Certificates and private keys stay in ignored `.local/tls/`; never share `ca.key` or `server.key`.
+
+Set the ignored local `.env`, then restart `npm run dev`:
+
+```dotenv
+HOST=192.168.1.222
+PORT=5173
+HTTPS_PORT=5174
+TLS_CERT_FILE=.local/tls/server.pem
+TLS_KEY_FILE=.local/tls/server.key
+TLS_CA_FILE=.local/tls/ca.cer
+```
+
+On the phone in the same Wi-Fi network, download the **public CA certificate** from `http://192.168.1.222:5173/dev-ca.cer`. Compare its SHA-256 fingerprint with the generator's output before installing. On iPhone, install the downloaded profile in Settings → General → VPN & Device Management, then enable **Warsaw AI Local Development CA** under General → About → Certificate Trust Settings ([Apple instructions](https://support.apple.com/en-us/102390)). On Android, install the downloaded file as a **CA certificate** under Security & privacy → More security settings → Encryption & credentials; wording varies by manufacturer ([Google instructions](https://support.google.com/pixelphone/answer/2844832?hl=en)). Then open **`https://192.168.1.222:5174`** and allow location in the browser. Merely bypassing a certificate warning does not establish a trusted origin.
+
+HTTP and HTTPS share one backend process, assistant state and live-transit tracker. The CA download exposes only the public certificate. HTTPS is opt-in and invalid/missing TLS files stop startup with a clear error. Re-running the generator preserves the CA (phone trust remains valid) and renews the server certificate for the supplied IPs plus localhost/127.0.0.1. It refuses to replace an incomplete, invalid or expired CA: rotate it deliberately and reinstall trust if needed. Remove this development CA from the phone when no longer needed. This local server has no public-deployment authentication; keep it on the trusted LAN.
+
 The current original export is preserved in `design/stitch-depth.html`; the previous welcome export remains in `design/stitch-welcome.html`. The app adapts the full-screen map, floating weather pill, shadowed bottom drawer and prompt cards for responsive widths, browser zoom, safe areas, keyboard input, accessible controls, and safe message rendering. The existing interactive map fills the design's map integration area.
 
 The app includes an assistant backend at `POST /api/chat` and an interactive Google Maps map when configured, with Leaflet/OpenStreetMap fallback. Google Fonts, Tailwind, Leaflet and map tiles require internet access. Weather, AQI and sunset values remain sample design content. Voice and the other navigation screens are not connected.

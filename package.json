@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node --env-file-if-exists=.env scripts/serve.mjs",
+    "cert:local": "node scripts/dev-cert.mjs",
     "start": "node --env-file-if-exists=.env scripts/serve.mjs",
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
