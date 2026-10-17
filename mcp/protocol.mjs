@@ -1,7 +1,7 @@
 import {mcpTools,runTool,validate} from './tools.mjs';
 export const PROTOCOL_VERSION='2025-11-25';
 const supported=new Set([PROTOCOL_VERSION,'2025-06-18','2025-03-26','2024-11-05']);
-export function createDispatcher({state={results:[],actions:[]},provider}={}) {
+export function createDispatcher({state={results:[],actions:[]},provider,addressProvider}={}) {
  let initialized=false,ready=false;
  const error=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
  return async function dispatch(request) {
@@ -27,7 +27,7 @@ export function createDispatcher({state={results:[],actions:[]},provider}={}) {
    const args=params.arguments===undefined?{}:params.arguments;
    try{validate(args,tool.inputSchema);}catch{return error(id,-32602,'Invalid tool arguments');}
    try{
-     const data=await runTool(params.name,args,state,provider);
+     const data=await runTool(params.name,args,state,provider,addressProvider);
      return{jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(data)}]}};
    }catch(error){
      return{jsonrpc:'2.0',id,result:{isError:true,content:[{type:'text',text:JSON.stringify({error:error.message==='Nieprawidłowa odpowiedź źródła.'?error.message:'Nie udało się wykonać narzędzia. Sprawdź filtry, źródła i identyfikatory.'})}]}};

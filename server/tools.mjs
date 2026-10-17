@@ -2,8 +2,8 @@ import {createDispatcher} from '../mcp/protocol.mjs';
 import {createMcpClient} from '../mcp/client.mjs';
 import {mcpTools} from '../mcp/tools.mjs';
 export const toolDefinitions=mcpTools.map(({name,description,inputSchema})=>({type:'function',function:{name,description,parameters:inputSchema}}));
-export async function executeTool(name,args,state,provider) {
-  const dispatch=createDispatcher({state,provider});
+export async function executeTool(name,args,state,provider,addressProvider) {
+  const dispatch=createDispatcher({state,provider,addressProvider});
   const client=createMcpClient(async message=>{
     const reply=await dispatch(JSON.parse(JSON.stringify(message)));
     return reply?JSON.parse(JSON.stringify(reply)):undefined;

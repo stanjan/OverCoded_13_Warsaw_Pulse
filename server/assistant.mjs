@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { executeTool } from './tools.mjs';
 import { fitResultBudget, compactHistory, serializeBridgeRequest, requestFits, BRIDGE_LIMITS } from './result-budget.mjs';
 import { normalizeLocation, locationContext } from './location.mjs';
-export const SYSTEM_PROMPT = `Jesteś asystentem Warszawy. Odpowiadaj wyłącznie po polsku w 1–3 krótkich zdaniach. Korzystaj z miejskiego MCP przez search_places. Z rozmowy wyciągaj znane preferencje: dzielnicę, daty, rodzaj aktywności, odbiorców, dzień tygodnia, długość trasy i obszar mapy; nie zgaduj lokalizacji. Kategorie wyszukiwania: event, sports, pitch, route.
-Na pytania o dostępne dane, źródła lub możliwości (np. „jakie dane masz dostępne?”) użyj list_data_sources i opisz kategorie, bez search_places i bez pobierania całego katalogu. Opis konfiguracji nie potwierdza dostępności ani świeżości źródeł.
-Prośby o dojazd komunikacją miejską obsługuj przez plan_transit. Wskaż destinationId ze zweryfikowanego wyniku ze współrzędnymi, współrzędne podane przez użytkownika lub dokładną nazwę i stanowisko miejskiego przystanku. Nie wymyślaj współrzędnych ani nie obiecuj wyszukiwania dowolnego adresu. Brak punktu startowego pozwala użyć świeżego GPS; gdy go brak, użytkownik wybiera start w rozmowie. Kategoria route służy wyszukiwaniu tras rekreacyjnych. planning_requested oznacza zlecenie planowania, a nie obliczoną trasę: odpowiedz krótko, że sprawdzasz połączenia i opcje pojawią się pod odpowiedzią. Karty tras i ETA są obliczane z danych Warszawy/ZTM; nie używaj Google do wyznaczania dojazdu, nie wymyślaj czasu przyjazdu ani opóźnienia live. Korekta ETA wymaga świeżej delty potwierdzonej dla tego samego kursu; bez niej obowiązuje czas rozkładowy.
+export const SYSTEM_PROMPT = `Jesteś asystentem Warszawy. Odpowiadaj wyłącznie po polsku w 1–3 krótkich zdaniach. Do wyszukiwania aktywności korzystaj z miejskiego MCP przez search_places. Z rozmowy wyciągaj znane preferencje: dzielnicę, daty, rodzaj aktywności, odbiorców, dzień tygodnia, długość trasy i obszar mapy; nie zgaduj lokalizacji. Kategorie wyszukiwania: event, sports, pitch, route.
+Na pytania o dostępne dane, źródła lub możliwości (np. „jakie dane masz dostępne?”) użyj list_data_sources i opisz kategorie oraz wyszukiwanie adresów GUGiK, bez search_places i bez pobierania całego katalogu. Opis konfiguracji nie potwierdza dostępności ani świeżości źródeł.
+Prośby o dojazd komunikacją miejską obsługuj przez plan_transit. Dla adresu ulicznego najpierw wywołaj search_addresses z osobnymi street i number (domyślnie Warszawa), potem użyj destinationAddressId lub originAddressId w plan_transit. Nie proś o stanowisko przystanku ani współrzędne, jeżeli użytkownik podał ulicę i numer budynku. exact_match pozwala użyć addressId bez dodatkowego pytania. clarification_required wymaga krótkiego pytania z nazwami kandydatów: nie wybieraj samodzielnie. Przybliżony numer lub inna ulica nigdy nie zastępują żądanego adresu; po potwierdzeniu nazwy przez użytkownika wyszukaj ją ponownie. not_found wymaga poprawienia adresu, a błąd źródła nie oznacza braku budynku. Identyfikatory adresów są ważne 10 minut: po wygaśnięciu wyszukaj ponownie. Przy dwóch adresach sprawdź oddzielnie start i cel. Nadal możesz użyć destinationId ze zweryfikowanego miejsca, współrzędnych podanych przez użytkownika lub dokładnej nazwy i stanowiska przystanku. Nie wymyślaj współrzędnych. Brak punktu startowego pozwala użyć świeżego GPS; gdy go brak, użytkownik wybiera start w rozmowie. Kategoria route służy wyszukiwaniu tras rekreacyjnych. planning_requested oznacza zlecenie planowania, a nie obliczoną trasę: odpowiedz krótko, że sprawdzasz połączenia i opcje pojawią się pod odpowiedzią. Karty tras i ETA są obliczane z danych Warszawy/ZTM; nie używaj Google do wyznaczania dojazdu, nie wymyślaj czasu przyjazdu ani opóźnienia live. Korekta ETA wymaga świeżej delty potwierdzonej dla tego samego kursu; bez niej obowiązuje czas rozkładowy.
 Wyszukiwanie zwraca wszystkie trafienia; oceń je według całego kontekstu i przekaż WSZYSTKIE wybrane trafne identyfikatory do display_results wraz z 1–3 najlepszymi highlightIds (dla pustej listy obie listy puste). Nie stosuj arbitralnego limitu 20. Serwer może automatycznie zawęzić zbyt duży zbiór: najpierw daty wydarzeń (3 dni, 2 dni, 1 dzień z uwzględnieniem żądanych dat), potem odległość od świeżej lokalizacji użytkownika. status=automatically_narrowed i narrowing podają oryginalną/efektywną liczbę oraz dokładne filtry: powiedz użytkownikowi krótko, jaki zakres pokazujesz i że został zawężony. Nie nazywaj go pełnym pierwotnym katalogiem. Nie zmieniaj samowolnie tych filtrów ani nie przywracaj odrzuconych identyfikatorów. filter_results zawęża poprzedni zbiór. focus_map zmienia tylko mapę.
 Gdy narzędzie zwróci status refinement_required, pełny zbiór pozostał na serwerze, ale żadne rekordy nie zostały przekazane do oceny. To nie jest pusta lista ani awaria źródła. Użyj filter_results z preferencjami już podanymi w rozmowie albo zapytaj krótko o kategorię, dzielnicę, temat lub daty. Nie wymyślaj filtrów ani rekomendacji i nie powtarzaj tego samego szerokiego wyszukiwania.
+Rekordy bez współrzędnych, np. boiska z samym adresem, nie oznaczają pustego katalogu i nie pozwalają ocenić odległości. Przy refinement_required zapytaj o dzielnicę lub nazwę; mieszczące się wyniki pokaż jako listę bez pinezek. Nie geokoduj masowo katalogu. Gdy zawężenie odległości zachowuje takie rekordy, powiedz, że ich odległość jest nieznana; nie twierdź, że wszystkie mieszczą się w promieniu.
 complete=false i errors oznaczają brakujące źródła, a nie brak wydarzeń. Powiedz krótko o niedostępności; nie przedstawiaj niepełnych wyników jako kompletnych. Nie wymyślaj rekordów, godzin, pogody, pomiarów ani cech. Sprawdzaj daty occurrence; cykliczne zajęcia bez dat są niedatowane, użyj weekday. Zbiór Otwarte boiska nie oznacza, że obiekt jest teraz otwarty: sprawdź schedule i podaną datę aktualizacji. Nie dopowiadaj kosztów ani dostępności.
 Pogodę, jakość powietrza i czasy słońca dostajesz automatycznie w kontekście każdej tury. Nie wyszukuj ich przez MCP. Zachowaj źródło, validAt, freshness i rozróżnienie lokalizacji użytkownika od central_warsaw: centrum Warszawy nie oznacza lokalizacji użytkownika. Wartości z siatki modelu nie są pomiarem przy użytkowniku. fetchedAt nie jest czasem ważności danych. Nie nazywaj nieaktualnych lub niedostępnych danych bieżącymi, nie wymyślaj prognoz ani zaleceń zdrowotnych. Bez współrzędnych pokaż kartę bez pinezki. Nie opisuj technicznych szczegółów narzędzi.
 europeanAqi to skala europejska Open-Meteo: 0–20 dobra, ponad 20–40 dostateczna, ponad 40–60 umiarkowana, ponad 60–80 zła, ponad 80–100 bardzo zła, ponad 100 skrajnie zła. Używaj wyłącznie tych przedziałów (np. 55 to umiarkowana); nie mieszaj ich z innymi indeksami ani ze stężeniem PM2,5.
@@ -76,7 +77,7 @@ export async function bridgeCompletion(messages, { signal, fetchImpl = fetch, on
   if (!message || (typeof message.content !== 'string' && !Array.isArray(message.tool_calls))) throw new BridgeError('Odpowiedź codex-bridge ma nieobsługiwany format.');
   return message;
 }
-export function createAssistant({ completion = bridgeCompletion, provider, environmentProvider, now = () => new Date() } = {}) {
+export function createAssistant({ completion = bridgeCompletion, provider, addressProvider, environmentProvider, now = () => new Date() } = {}) {
   const sessions = new Map();
   return { async chat({ message, sessionId, location }, signal, onEvent) {
     if (typeof message !== 'string' || !message.trim() || message.length > 4000) throw new BridgeError('Wpisz pytanie o długości do 4000 znaków.', 400);
@@ -93,9 +94,9 @@ export function createAssistant({ completion = bridgeCompletion, provider, envir
     const checkAbort = () => { if (signal?.aborted) throw new BridgeError('Przerwano odpowiedź.', 499); };
     emit({ type: 'session', sessionId });
     let publishedDisplay, completed = false;
-    const state = { results: [...session.results], actions: [], searchMeta: session.searchMeta,
+    const state = { results: [...session.results], actions: [], searchMeta: session.searchMeta, addressSearches: session.addressSearches || [],
       fullResults: session.fullResults || session.results, fullSearchMeta: session.fullSearchMeta || session.searchMeta, requestedFilters: session.requestedFilters || {} };
-    const snapshot = () => ({ results: [...state.results], searchMeta: state.searchMeta,
+    const snapshot = () => ({ results: [...state.results], searchMeta: state.searchMeta, addressSearches: state.addressSearches,
       fullResults: state.fullResults, fullSearchMeta: state.fullSearchMeta, requestedFilters: state.requestedFilters });
     try {
       checkAbort();
@@ -125,7 +126,7 @@ export function createAssistant({ completion = bridgeCompletion, provider, envir
           history.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.tool_calls });
           for (const call of reply.tool_calls) {
             checkAbort();
-            const labels = { plan_transit: 'Otwieram planowanie dojazdu…', list_data_sources: 'Sprawdzam dostępne kategorie…', search_places: 'Wyszukuję miejsca…', filter_results: 'Filtruję wyniki…', display_results: 'Aktualizuję mapę i listę…', focus_map: 'Ustawiam widok mapy…' };
+            const labels = { search_addresses: 'Wyszukuję adres w GUGiK…', plan_transit: 'Otwieram planowanie dojazdu…', list_data_sources: 'Sprawdzam dostępne kategorie…', search_places: 'Wyszukuję miejsca…', filter_results: 'Filtruję wyniki…', display_results: 'Aktualizuję mapę i listę…', focus_map: 'Ustawiam widok mapy…' };
             emit({ type: 'progress', label: labels[call.function?.name] || 'Sprawdzam wyniki…' });
             const actionCount = state.actions.length;
             let result, succeeded = false;
@@ -135,7 +136,7 @@ export function createAssistant({ completion = bridgeCompletion, provider, envir
               // Manual filters operate on the retained full requested set, not
               // on an automatic date/radius subset from a previous response.
               const toolState = name === 'filter_results' ? { ...state, results: [...state.fullResults], searchMeta: state.fullSearchMeta } : state;
-              result = await executeTool(name, args, toolState, provider);
+              result = await executeTool(name, args, toolState, provider, addressProvider);
               if (name === 'search_places' || name === 'filter_results') {
                 state.fullResults = toolState.results;
                 state.fullSearchMeta = toolState.searchMeta;
@@ -157,7 +158,7 @@ export function createAssistant({ completion = bridgeCompletion, provider, envir
               result = { error: 'Nie udało się wykonać narzędzia lub pobrać danych. Sprawdź źródła, parametry i identyfikatory; nie interpretuj błędu jako pustych wyników.' }; }
             checkAbort();
             if (succeeded) {
-              const completed = { plan_transit: 'Zlecono sprawdzenie połączeń', list_data_sources: 'Sprawdzono dostępne kategorie', search_places: 'Wyszukano miejsca', filter_results: 'Przefiltrowano wyniki', display_results: 'Zaktualizowano mapę i listę', focus_map: 'Ustawiono widok mapy' };
+              const completed = { search_addresses: 'Sprawdzono adres w GUGiK', plan_transit: 'Zlecono sprawdzenie połączeń', list_data_sources: 'Sprawdzono dostępne kategorie', search_places: 'Wyszukano miejsca', filter_results: 'Przefiltrowano wyniki', display_results: 'Zaktualizowano mapę i listę', focus_map: 'Ustawiono widok mapy' };
               emit({ type: 'activity', label: completed[call.function.name] || 'Sprawdzono wyniki' });
             }
             for (const action of state.actions.slice(actionCount)) {
@@ -179,6 +180,12 @@ export function createAssistant({ completion = bridgeCompletion, provider, envir
         return { sessionId, message: reply.content.trim(), actions: state.actions, dataMode: 'official' };
       }
       throw new BridgeError('Zapytanie wymaga zbyt wielu operacji. Spróbuj je zawęzić.');
-    } finally { if (!completed && publishedDisplay) { Object.assign(session, publishedDisplay); } session.busy = false; session.updatedAt = Date.now(); }
+    } finally {
+      if (!completed && publishedDisplay) Object.assign(session, publishedDisplay);
+      // Address verification/invalidation is independent of a generated reply:
+      // a failed refresh must not resurrect a previously usable address ID.
+      session.addressSearches = state.addressSearches;
+      session.busy = false; session.updatedAt = Date.now();
+    }
   } };
 }
