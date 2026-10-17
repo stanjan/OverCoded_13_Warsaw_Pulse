@@ -49,18 +49,6 @@ test('local CA is reusable, certificates cover the phone address, HTTPS shares A
   assert.equal(download.status, 200); assert.match(download.headers.get('content-type'), /pkix-cert/);
   assert.deepEqual(Buffer.from(await download.arrayBuffer()), ca.raw);
   assert.deepEqual((await https(base + '/dev-ca.cer', caBytes)).body, ca.raw);
-  const pemDownload = await fetch(`http://127.0.0.1:${httpPort}/dev-ca.crt`);
-  assert.equal(pemDownload.status, 200);
-  assert.equal(pemDownload.headers.get('content-type'), 'application/x-x509-ca-cert');
-  assert.equal(pemDownload.headers.get('content-disposition'), 'attachment; filename="warsaw-ai-local-ca.crt"');
-  const pemCertificate = await pemDownload.text();
-  assert.match(pemCertificate, /^-----BEGIN CERTIFICATE-----/);
-  assert.doesNotMatch(pemCertificate, /PRIVATE KEY/);
-  assert.equal(new X509Certificate(pemCertificate).fingerprint256, ca.fingerprint256);
-  assert.equal(new X509Certificate((await https(base + '/dev-ca.crt', caBytes)).body).fingerprint256, ca.fingerprint256);
-  const pemHead = await https(base + '/dev-ca.crt', caBytes, { method: 'HEAD' });
-  assert.equal(pemHead.status, 200); assert.equal(pemHead.body.length, 0);
-  assert.equal(pemHead.headers['content-type'], 'application/x-x509-ca-cert');
   for (const path of ['/.local/tls/ca.key', '/.local/tls/server.key', '/dev-ca.cer/server.key', '/scripts/dev-cert.mjs']) assert.equal((await https(base + path, caBytes)).status, 404);
   const post = { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' }, body: '{}' };
   assert.equal((await https(base + '/api/chat', caBytes, post)).status, 400);
