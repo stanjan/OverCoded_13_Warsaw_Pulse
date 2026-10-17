@@ -6,7 +6,7 @@ const locations=['A','B','C','D'].map((name,index)=>({id:String(1000+index)+'-01
 const clock=seconds=>'14:'+String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
 const pairs=value=>({values:Object.entries(value).map(([key,value])=>({key,value}))});
 const events=[60,180,360,540];
-function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false}={}){
+function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,departuresForStop=null}={}){
  let time=base+80000,latitude=locations[0].latitude-.001,timer,active=0,maxActive=0,failures=0;
  let releaseEvidence;const gate=holdEvidence?new Promise(resolve=>{releaseEvidence=resolve;}):null;
  const calls=[],graph={serviceDay:'2026-10-17',timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',version:'fixture',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:locations,trips:Array.from({length:lineCount},(_,index)=>({id:'trip-'+index,serviceDate:'2026-10-17',line:String(index+1),routeType:0,headsign:'D',stopTimes:locations.map((stop,i)=>({stopId:stop.id,arrival:base+events[i]*1000,departure:base+events[i]*1000,departureClock:clock(events[i]),pickup:0,dropOff:0}))}))};
@@ -17,7 +17,7 @@ function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false}={
   assert.equal(action,TRANSIT_SOURCES.departures.action);active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));if(gate)await gate;active--;
   if(failFirst&&failures++===0)throw new Error('temporary source failure');
   const stopIndex=locations.findIndex(stop=>stop.id.startsWith(args.busstopId+'-'));
-  return{ok:true,json:async()=>[pairs({czas:clock(events[stopIndex]),brygada:'1',kierunek:'D',trasa:'fixture'})]};
+  return{ok:true,json:async()=>departuresForStop?departuresForStop(stopIndex):[pairs({czas:clock(events[stopIndex]),brygada:'1',kierunek:'D',trasa:'fixture'})]};
  }});
  const status=()=>service.liveSnapshot({origin:locations[0],destination:locations[3]});
  const settled=async()=>{for(let index=0;index<100&&status().liveModel.evidenceInFlight;index++)await new Promise(resolve=>setImmediate(resolve));assert.equal(status().liveModel.evidenceInFlight,false);};
@@ -53,4 +53,27 @@ test('blocked timetable evidence cannot hold back the next global fleet sample',
  const f=fixture({holdEvidence:true});try{await f.service.startTracking();assert.equal(f.status().liveModel.evidenceInFlight,true);const initial=f.calls.filter(call=>call.action===TRANSIT_SOURCES.vehicles.action).length;
   await f.tick(95,locations[0].latitude,false);assert.equal(f.calls.filter(call=>call.action===TRANSIT_SOURCES.vehicles.action).length,initial+2);assert.equal(f.status().liveModel.evidenceInFlight,true);assert.equal(f.status().liveModel.trackingDiagnostics.lastPollCompletedAt,new Date(base+95000).toISOString());
  }finally{f.service.stopTracking();f.releaseEvidence();await f.settled();}
+});
+
+function branchFixture(ambiguous){
+ const f=fixture({departuresForStop:index=>{
+  const rows=[pairs({czas:clock(events[index]),brygada:'1',kierunek:'D',trasa:'A'})];
+  if(index>0)rows.push(pairs({czas:clock(events[index]+60),brygada:ambiguous?'1':'2',kierunek:'D',trasa:'B'}));
+  return rows;
+ }});
+ const main=f.graph.trips[0];f.graph.trips.push({...main,id:'unknown-branch',stopTimes:main.stopTimes.slice(1).map(event=>({...event,arrival:event.arrival+60000,departure:event.departure+60000,departureClock:clock(Math.round((event.departure-base)/1000)+60)}))});
+ // A is busiest but cannot reveal the other branch that begins at B.
+ for(let index=0;index<3;index++)f.graph.trips.push({...main,id:'anchor-only-'+index,stopTimes:[{...main.stopTimes[0],arrival:base+600000,departure:base+600000,departureClock:clock(600)}]});
+ return f;
+}
+test('partial shared evidence cannot manufacture uniqueness across overlapping branches',async()=>{
+ for(const ambiguous of [true,false]){
+  const f=branchFixture(ambiguous);try{
+   await f.service.startTracking();await f.settled();assert.equal(f.status().liveModel.sharedTripBindings,1,'representative A knows only the main trip');
+   await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,0);await f.tick(240);
+   await f.tick(375,locations[2].latitude-.001);await f.tick(390,locations[2].latitude);await f.tick(405);assert.equal(f.status().liveModel.confirmedTrips,0,'current-platform evidence must arrive before a second confirmation');await f.tick(420);
+   const requested=f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).map(call=>call.args.busstopId);assert.ok(requested.includes('1001'));if(!ambiguous)assert.ok(requested.includes('1002'));
+   assert.equal(f.status().liveModel.confirmedTrips,ambiguous?0:1,'only complete platform evidence assigning the competitor to another brigade resolves ambiguity');
+  }finally{f.service.stopTracking();}
+ }
 });

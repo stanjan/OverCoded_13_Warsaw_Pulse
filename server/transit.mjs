@@ -55,11 +55,14 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  function tripEvidence(vehicle,stopId){
   const stop=stopBridge.get(stopId),brigade=normalizeBrigade(vehicle.brigade);if(!stop||!brigade)return null;
   const known=sharedEvidence(vehicle.line)?.get(brigade),cached=bindingCache.get(evidenceKey(stop,vehicle.line,stopId));
-  // Positive exact-trip bindings can travel with a vehicle. Missing rows at one
-  // platform never exclude a different branch/direction of the same line.
-  const relevant=known&&modelGraph.trips.some(trip=>known.has(trip.id)&&trip.stopTimes.some(event=>event.stopId===stopId)&&trip.stopTimes[0].departure<=now()+900000&&trip.stopTimes.at(-1).arrival>=now()-900000);
-  if(relevant)return known;
+  // A complete current-platform response takes precedence. Shared positive
+  // bindings are not an exhaustive list: another branch may use this platform.
   if(cached?.until>now())return cached.bindings.get(brigade)||new Set();
+  const observedAt=Date.parse(vehicle.observedAt);
+  const plausible=modelGraph.trips.filter(trip=>trip.line===vehicle.line&&trip.stopTimes.some(event=>event.stopId===stopId)&&trip.stopTimes[0].departure<=observedAt+900000&&trip.stopTimes.at(-1).arrival>=observedAt-900000);
+  // Reuse is safe only if it cannot hide a competing spatial/temporal trip.
+  // Otherwise obtain this platform's complete brigade evidence before matching.
+  if(known&&plausible.length&&plausible.every(trip=>known.has(trip.id)))return known;
   queueEvidence(stop,vehicle.line,stopId);return null;
  }
  function prewarmEvidence(vehicles){
