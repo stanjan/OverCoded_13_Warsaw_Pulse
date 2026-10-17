@@ -2,11 +2,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { createAssistant, BridgeError } from '../server/assistant.mjs';
+import { getEnvironment, EnvironmentError } from '../server/environment.mjs';
 const root = resolve(import.meta.dirname, '..');
 const assistant = createAssistant();
 const port = Number(process.env.PORT || 5173);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
-const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js']);
+const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
@@ -15,6 +16,15 @@ createServer(async (req, res) => {
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
     // Browser map key: public by design, protected by its HTTP-referrer and API restrictions in Google Cloud.
     if (url.pathname === '/api/config' && req.method === 'GET') return json(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null, googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID || null });
+    if (url.pathname === '/api/environment' && req.method === 'GET') {
+      const latitude = url.searchParams.get('latitude'), longitude = url.searchParams.get('longitude');
+      const explicit = latitude !== null || longitude !== null;
+      if (explicit && (latitude === null || longitude === null || !latitude.trim() || !longitude.trim())) return json(res, 400, { error: 'Podaj obie współrzędne lokalizacji.' });
+      const location = explicit ? { latitude: Number(latitude), longitude: Number(longitude) } : undefined;
+      const controller = new AbortController();
+      res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+      return json(res, 200, await getEnvironment(location, { signal: controller.signal }));
+    }
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return json(res, 403, { error: 'Niedozwolone źródło zapytania.' });
       if (!req.headers['content-type']?.startsWith('application/json')) return json(res, 415, { error: 'Wymagany JSON.' });
@@ -46,6 +56,6 @@ createServer(async (req, res) => {
     const data = await readFile(resolve(root, '.' + path));
     res.writeHead(200, { 'Content-Type': types[extname(path)], 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
   } catch (error) {
-    if (!res.headersSent && !res.destroyed) json(res, error instanceof BridgeError ? error.status : 500, { error: error instanceof BridgeError ? error.message : 'Nie udało się obsłużyć zapytania.' });
+    if (!res.headersSent && !res.destroyed) json(res, error instanceof BridgeError || error instanceof EnvironmentError ? error.status : 500, { error: error instanceof BridgeError || error instanceof EnvironmentError ? error.message : 'Nie udało się obsłużyć zapytania.' });
   }
 }).listen(port, '127.0.0.1', () => console.log(`Local: http://127.0.0.1:${port}\nBridge: ${process.env.CODEX_BRIDGE_URL ? 'configured' : 'not configured'}`));
