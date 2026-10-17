@@ -304,6 +304,11 @@
     const pin = document.createElement('span'); pin.className = 'result-pin'; pin.setAttribute('aria-hidden', 'true');
     const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = themeIcons[theme];
     pin.append(glyph);
+    // Recommended results show a white star on the small zoomed-out drop; zoomed in they look like every other pin.
+    if (recommended) {
+      const star = document.createElement('span'); star.className = 'material-symbols-outlined result-pin__star'; star.textContent = 'star';
+      pin.append(star);
+    }
     button.append(thumbnail(place), copy, pin);
     return button;
   }
