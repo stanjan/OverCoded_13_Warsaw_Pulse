@@ -115,9 +115,8 @@ gpsButton.addEventListener('click', () => {
     watchId = null;
     setGpsState('denied');
     cityMap?.setView(CENTER, CENTER.zoom);
-    addMessage(error.code === error.PERMISSION_DENIED
-      ? 'Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.'
-      : 'Nie udało się ustalić Twojej lokalizacji. Sprawdź, czy usługi lokalizacji są włączone, i spróbuj ponownie.');
+    // Location not found: the red button is enough. Only a refused permission explains itself.
+    if (error.code === error.PERMISSION_DENIED) addMessage('Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.');
   };
   // Laptops have no GPS: ask for a Wi-Fi based position (fast) instead of high accuracy.
   const options = { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 };
