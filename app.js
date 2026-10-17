@@ -50,7 +50,8 @@ let mapWasReplaced = false;
 const mapContainer = document.querySelector('#map-canvas-container');
 function showMapUnavailable() {
   mapContainer.classList.remove('map-ready', 'map-google', 'map-leaflet');
-  document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+  document.querySelector('#map-loading-label').textContent = 'Mapa jest chwilowo niedostępna';
+  mapContainer.classList.add('map-unavailable');
 }
 function useMap(map) {
   cityMap = map;

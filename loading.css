@@ -1,0 +1,23 @@
+/* Critical loading styles work before remote fonts and provider scripts arrive. */
+html, body { font-family: 'Plus Jakarta Sans', Arial, sans-serif; }
+.material-symbols-outlined { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; overflow: hidden; font-size: 0 !important; vertical-align: middle; }
+.material-symbols-outlined svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.material-symbols-outlined[class*='text-[18px]'] { width: 18px; height: 18px; }
+.material-symbols-outlined[class*='text-[16px]'] { width: 16px; height: 16px; }
+.result-image--large .result-image__fallback { width: 44px; height: 44px; }
+#map-canvas-container { background: #e9edef; }
+.map-loading { position: absolute; inset: 0; z-index: 1; overflow: hidden; display: grid; place-items: center; padding-bottom: var(--map-obstruction, 280px); }
+.map-loading__graphic { position: absolute; inset: 0; background: #e9edef url('/map-loading.jpg') center / cover; }
+.map-loading__graphic::after, .stream-message:has(.stop-response) .assistant-answer:empty::after, .result-image:has(img:not([data-loaded]))::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 25%, #ffffffa3 45%, transparent 65%); transform: translateX(-100%); animation: loading-shimmer 2.4s ease-in-out infinite; pointer-events: none; }
+.map-loading__status { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 17px; border: 1px solid #d9e0e7; border-radius: 24px; background: #fffffff0; box-shadow: 0 4px 20px #2634420c; color: #586978; font-size: 12px; font-weight: 600; }
+.map-loading__dot { width: 7px; height: 7px; border-radius: 50%; background: #8ca6a4; animation: loading-pulse 1.6s ease-in-out infinite; }
+.map-unavailable .map-loading__dot { background: #a97469; animation: none; }
+.map-unavailable .map-loading__graphic::after { display: none; }
+.map-ready #map-loading { display: none; }
+#environment-bar[data-state='loading'] summary { background-image: linear-gradient(110deg, #f3f5f7 25%, #fff 45%, #f3f5f7 65%); background-size: 250% 100%; animation: loading-background 2.4s ease-in-out infinite; }
+.stream-message:has(.stop-response) .assistant-answer:empty { position: relative; display: block; width: 90%; height: 36px; border-radius: 7px; overflow: hidden; background: linear-gradient(#d8dfe5 0 9px, transparent 9px 17px, #d8dfe5 17px 26px, transparent 26px); }
+.result-image:has(img:not([data-loaded]))::after { z-index: 1; }
+@keyframes loading-shimmer { to { transform: translateX(100%); } }
+@keyframes loading-background { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes loading-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .map-loading *, .map-loading *::after, #environment-bar[data-state='loading'] summary, .stream-message .assistant-answer::after, .result-image::after { animation: none !important; } }

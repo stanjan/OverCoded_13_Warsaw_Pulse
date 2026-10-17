@@ -1,5 +1,5 @@
 :root { color-scheme: light; --safe-bottom: env(safe-area-inset-bottom, 0px); }
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; font-family: 'Plus Jakarta Sans', Arial, sans-serif; }
 body { background: #e6e8ea; min-width: 320px; }
 .app-shell { position: relative; width: 100%; max-width: 520px; height: 100dvh; margin-inline: auto; overflow: hidden; background: #f7f9fb; box-shadow: 0 0 70px #09142618; }
 .weather-bar { z-index: 20; max-width: calc(100% - 24px); }
@@ -21,9 +21,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 /* Google Maps: end the map at the sheet so the Google logo and terms stay visible. */
 .map-google { background-color: #e8eaed !important; background-image: none !important; }
 .map-google #city-map { bottom: var(--map-obstruction, calc(170px + var(--safe-bottom))); }
-.map-google .map-popup { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 600; color: #191c1e; }
+.map-google .map-popup { font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 13px; font-weight: 600; color: #191c1e; }
 .leaflet-bottom { bottom: var(--map-obstruction, calc(170px + var(--safe-bottom))); }
-.leaflet-popup-content { font-family: 'Plus Jakarta Sans', sans-serif; }
+.leaflet-popup-content { font-family: 'Plus Jakarta Sans', Arial, sans-serif; }
 #chat-messages { display: flex; flex-direction: column; gap: 12px; padding-block: 8px; user-select: text; }
 #chat-messages:empty { display: none; }
 .message { align-self: flex-start; padding: 13px 15px; max-width: 94%; border-radius: 20px 20px 20px 5px; background: #eceef0; color: #191c1e; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -62,7 +62,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 
 /* Result bubbles use warm accents; the blue dot belongs to the user's location. */
 .result-marker { background: transparent; border: 0; }
-.result-bubble { position: relative; display: flex; align-items: center; gap: 9px; width: 174px; height: 68px; padding: 8px; margin-bottom: 8px; box-sizing: border-box; border: 1px solid #e1c9bc; border-radius: 17px; background: #fffdf9; color: #342b26; box-shadow: 0 5px 16px #4c332b30, 0 1px 3px #4c332b1c; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: border-color .15s, box-shadow .15s; }
+.result-bubble { position: relative; display: flex; align-items: center; gap: 9px; width: 174px; height: 68px; padding: 8px; margin-bottom: 8px; box-sizing: border-box; border: 1px solid #e1c9bc; border-radius: 17px; background: #fffdf9; color: #342b26; box-shadow: 0 5px 16px #4c332b30, 0 1px 3px #4c332b1c; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; transition: border-color .15s, box-shadow .15s; }
 .result-bubble::after { content: ''; position: absolute; bottom: -6px; left: calc(50% - 5px); width: 10px; height: 10px; transform: rotate(45deg); background: #fffdf9; border-right: 1px solid #e1c9bc; border-bottom: 1px solid #e1c9bc; }
 .result-bubble:hover, .result-bubble[aria-expanded='true'] { border-color: #c55c3c; box-shadow: 0 5px 20px #7f3e3038; }
 .result-bubble--recommended { border: 2px solid #c55c3c; }
@@ -76,7 +76,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .result-image__fallback { font-size: 25px; }
 .result-image--large { width: 100%; height: 84px; border-radius: 13px 13px 0 0; }
 .result-image--large .result-image__fallback { font-size: 44px; }
-.result-detail { width: 260px; max-width: 100%; overflow: hidden; color: #342b26; font-family: 'Plus Jakarta Sans', sans-serif; }
+.result-detail { width: 260px; max-width: 100%; overflow: hidden; color: #342b26; font-family: 'Plus Jakarta Sans', Arial, sans-serif; }
 .result-detail__body { max-height: 170px; overflow-y: auto; overscroll-behavior: contain; padding: 10px 4px 3px; }
 .result-detail__tag { color: #a14d32; font-size: 10px; font-weight: 800; }
 .result-detail h3 { margin: 5px 0 9px; font-size: 14px; line-height: 1.35; font-weight: 800; letter-spacing: -.3px; }

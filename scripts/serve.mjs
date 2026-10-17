@@ -6,8 +6,8 @@ import { getEnvironment, EnvironmentError } from '../server/environment.mjs';
 const root = resolve(import.meta.dirname, '..');
 const assistant = createAssistant({ environmentProvider: getEnvironment });
 const port = Number(process.env.PORT || 5173);
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
-const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js']);
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.jpg': 'image/jpeg' };
+const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
