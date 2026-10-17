@@ -1,5 +1,6 @@
 import { selectLocations } from '../mcp/catalog.mjs';
 import { toolDefinitions } from './tools.mjs';
+import { touristHighlightIds } from '../mcp/tourism.mjs';
 
 // Keep headroom for the model's next tool call and final answer. Limits apply
 // to the real escaped request, including schemas and UTF-8 encoding.
@@ -100,7 +101,10 @@ function projectRecord(record, browser = false) {
 }
 
 export function boundDisplayAction(action) {
-  if (action.type !== 'display_results' || JSON.stringify(action).length <= 250000) return action;
+  if (action.type !== 'display_results') return action;
+  action.highlightIds=touristHighlightIds(action.results,action.highlightIds);
+  action.highlights=action.highlightIds.map(id=>action.results.find(record=>record.id===id));
+  if (JSON.stringify(action).length <= 250000) return action;
   // Full descriptions can be megabytes even when the model's copy fits. Keep
   // the browser's SSE frame bounded too, without altering retained originals.
   action.results = action.results.map(record => projectRecord(record, true));

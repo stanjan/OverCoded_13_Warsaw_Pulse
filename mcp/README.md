@@ -60,6 +60,15 @@ marker/list result. Traces above 10,000 source vertices explicitly report
 muted returned traces, highlight the selected route, frame its whole geometry
 around the weather/sheet overlays, and show numbered, named published tourist
 points. A new question clears these layers. Selection survives map fallback.
+Tourist results allow one recommended route (event highlights still allow three),
+enforced by both MCP display and the browser-action boundary. The assistant uses
+expressed length, theme and location needs and published route facts to explain
+its suggestion; unknown suitability/accessibility is not inferred. The map uses
+a cream-cased antique brass dashed trail, compass markers and numbered medallions
+for tourism rather than transit styling. The recommended trace is emphasized
+immediately. Tourist detail clouds have a compact ornamental header and bounded
+scrolling content; measured cloud space is reserved above the whole route, and
+native popup auto-pan is disabled so it cannot undo the route framing.
 Model-facing app responses omit trace vertices while retained server records and
 browser display actions keep them; external MCP results remain complete. Under
 exceptional browser payload pressure, geometry is explicitly unavailable with
