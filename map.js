@@ -435,13 +435,19 @@
       expand.setAttribute('aria-label', 'Pełny ekran'); expand.title = 'Pełny ekran';
       const expandIcon = document.createElement('span'); expandIcon.className = 'material-symbols-outlined'; expandIcon.setAttribute('aria-hidden', 'true'); expandIcon.textContent = 'open_in_full';
       expand.append(expandIcon);
-      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended); });
+      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended, card.getBoundingClientRect()); });
       card.append(expand); // absolutely positioned; kept last so the photo and body stay first
     }
     return card;
   }
   // Full-screen event view over the whole app; closes with the back button, Escape or a swipe down.
-  function openFullDetails(place, recommended) {
+  function openFullDetails(place, recommended, fromRect) {
+    // Preferred: open inside the conversation panel with an expand animation (app.js).
+    if (window.openEventInConversation) {
+      const details = resultDetails(place, recommended, true); details.classList.add('result-detail--full');
+      window.openEventInConversation(details, { title: place.name, fromRect });
+      return;
+    }
     const shell = document.querySelector('.app-shell') || document.body;
     shell.querySelector('.event-full')?.remove();
     const overlay = document.createElement('div'); overlay.className = 'event-full';

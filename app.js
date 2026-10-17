@@ -41,6 +41,70 @@ document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
   touchStart = undefined;
 });
 
+// Event details opened from a map cloud: shown inside the conversation panel, which grows to full height.
+// The card "expands" out of the cloud (FLIP: it starts at the cloud's rectangle and grows into place).
+window.openEventInConversation = (details, { title, fromRect } = {}) => {
+  const sheet = document.querySelector('#ai-sheet');
+  closeEventInConversation(false);
+  const view = document.createElement('section'); view.className = 'conversation-event'; view.setAttribute('aria-label', title || 'Wydarzenie');
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'conversation-event__back';
+  const backIcon = document.createElement('span'); backIcon.className = 'material-symbols-outlined'; backIcon.setAttribute('aria-hidden', 'true'); backIcon.textContent = 'keyboard_arrow_down';
+  const backText = document.createElement('span'); backText.textContent = 'Wróć do rozmowy';
+  back.append(backIcon, backText);
+  back.addEventListener('click', () => closeEventInConversation(true));
+  view.append(back, details);
+  eventReturn = { wasExpanded: expanded, scrollTop: content.scrollTop };
+  setExpanded(true);
+  sheet.classList.add('is-event-open');
+  drawer.classList.add('is-event-open');
+  content.prepend(view);
+  content.scrollTop = 0;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (fromRect && view.animate && !reduce) {
+    const to = view.getBoundingClientRect();
+    const dx = fromRect.left - to.left, dy = fromRect.top - to.top;
+    const sx = fromRect.width / to.width, sy = Math.max(fromRect.height / Math.max(to.height, 1), 0.05);
+    view.animate([
+      { transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '18px', opacity: 0.6 },
+      { transformOrigin: '0 0', transform: 'none', borderRadius: '0px', opacity: 1 },
+    ], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    details.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 380, easing: 'ease-out' });
+  }
+  back.focus({ preventScroll: true });
+};
+let eventReturn = null;
+function closeEventInConversation(restore) {
+  const view = content.querySelector('.conversation-event');
+  if (!view || view.dataset.closing) return;
+  const reduce = !restore || !view.animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const finish = () => {
+    // Shrink the panel smoothly from full height back to where the conversation was (FLIP on its height).
+    const from = content.getBoundingClientRect().height;
+    content.style.transition = 'none';
+    view.remove();
+    document.querySelector('#ai-sheet').classList.remove('is-event-open');
+    drawer.classList.remove('is-event-open');
+    const back = eventReturn; eventReturn = null;
+    if (restore) setExpanded(true); // "Wróć do rozmowy" always lands on the open conversation
+    const to = content.getBoundingClientRect().height;
+    if (restore && back) content.scrollTop = back.scrollTop;
+    if (reduce) { content.style.transition = ''; return; }
+    Object.assign(content.style, { maxHeight: from + 'px', minHeight: from + 'px' });
+    content.getBoundingClientRect(); // apply the start height before animating
+    content.style.transition = 'max-height .38s cubic-bezier(.2,.8,.2,1), min-height .38s cubic-bezier(.2,.8,.2,1)';
+    Object.assign(content.style, { maxHeight: to + 'px', minHeight: to + 'px' });
+    setTimeout(() => Object.assign(content.style, { transition: '', maxHeight: '', minHeight: '' }), 420);
+  };
+  if (reduce) return finish();
+  // First the event card folds away, then the panel shrinks.
+  view.dataset.closing = 'true';
+  view.animate([
+    { opacity: 1, transform: 'none' },
+    { opacity: 0, transform: 'translateY(28px) scale(.96)' },
+  ], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }).finished.then(finish, finish);
+}
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeEventInConversation(true); });
+
 const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
 // Keep the map's usable area (markers, fitting, attribution) above the bottom sheet.
