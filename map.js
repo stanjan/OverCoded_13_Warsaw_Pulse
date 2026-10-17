@@ -61,7 +61,8 @@
     });
     // No elapsed-time fallback: a slow provider remains pending until it renders.
     const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
-    const info = new InfoWindow({ maxWidth: 290 });
+    // headerDisabled removes Google's empty title row; the cloud draws its own close button over the photo.
+    const info = new InfoWindow({ maxWidth: 290, headerDisabled: true });
     let activeBubble, activeMarker;
     // Every result pin stays visible, even when pins overlap.
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
@@ -114,7 +115,13 @@
           activeMarker = marker;
           marker.collisionBehavior = google.maps.CollisionBehavior?.REQUIRED_AND_HIDES_OPTIONAL;
           bubble.setAttribute('aria-expanded', 'true');
-          info.setContent(resultDetails(place, recommended));
+          const details = resultDetails(place, recommended);
+          const close = document.createElement('button'); close.type = 'button'; close.className = 'result-detail__close'; close.setAttribute('aria-label', 'Zamknij');
+          const closeIcon = document.createElement('span'); closeIcon.className = 'material-symbols-outlined'; closeIcon.setAttribute('aria-hidden', 'true'); closeIcon.textContent = 'close';
+          close.append(closeIcon);
+          close.addEventListener('click', () => { info.close(); google.maps.event.trigger(info, 'closeclick'); });
+          details.prepend(close);
+          info.setContent(details);
           info.open({ map, anchor: marker, shouldFocus: true });
         };
         bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
@@ -316,7 +323,18 @@
     const range = date.from === date.to ? day(date.from) : day(date.from) + ' – ' + day(date.to);
     return [range, from ? from + (to && to !== from && date.from === date.to ? '–' + to : '') : ''].filter(Boolean).join(' · ');
   }
-  function resultDetails(place, recommended) {
+  // Free / paid from the source data. The city calendar has no price field, so the text is checked;
+  // when it says nothing the card tells the user to check with the organiser instead of guessing.
+  function priceInfo(place) {
+    if (!['event', 'sports'].includes(place.category)) return null;
+    if (place.free === true) return { kind: 'free', label: 'Bezpłatne' };
+    if (place.free === false) return { kind: 'paid', label: 'Płatne' };
+    const words = [place.name, place.description, ...(place.activities || [])].filter(Boolean).join(' ').toLowerCase();
+    if (/bezpłatn|wstęp wolny|wstęp darmowy|darmow|nieodpłatn/.test(words)) return { kind: 'free', label: 'Bezpłatne' };
+    if (/odpłatn|płatn|bilet|\d+\s*zł/.test(words)) return { kind: 'paid', label: 'Płatne' };
+    return { kind: 'unknown', label: 'Cena: sprawdź u organizatora' };
+  }
+  function resultDetails(place, recommended, full = false) {
     const card = document.createElement('article'); card.className = 'result-detail';
     card.append(thumbnail(place, true));
     const body = document.createElement('div'); body.className = 'result-detail__body';
@@ -327,9 +345,20 @@
     const location = [place.district, ...(place.addresses || []), place.address].filter(Boolean).join(' · ');
     const dates = (place.dates || []).map(eventDate);
     const timing = [...dates, ...(place.weekdays || []), place.time].filter(Boolean).join(' · ');
-    for (const [className, value] of [['result-detail__meta', timing], ['result-detail__meta', location], ['result-detail__description', place.description]]) {
+    // Key facts at the top: price, time and place, each with an icon.
+    const facts = document.createElement('div'); facts.className = 'result-detail__facts';
+    const price = priceInfo(place);
+    for (const [kind, icon, value] of [['price', price?.kind === 'free' ? 'money_off' : 'payments', price?.label], ['time', 'schedule', timing], ['place', 'location_on', location]]) {
       if (!value) continue;
-      const paragraph = document.createElement('p'); paragraph.className = className; paragraph.textContent = value; body.append(paragraph);
+      const row = document.createElement('p'); row.className = 'result-detail__fact'; row.dataset.kind = kind;
+      if (kind === 'price') row.dataset.price = price.kind;
+      const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-detail__fact-icon'; glyph.setAttribute('aria-hidden', 'true'); glyph.textContent = icon;
+      const label = document.createElement('span'); label.className = 'result-detail__fact-text'; label.textContent = value;
+      row.append(glyph, label); facts.append(row);
+    }
+    if (facts.children.length) body.append(facts);
+    if (place.description) {
+      const paragraph = document.createElement('p'); paragraph.className = 'result-detail__description'; paragraph.textContent = place.description; body.append(paragraph);
     }
     if (place.provenance?.observedAt?.length) {
       const note = document.createElement('p'); note.className = 'result-detail__meta';
@@ -346,7 +375,39 @@
       transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
       body.append(transit);
     }
-    card.append(body); return card;
+    card.append(body);
+    if (!full) {
+      // Expand button on the photo's top-left corner (the close button sits top-right).
+      const expand = document.createElement('button'); expand.type = 'button'; expand.className = 'result-detail__expand';
+      expand.setAttribute('aria-label', 'Pełny ekran'); expand.title = 'Pełny ekran';
+      const expandIcon = document.createElement('span'); expandIcon.className = 'material-symbols-outlined'; expandIcon.setAttribute('aria-hidden', 'true'); expandIcon.textContent = 'open_in_full';
+      expand.append(expandIcon);
+      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended); });
+      card.append(expand); // absolutely positioned; kept last so the photo and body stay first
+    }
+    return card;
+  }
+  // Full-screen event view over the whole app; closes with the back button, Escape or a swipe down.
+  function openFullDetails(place, recommended) {
+    const shell = document.querySelector('.app-shell') || document.body;
+    shell.querySelector('.event-full')?.remove();
+    const overlay = document.createElement('div'); overlay.className = 'event-full';
+    overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', place.name);
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'event-full__back'; back.setAttribute('aria-label', 'Zamknij pełny opis');
+    const backIcon = document.createElement('span'); backIcon.className = 'material-symbols-outlined'; backIcon.setAttribute('aria-hidden', 'true'); backIcon.textContent = 'close';
+    back.append(backIcon);
+    const details = resultDetails(place, recommended, true); details.classList.add('result-detail--full');
+    overlay.append(back, details);
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = event => { if (event.key === 'Escape') close(); };
+    back.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    let startY = null;
+    overlay.addEventListener('pointerdown', event => { startY = overlay.scrollTop <= 0 ? event.clientY : null; });
+    overlay.addEventListener('pointerup', event => { if (startY !== null && event.clientY - startY > 80) close(); startY = null; });
+    shell.append(overlay);
+    window.renderLocalIcons?.(overlay);
+    back.focus();
   }
 
   async function readConfig() {
