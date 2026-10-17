@@ -178,8 +178,7 @@ function startLocating({ auto = false } = {}) {
     if (error.code === error.PERMISSION_DENIED) updateLocationSnapshot({ status: 'unavailable', reason: 'denied' });
     if (auto) return;
     cityMap?.setView(CENTER, CENTER.zoom);
-    // Location not found: the red button is enough. Only a refused permission explains itself.
-    if (error.code === error.PERMISSION_DENIED) addMessage('Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.');
+    // No chat message on location failure or refusal: the red location button shows it.
   };
   // Laptops have no GPS: ask for a Wi-Fi based position (fast) instead of high accuracy.
   const options = { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 };
