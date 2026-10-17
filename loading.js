@@ -1,6 +1,13 @@
 /* Local SVG glyphs avoid exposing remote-font ligature text, including dynamic icons. */
 (() => {
   const paths = {
+  "palette": "M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-4c-1-1 0-3 2-3h2a3 3 0 0 0 3-3c0-5-4-8-9-8ZM7 9h.01M10 6h.01M15 6h.01M18 9h.01",
+  "directions_run": "M15 4h.01M10 9l3-3 4 4h4M13 6l-2 7 4 3-2 5M11 13l-5 5H2M8 8l-3 4",
+  "school": "m2 9 10-5 10 5-10 5L2 9Zm4 3v6l6 3 6-3v-6m4-3v9",
+  "forum": "M3 3h15v12H8l-5 4V3Zm18 5v14l-4-4h-6",
+  "family_restroom": "M7 4h.01M17 4h.01M4 10l3-3 3 3M7 7v14m-3-6h6m4-5 3-3 3 3m-3-3v14m-3-6h6M12 12h.01m0 4v5",
+  "elderly": "M15 4h.01M9 11l4-4 3 5 3 1M13 7l-2 8 3 6m-3-6-4 6m12-8v8",
+  "park": "m12 2-6 7h3l-5 7h6v6h4v-6h6l-5-7h3L12 2Z",
   "location_on": "M12 21s7-7.2 7-13a7 7 0 1 0-14 0c0 5.8 7 13 7 13ZM12 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6",
   "my_location": "M12 2v3m0 14v3M2 12h3m14 0h3M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
   "keyboard_arrow_up": "m6 15 6-6 6 6",

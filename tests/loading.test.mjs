@@ -9,7 +9,7 @@ function fixture(config = { googleMapsApiKey: 'public-test-key' }, { tileReadine
   const element = () => ({ children: [], style: {}, append(node) { this.children.push(node); }, replaceChildren() { this.children = []; }, removeAttribute() {}, setAttribute() {}, addEventListener() {} });
   const map = { setView() { return this; }, on() {}, invalidateSize() {} };
   const L = { map() { leafletCount++; return map; }, tileLayer: () => ({ addTo() {}, ...(tileReadiness ? { on(name, callback) { tileEvents[name] = callback; }, once(name, callback) { tileEvents[name] = callback; } } : {}) }), layerGroup: () => ({ addTo() { return this; } }) };
-  const google = { maps: { importLibrary: async name => name === 'maps' ? { Map: class {}, InfoWindow: class { addListener() {} } } : { AdvancedMarkerElement: class {} }, event: { addListenerOnce(_map, name, callback) { listeners.set(name, callback); } } } };
+  const google = { maps: { importLibrary: async name => name === 'maps' ? { Map: class { addListener() {} getZoom() { return 12; } }, InfoWindow: class { addListener() {} } } : { AdvancedMarkerElement: class {} }, event: { addListenerOnce(_map, name, callback) { listeners.set(name, callback); } } } };
   const window = { L };
   const context = { window, google, L, URL, URLSearchParams, queueMicrotask, Promise, console: { warn() {} }, ResizeObserver: class { observe() {} }, document: { createElement: element, head: { append(script) { scripts.push(script); } } }, fetch: async () => ({ ok: !configFailure, json: async () => config }) };
   runInNewContext(source, context);
@@ -56,6 +56,12 @@ test('local SVGs replace ligature text initially and after dynamic icon updates'
   assert.equal(icon.textContent, ''); assert.notEqual(icon.firstElementChild.children[0].attrs.d, firstPath);
   icon.firstElementChild = null; icon.textContent = 'unknown_future_icon'; observe([{ target: icon, addedNodes: [] }]);
   assert.equal(icon.textContent, ''); assert.ok(icon.firstElementChild.children[0].attrs.d);
+  const unknownPath = icon.firstElementChild.children[0].attrs.d;
+  for (const name of ['palette', 'directions_run', 'school', 'forum', 'family_restroom', 'elderly', 'park']) {
+    icon.firstElementChild = null; icon.textContent = name; observe([{ target: icon, addedNodes: [] }]);
+    assert.equal(icon.textContent, '');
+    assert.notEqual(icon.firstElementChild.children[0].attrs.d, unknownPath, name + ' has its own local glyph');
+  }
 });
 
 

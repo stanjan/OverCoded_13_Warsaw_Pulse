@@ -1,0 +1,24 @@
+{
+  "content": [
+    {
+      "text": "{\"name\":\"projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1\",\"title\":\"Warszawa Pulse — Zestawienie Pastelowych Pinezek Mapy\",\"screenshot\":{\"name\":\"projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1/fileEntries/screenshot\",\"downloadUrl\":\"https://lh3.googleusercontent.com/aida/AEtjO1U2UnSAk3v3GyIxkNIf8nMbZdffItu5rMj-eaHyfDQZgF4s3rYAHLXDjguqlnqcwweiQWuDdHegdUIvXZTzg5HLfrHza7WewceqyLiJ801iw3qNRIqTs-5pFp6S69WtuVtF3K0jRQcre5kC5iZaExotsGfE-O4uLsRnDXgZMUgXTVcBudw0JIqZMRMxCaUAZrBo2Vdb1N_styIjxOTAdiNx8fQVD4Zvts1O_61dM2lRFwwS4p_JG5juQg\"},\"htmlCode\":{\"name\":\"projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1/fileEntries/html\",\"downloadUrl\":\"https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwMDY1ZTBjNWU0ZDhlZmQwMmQzZTAyNTFkMmVhNGQ3EgsSBxCB-qrm1gMYAZIBIwoKcHJvamVjdF9pZBIVQhM0MjUzNzAxNzkyMTcwMzMwOTM1&filename=&opi=89354086\",\"mimeType\":\"text/html\"},\"width\":\"2560\",\"height\":\"4194\",\"deviceType\":\"DESKTOP\"}",
+      "type": "text"
+    }
+  ],
+  "structuredContent": {
+    "deviceType": "DESKTOP",
+    "height": "4194",
+    "htmlCode": {
+      "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwMDY1ZTBjNWU0ZDhlZmQwMmQzZTAyNTFkMmVhNGQ3EgsSBxCB-qrm1gMYAZIBIwoKcHJvamVjdF9pZBIVQhM0MjUzNzAxNzkyMTcwMzMwOTM1&filename=&opi=89354086",
+      "mimeType": "text/html",
+      "name": "projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1/fileEntries/html"
+    },
+    "name": "projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1",
+    "screenshot": {
+      "downloadUrl": "https://lh3.googleusercontent.com/aida/AEtjO1U2UnSAk3v3GyIxkNIf8nMbZdffItu5rMj-eaHyfDQZgF4s3rYAHLXDjguqlnqcwweiQWuDdHegdUIvXZTzg5HLfrHza7WewceqyLiJ801iw3qNRIqTs-5pFp6S69WtuVtF3K0jRQcre5kC5iZaExotsGfE-O4uLsRnDXgZMUgXTVcBudw0JIqZMRMxCaUAZrBo2Vdb1N_styIjxOTAdiNx8fQVD4Zvts1O_61dM2lRFwwS4p_JG5juQg",
+      "name": "projects/4253701792170330935/screens/9e75d98d43724a70a028d6622f6c92d1/fileEntries/screenshot"
+    },
+    "title": "Warszawa Pulse — Zestawienie Pastelowych Pinezek Mapy",
+    "width": "2560"
+  }
+}
