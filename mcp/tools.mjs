@@ -1,9 +1,9 @@
 import { waypoint, departure } from '../transit-core.mjs';
-import { catalogProvider, matches, coordinates, locate } from './catalog.mjs';
+import { catalogProvider, matches, coordinates, locate, audienceFilterMapping } from './catalog.mjs';
 import { SOURCES, SEARCH_CATEGORIES } from './sources.mjs';
 import { addressProvider as defaultAddressProvider, addressRequest, addressQueryKey, addressWaypoint, retainedAddresses, ADDRESS_TTL_MS, ADDRESS_SOURCE } from './addresses.mjs';
 const bounds = { type: 'object', properties: Object.fromEntries(['south','west','north','east'].map(k => [k,{type:'number'}])), required: ['south','west','north','east'], additionalProperties:false };
-export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:SEARCH_CATEGORIES}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0} };
+export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:SEARCH_CATEGORIES}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string',description:'Oznaczenie odbiorców ze źródła, np. Dla dzieci, Dla młodzieży i dorosłych, Dla seniorów; rodziny mapuje także na Dla dzieci z jawnym audienceFilterMapping.'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0} };
 const schema = (properties, required=[]) => ({type:'object', properties, required, additionalProperties:false});
 const transitPoint = schema({latitude:{type:'number',minimum:-90,maximum:90},longitude:{type:'number',minimum:-180,maximum:180},label:{type:'string',maxLength:200}},['latitude','longitude']);
 export const mcpTools = [
@@ -81,6 +81,7 @@ export async function runTool(name,args,state,provider=catalogProvider,addressPr
  if(name==='filter_results'){
    if(!state.searchMeta)throw new Error('Najpierw wyszukaj rekordy.');
    state.results=state.results.filter(p=>matches(p,args)).map(p=>locate(p,args));
+   if(args.audience!==undefined){state.searchMeta={...state.searchMeta};delete state.searchMeta.audienceFilterMapping;const mapping=audienceFilterMapping(args.audience);if(mapping)state.searchMeta.audienceFilterMapping=mapping;}
    return {...state.searchMeta,results:state.results,total:state.results.length};
  }
  if(name==='display_results'){
@@ -90,7 +91,7 @@ export async function runTool(name,args,state,provider=catalogProvider,addressPr
    const byId=new Map(state.results.map(p=>[p.id,p]));
    if(ids.some(id=>!byId.has(id)))throw new Error('Najpierw wyszukaj wskazane rekordy.');
    const results=ids.map(id=>byId.get(id));
-   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[]};
+   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[],...(state.searchMeta.audienceFilterMapping?{audienceFilterMapping:state.searchMeta.audienceFilterMapping}:{})};
    state.actions.push(action);
    return {displayed:results.length,highlightIds:highlights,action};
  }

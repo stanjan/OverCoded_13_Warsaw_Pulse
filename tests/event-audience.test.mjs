@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createCatalog,normalizeRecord,matches,locate,audienceFilterMapping} from '../mcp/catalog.mjs';
+import {createDispatcher} from '../mcp/protocol.mjs';
+import {createMcpClient} from '../mcp/client.mjs';
 
 const at='2026-10-17T12:00:00Z';
 // Shape of the live calendar: audience labels are category entries; dedicated is absent.
@@ -70,4 +72,22 @@ test('catalog filters actual category audiences and returns truthful family mapp
  assert.deepEqual(seniors.results.map(r=>r.name),['Seniorzy']);
  const empty=await provider.search({category:'event',audience:'rodziny',dateFrom:'2026-10-18'});
  assert.equal(empty.total,0);assert.equal(empty.complete,true);assert.ok(empty.audienceFilterMapping);
+});
+
+test('MCP filtering carries family disclosure through display and clears it for a new explicit audience',async()=>{
+ const rows=[event('Dzieci',['Dla dzieci']),event('Seniorzy',['Dla seniorów'])];
+ const provider=createCatalog({token:()=> 'fixture-only',now:()=>at,fetchImpl:async()=>({ok:true,json:async()=>rows})});
+ const state={results:[],actions:[]},dispatch=createDispatcher({state,provider});
+ const client=createMcpClient(async request=>JSON.parse(JSON.stringify(await dispatch(request)||null))||undefined);
+ await client.callTool('search_places',{category:'event'});
+ const filtered=await client.callTool('filter_results',{audience:'rodziny'});
+ assert.equal(filtered.total,1);assert.equal(filtered.audienceFilterMapping.requested,'rodziny');
+ const narrowed=await client.callTool('filter_results',{district:'Wola'});
+ assert.equal(narrowed.audienceFilterMapping.requested,'rodziny');
+ const shown=await client.callTool('display_results',{ids:[filtered.results[0].id],highlightIds:[filtered.results[0].id],title:'Dla dzieci'});
+ assert.deepEqual(shown.action.audienceFilterMapping.sourceLabels,['Dla dzieci']);
+ const explicit=await client.callTool('filter_results',{audience:'Dla dzieci'});
+ assert.equal(explicit.audienceFilterMapping,undefined);
+ const latest=await client.callTool('display_results',{ids:[explicit.results[0].id],highlightIds:[explicit.results[0].id],title:'Dla dzieci'});
+ assert.equal(latest.action.audienceFilterMapping,undefined);
 });
