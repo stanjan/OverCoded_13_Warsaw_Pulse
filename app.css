@@ -347,3 +347,9 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .rec-card .place-card__address { padding: 0; margin: 0; }
 .rec-card .rec-card__tag { font-size: 11px; color: var(--pin-ink); }
 .rec-card .rec-card__when { font-size: 12px; color: #342b26; }
+
+/* Full-screen conversation (drag the handle up): the panel reaches the top and covers the weather bar. */
+#ai-sheet.is-full #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - env(safe-area-inset-top, 0px)); max-height: var(--sheet-full); min-height: var(--sheet-full); }
+.drawer-container.is-full > div:first-child { display: none; }
+#ai-sheet.is-dragging #sheet-content { transition: none !important; }
+#sheet-toggle { touch-action: none; }

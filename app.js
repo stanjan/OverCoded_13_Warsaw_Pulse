@@ -15,8 +15,16 @@ window.expandCitySheet = () => setExpanded(true);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 
+// Full-screen snap state (drag the handle up from the expanded panel); it covers the weather bar.
+let sheetFull = false;
+function setSheetFull(value) {
+  sheetFull = value;
+  document.querySelector('#ai-sheet').classList.toggle('is-full', value);
+  drawer.classList.toggle('is-full', value);
+}
 function setExpanded(value) {
   expanded = value;
+  if (!value && sheetFull) setSheetFull(false);
   content.inert = !value;
   content.setAttribute('aria-hidden', String(!value));
   document.querySelector('#ai-sheet').classList.toggle('is-collapsed', !value);
@@ -33,13 +41,41 @@ document.querySelector('#sheet-toggle').addEventListener('click', () => {
 toggle.addEventListener('click', event => { event.stopPropagation(); setExpanded(!expanded); });
 input.addEventListener('focus', () => setExpanded(true));
 document.querySelector('#search-bar-wrapper').addEventListener('click', () => input.focus());
-// Match the drawer's touch affordance without interfering with map gestures.
-let touchStart;
-document.querySelector('#sheet-toggle').addEventListener('pointerdown', event => { touchStart = event.clientY; suppressHandleClick = false; });
-document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
-  if (touchStart !== undefined && Math.abs(event.clientY - touchStart) > 30) { suppressHandleClick = true; setExpanded(event.clientY < touchStart); }
-  touchStart = undefined;
+// Drag the handle: the panel follows the finger, then snaps to collapsed, half or full screen.
+// Pointer capture keeps the drag alive when the finger leaves the small handle area.
+const handle = document.querySelector('#sheet-toggle');
+let drag = null;
+const sheetHeights = () => ({ half: Math.min(innerHeight * (innerHeight <= 550 ? 0.4 : 0.48), 480), full: Math.max(0, innerHeight - 128) });
+handle.addEventListener('pointerdown', event => {
+  if (event.target.closest('button')) return; // the chevron keeps its own click
+  drag = { y: event.clientY, start: expanded ? content.getBoundingClientRect().height : 0, moved: false, id: event.pointerId };
+  suppressHandleClick = false;
+  handle.setPointerCapture?.(event.pointerId);
 });
+handle.addEventListener('pointermove', event => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const dy = drag.y - event.clientY;
+  if (!drag.moved && Math.abs(dy) < 6) return;
+  if (!drag.moved) { drag.moved = true; document.querySelector('#ai-sheet').classList.add('is-dragging'); content.inert = false; }
+  const height = Math.min(Math.max(drag.start + dy, 0), sheetHeights().full);
+  Object.assign(content.style, { maxHeight: height + 'px', minHeight: height + 'px', opacity: '1', transform: 'none' });
+});
+const endDrag = event => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const { moved, y } = drag; drag = null;
+  document.querySelector('#ai-sheet').classList.remove('is-dragging');
+  if (!moved) return; // a tap: the click handler toggles the panel
+  suppressHandleClick = true;
+  const height = content.getBoundingClientRect().height;
+  Object.assign(content.style, { maxHeight: '', minHeight: '', opacity: '', transform: '' });
+  const { half, full } = sheetHeights();
+  const target = height + (event.clientY < y ? 60 : -60); // nudged in the drag direction
+  if (target > (half + full) / 2) { setExpanded(true); setSheetFull(true); }
+  else if (target > half / 2) { setSheetFull(false); setExpanded(true); }
+  else setExpanded(false);
+};
+handle.addEventListener('pointerup', endDrag);
+handle.addEventListener('pointercancel', endDrag);
 
 // Event details opened from a map cloud: shown inside the conversation panel, which grows to full height.
 // The card "expands" out of the cloud (FLIP: it starts at the cloud's rectangle and grows into place).
