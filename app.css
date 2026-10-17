@@ -46,7 +46,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .user-loc--google { transform: translateY(50%); }
 .user-loc__pulse, .user-loc__dot { position: absolute; inset: 0; border-radius: 50%; box-sizing: border-box; }
 .user-loc__pulse { background: rgba(0,81,213,.35); transform-origin: 50% 50%; animation: radarPulse 2.2s cubic-bezier(0,0,.2,1) infinite; }
-.user-loc__dot { background: #0051d5; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(9,20,38,.35); }
+.user-loc__dot { background: #0051d5; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(0,81,213,.22), 0 2px 6px rgba(9,20,38,.35); } /* steady blue halo: only the user is a round dot with a halo */
 /* Location button: still by default, pulsing ring only while searching, red when no location. */
 #gps-button .radar-pulse-ring { display: none; }
 #gps-button[data-state="locating"] .radar-pulse-ring { display: block; }
@@ -105,14 +105,12 @@ button.place-card__title:hover { background: #f2f4f6; }
 #city-map .result-bubble::after { content: none; }
 #city-map .result-bubble__copy, #city-map .result-bubble .result-image { display: none; }
 .result-pin { display: none; }
-#city-map .result-pin { display: grid; place-items: center; width: 38px; height: 38px; margin-top: 3px; border: 2px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: linear-gradient(135deg, var(--pin-light, #d8b4fe), var(--pin, #c084fc)); box-shadow: 0 0 14px 4px color-mix(in srgb, var(--pin, #c084fc) 55%, transparent), 0 3px 8px #0f172a33; box-sizing: border-box; }
+#city-map .result-pin { display: grid; place-items: center; width: 38px; height: 38px; margin-top: 3px; border: 2px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: linear-gradient(135deg, var(--pin-light, #d8b4fe), var(--pin, #c084fc)); box-shadow: 0 0 9px 2px color-mix(in srgb, var(--pin, #c084fc) 45%, transparent), 0 3px 8px #0f172a33; box-sizing: border-box; }
 #city-map .result-pin__icon { transform: rotate(45deg); color: #fff; font-size: 20px; }
-#city-map .result-bubble--recommended .result-pin { width: 42px; height: 42px; margin-top: 0; border-width: 3px; }
-#city-map .result-bubble:hover .result-pin, #city-map .result-bubble[aria-expanded='true'] .result-pin { box-shadow: 0 0 0 3px var(--pin-light, #d8b4fe), 0 0 18px 6px color-mix(in srgb, var(--pin, #c084fc) 60%, transparent), 0 3px 8px #0f172a33; }
+#city-map .result-bubble:hover .result-pin, #city-map .result-bubble[aria-expanded='true'] .result-pin { box-shadow: 0 0 0 3px var(--pin-light, #d8b4fe), 0 0 12px 3px color-mix(in srgb, var(--pin, #c084fc) 50%, transparent), 0 3px 8px #0f172a33; }
 /* Zoomed out (below DETAIL_ZOOM in map.js): a pastel dot centred on the point inside a 24px tap area. */
-:is(#city-map.markers-compact, #city-map .markers-compact) .result-bubble { width: 30px; height: 30px; align-items: center; transform: translateY(50%); }
-:is(#city-map.markers-compact, #city-map .markers-compact) .result-pin { width: 17px; height: 17px; margin: 0; border-width: 2px; border-radius: 50%; transform: none; background: var(--pin, #c084fc); box-shadow: 0 0 10px 3px color-mix(in srgb, var(--pin, #c084fc) 60%, transparent), 0 1px 3px #0f172a40; }
-:is(#city-map.markers-compact, #city-map .markers-compact) .result-bubble--recommended .result-pin { width: 21px; height: 21px; }
+:is(#city-map.markers-compact, #city-map .markers-compact) .result-bubble { width: 30px; height: 30px; align-items: flex-end; transform: none; } /* small teardrop: its tip sits on the point */
+:is(#city-map.markers-compact, #city-map .markers-compact) .result-pin { width: 18px; height: 18px; margin: 0 0 4px; border-width: 2px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--pin, #c084fc); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--pin, #c084fc) 45%, transparent), 0 1px 3px #0f172a40; }
 :is(#city-map.markers-compact, #city-map .markers-compact) .result-pin__icon { display: none; }
 
 /* Thinking animation: pulsing dots + shimmering stage label; hidden once the answer is complete. */
@@ -305,3 +303,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 .transit-alternative .route-chain { flex-wrap: wrap; overflow: visible; row-gap: 6px; }
 .transit-alternative { display: flex; flex-direction: column; }
 .transit-alternative > .transit-card-timing { margin-top: auto; padding-top: 7px; }
+
+/* Recommended (★): a white star on the small zoomed-out drop only; zoomed-in pins look the same as the rest. */
+.result-pin__star { display: none; }
+:is(#city-map.markers-compact, #city-map .markers-compact) .result-pin__star { display: block; width: 10px; height: 10px; transform: rotate(45deg); color: #fff; }
+.result-pin__star svg { fill: currentColor; stroke-width: 1; }
