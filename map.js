@@ -610,6 +610,9 @@
     const tag = document.createElement('span'); tag.className = 'result-detail__tag';
     tag.textContent = (recommended ? '★ Polecane · ' : '') + (categoryLabels[place.category] || 'Miejsce');
     const title = document.createElement('h3'); title.textContent = place.name;
+    // Favourite heart floats at the top right, beside the tag and title, so it never needs scrolling.
+    const favorite = globalThis.cityFavorites?.button(place);
+    if (favorite) { favorite.classList.add('result-detail__favorite'); body.append(favorite); }
     body.append(tag, title);
     const location = [place.district, ...(place.addresses || []), place.address].filter(Boolean).join(' · ');
     const dates = (place.dates || []).map(eventDate);
@@ -643,16 +646,11 @@
       source.textContent = place.category === 'event' || place.category === 'sports' ? 'Szczegóły u organizatora ↗' : 'Zobacz źródło ↗';
       source.target = '_blank'; source.rel = 'noopener noreferrer'; body.append(source);
     }
-    // Transit link and favourite heart share one row, in the popup and in the full-screen view.
-    const actions = document.createElement('div'); actions.className = 'result-detail__actions';
     if (Number.isFinite(place.lat) && Math.abs(place.lat) <= 90 && Number.isFinite(place.lng) && Math.abs(place.lng) <= 180) {
       const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'result-detail__transit'; transit.textContent = 'Wyznacz trasę';
       transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
-      actions.append(transit);
+      body.append(transit);
     }
-    const favorite = globalThis.cityFavorites?.button(place);
-    if (favorite) { favorite.classList.add('result-detail__favorite'); actions.append(favorite); }
-    if (actions.children.length) body.append(actions);
     card.append(body);
     if (!full) {
       // Expand button on the photo's top-left corner (the close button sits top-right).
