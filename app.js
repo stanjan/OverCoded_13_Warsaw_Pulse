@@ -184,16 +184,20 @@ function useMap(map) {
 function onMapReplaced(map) {
   mapWasReplaced = true;
   if (!map) { cityMap = undefined; window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: null } })); showMapUnavailable(); return; }
-  useMap(map);
+  cityMap = map;
   if (lastPosition) map.showUser(lastPosition);
   if (lastDisplayedAction) showResults(lastDisplayedAction);
+  // Replay an active journey after result layers, so its framing owns the map.
+  useMap(map);
 }
 const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas, { onReplace: onMapReplaced }) : Promise.reject(new Error('map.js missing')))
   .then(map => {
-    if (!mapWasReplaced) useMap(map);
+    if (mapWasReplaced) return cityMap; // Replacement already restored state.
+    cityMap = map;
     // The location can arrive before the map: show it now that the map exists.
     if (lastPosition) { cityMap?.showUser(lastPosition); if (!lastDisplayedAction) centerOnUser(); }
     if (lastDisplayedAction) showResults(lastDisplayedAction);
+    useMap(map);
     return cityMap;
   })
   .catch(error => { console.warn('[map]', error.message); showMapUnavailable(); });

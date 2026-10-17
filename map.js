@@ -192,7 +192,7 @@
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
-      clearMarkers() { clearTourism(); touristPlaces = []; info.close(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
+      clearMarkers() { clearTourism(); touristPlaces = []; info.close?.(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const marker = new AdvancedMarkerElement({ map, position: { lat: place.lat, lng: place.lng }, title: place.name, content: bubble, gmpClickable: true, zIndex: recommended ? 200 : 100, collisionBehavior: optionalCollision });
