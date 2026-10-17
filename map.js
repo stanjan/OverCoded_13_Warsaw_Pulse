@@ -10,19 +10,24 @@
   function routePadding(element, { top = 65, bottom = 24 } = {}) {
     // The coordinate anchor sits at the tip of the destination pin.
     // Reserve the whole marker plus a small gap below the floating route bar.
-    top = Math.max(0, top) + DESTINATION_PIN.height + 8;
+    const bar = document.querySelector?.('#environment-bar')?.getBoundingClientRect?.();
+    const canvas = element.getBoundingClientRect?.();
+    top = Math.max(0, Number.isFinite(bar?.bottom) && Number.isFinite(canvas?.top) ? bar.bottom - canvas.top : top) + DESTINATION_PIN.height + 8;
     const rect = element.getBoundingClientRect?.();
     const sheet = document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
     if (rect && sheet) bottom = Math.max(bottom, rect.bottom - sheet.top + 24);
-    const height = element.clientHeight;
-    if (height > 0) {
-      // Leaflet fills the screen underneath the sheet; Google ends above it.
-      // Keep fitting valid even when the keyboard/sheet leaves very little map.
-      bottom = Math.min(bottom, Math.max(0, height - top - 16));
-      top = Math.min(top, Math.max(0, height - bottom - 1));
-    }
     return { top, bottom, left: 24, right: 24 };
   }
+
+  function observeRouteViewport(element, fit) {
+    let timer;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(fit, 80);
+    });
+    for (const target of [element, document.querySelector?.('#ai-sheet'), document.querySelector?.('#environment-bar')]) if (target) observer.observe(target);
+  }
+  function canFitRoute(element, padding) { return !(element.clientHeight > 0) || element.clientHeight - padding.top - padding.bottom >= 64; }
 
   // Google reports a rejected key (wrong referrer, API disabled, billing off) through
   // window.gm_authFailure, often AFTER the script loaded and the map was created.
@@ -69,8 +74,16 @@
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
     info.addListener('closeclick', () => { activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; });
     let markers = [];
-    let routeLines = [], routeMarkers = [], vehicleMarkers = [];
-    const clearRoute = () => { routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView;
+    const fitRoute = () => {
+      if (!routeView) return;
+      const padding = routePadding(element, routeView.options);
+      if (!canFitRoute(element, padding)) return;
+      const bounds = new google.maps.LatLngBounds();routeView.points.forEach(point => bounds.extend({lat:point.latitude,lng:point.longitude}));
+      map.fitBounds(bounds, padding);
+    };
+    observeRouteViewport(element, fitRoute);
+    const clearRoute = () => { routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -92,12 +105,11 @@
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
           if (path.length < 2) continue;
           const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
-          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:3,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'12px'}]}:{}), clickable: false, zIndex: 1 }));
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 }));
         }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
-          const bounds = new google.maps.LatLngBounds();[...points,...validTransitPath([route.destinationPoint])].forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
-          map.fitBounds(bounds, routePadding(element, { top }));
+          routeView = {points:[...points,...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
           const destination = validTransitPath([route.destinationPoint])[0]||points.at(-1);
           routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content: destinationElement(), title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
@@ -110,13 +122,13 @@
           vehicleMarkers.push(new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), zIndex:250 }));
         }
       },
-      setView({ lat, lng }, zoom) { map.panTo({ lat, lng }); map.setZoom(zoom); },
+      setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
       clearMarkers() { info.close(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const marker = new AdvancedMarkerElement({ map, position: { lat: place.lat, lng: place.lng }, title: place.name, content: bubble, gmpClickable: true, zIndex: recommended ? 200 : 100, collisionBehavior: optionalCollision });
         const open = () => {
-          onOpen?.();
+          routeView = null;onOpen?.();
           activeBubble?.setAttribute('aria-expanded', 'false');
           if (activeMarker) activeMarker.collisionBehavior = optionalCollision;
           activeBubble = bubble;
@@ -138,7 +150,7 @@
         return { open };
       },
       fitTo(points, padding) {
-        if (!points.length) return;
+        routeView = null;if (!points.length) return;
         const bounds = new google.maps.LatLngBounds();
         points.forEach(p => bounds.extend({ lat: p[0], lng: p[1] }));
         map.fitBounds(bounds, padding);
@@ -182,13 +194,20 @@
     }
     map.on('zoomend moveend resize', arrangeBubbles);
     let userDot, userAccuracy;
-    new ResizeObserver(() => map.invalidateSize()).observe(element);
+    let routeView;
+    const fitRoute = () => {
+      map.invalidateSize();
+      if (!routeView) return;
+      const padding = routePadding(element, routeView.options);
+      if (canFitRoute(element, padding)) map.fitBounds(routeView.points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom],animate:false});
+    };
+    observeRouteViewport(element, fitRoute);
     return {
       vendor: 'leaflet',
       ready,
-      clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      clearRoute() { routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
-        map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
+        routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
         const points=(route?.steps || []).flatMap(step=>validTransitPath(step.path)).map(point=>[point.latitude,point.longitude]);
         let lineCount=0;
         for(const step of route?.steps || []){
@@ -200,14 +219,14 @@
           if(path.length<2)continue;lineCount++;
           if(step.mode==='WALK'&&step.geometry==='osm_pedestrian'){
             // Round zero-length SVG dashes form circles, with fixed pixel spacing at every zoom.
-            for(const[color,weight]of [['#ffffff',8],['#4285F4',4]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 12',dashOffset:'0',interactive:false}).addTo(transitLayer);
+            for(const[color,weight]of [['#ffffff',12],['#4285F4',8]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer);
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
           const destination=validTransitPath([route.destinationPoint])[0];
           L.marker(destination?[destination.latitude,destination.longitude]:points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
-          const padding=routePadding(element,{top});map.fitBounds(destination?[...points,[destination.latitude,destination.longitude]]:points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});
+          routeView={points:destination?[...points,[destination.latitude,destination.longitude]]:points,options:{top}};fitRoute();
         }
         return lineCount>0;
       },
@@ -219,17 +238,17 @@
         }
       },
 
-      setView({ lat, lng }, zoom) { map.setView([lat, lng], zoom); },
+      setView({ lat, lng }, zoom) { routeView = null;map.setView([lat, lng], zoom); },
       clearMarkers() { layer.clearLayers(); results.length = 0; activeMarker = undefined; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const icon = L.divIcon({ className: 'result-marker', html: bubble, iconSize: [174, 76], iconAnchor: [87, 76], popupAnchor: [0, -70] });
         const marker = L.marker([place.lat, place.lng], { icon, keyboard: false, zIndexOffset: recommended ? 200 : 100 })
           .bindPopup(resultDetails(place, recommended), { className: 'result-info-popup', minWidth: 230, maxWidth: 290, autoPanPaddingTopLeft: [12, 70], autoPanPaddingBottomRight: [12, 150] })
-          .on('popupopen', () => { activeMarker = marker; bubble.setAttribute('aria-expanded', 'true'); arrangeBubbles(); onOpen?.(); })
+          .on('popupopen', () => { routeView = null;activeMarker = marker; bubble.setAttribute('aria-expanded', 'true'); arrangeBubbles(); onOpen?.(); })
           .on('popupclose', () => { bubble.setAttribute('aria-expanded', 'false'); if (activeMarker === marker) activeMarker = undefined; arrangeBubbles(); })
           .addTo(layer);
-        const open = () => marker.openPopup();
+        const open = () => { routeView = null;marker.openPopup(); };
         L.DomEvent.disableClickPropagation(bubble);
         bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
         results.push({ marker, bubble, recommended });
@@ -237,7 +256,7 @@
         return { open };
       },
       fitTo(points, padding) {
-        if (!points.length) return;
+        routeView = null;if (!points.length) return;
         map.fitBounds(points, { paddingTopLeft: [padding.left, padding.top], paddingBottomRight: [padding.right, padding.bottom], maxZoom: 15 });
       },
       showUser({ lat, lng, accuracy }) {

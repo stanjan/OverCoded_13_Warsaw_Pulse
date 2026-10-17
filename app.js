@@ -12,6 +12,7 @@ let expanded = true;
 let cityMap;
 window.getCityMap = () => cityMap;
 window.expandCitySheet = () => setExpanded(true);
+window.collapseCitySheet = () => setExpanded(false);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 

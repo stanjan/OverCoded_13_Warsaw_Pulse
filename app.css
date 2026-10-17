@@ -207,7 +207,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 
 .app-shell > nav a:not([aria-current='page']) { color: #65727f; }
 
-.transit-destination { display: block; width: 36px; height: 44px; color: #a6462c; filter: drop-shadow(0 3px 4px #32251f40); pointer-events: none; }
+.transit-destination { display: block; width: 36px; height: 44px; color: #4285F4; filter: drop-shadow(0 3px 4px #32251f40); pointer-events: none; }
 .transit-destination svg { display: block; overflow: visible; }
 
 .transit-vehicle { display: grid; place-items: center; min-width: 39px; height: 28px; padding: 2px 5px; border: 2px solid white; border-radius: 9px; background: #65727f; color: white; font: 800 11px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 5px #0003; }

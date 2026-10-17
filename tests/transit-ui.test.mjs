@@ -18,7 +18,7 @@ function fixture({vendor='google',compute,fetchImpl}={}) {
  const doc={getElementById:id=>ids[id],querySelector:()=>shell,querySelectorAll:()=>nav,createElement:element,createElementNS:(_ns,tag)=>element(tag)};
  const host={getCityMap:()=>map,getCityLocation:()=>({status:'unavailable'}),expandCitySheet(){calls.push(['expand']);},addEventListener:(key,handler)=>events[key]=handler};
  const panel=mountTransit({doc,host,compute,fetchImpl});
- return {ids,shell,nav,events,calls,map,panel};
+ return {ids,shell,nav,events,calls,map,panel,host};
 }
 const route=id=>({id,origin:'Start <script>',destination:'Cel',durationMillis:1200000,departure:Date.parse('2026-10-17T12:00Z'),arrival:Date.parse('2026-10-17T12:20Z'),transfers:0,steps:[{mode:'TRANSIT',line:'17',from:'Dw. Centralny',to:'Anielewicza',headsign:'Nowodwory',start:Date.parse('2026-10-17T12:02Z'),end:Date.parse('2026-10-17T12:18Z'),stops:5,path:[{latitude:52.2,longitude:21},{latitude:52.25,longitude:21.02}],geometry:'gtfs_shape'}],warnings:['Sprawdź komunikat']});
 const result=routes=>({routes,origin:{latitude:52.2,longitude:21},destination:{latitude:52.25,longitude:21.02},stops:[],departures:[],vehicles:[],sources:[],errors:[]});
@@ -143,5 +143,17 @@ test('walking verification failures explain the missing pedestrian path without 
   let calls=0;const f=fixture({compute:async()=>++calls===1?result([route('old')]):({...result([]),reason,graphSource:{validFrom:'2026-10-16',validTo:'2026-10-25',url:'https://gtfs.ztm.waw.pl/last'}})});
   f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();assert.equal(f.ids['environment-bar'].dataset.route,'true');
   await f.panel.search();assert.equal(f.panel.getState().status,'limited');assert.match(f.ids['transit-status'].textContent,/przejść pieszych/);assert.match(f.ids['transit-status'].textContent,/Odśwież trasę/);assert.doesNotMatch(f.ids['transit-status'].textContent,/rozkładu ZTM/);assert.equal(f.ids['transit-alternatives'].children.length,0);assert.equal(f.ids['environment-bar'].dataset.route,'false');assert.equal(f.ids['environment-eta'].hidden,true);assert.equal(f.ids['environment-route-refresh'].hidden,true);
+ }
+});
+
+
+test('selecting a route collapses only a panel that leaves too little map beneath the weather bar',async()=>{
+ for(const visibleBottom of [203,600]){
+  const f=fixture({compute:async()=>result([route('selected')])});
+  f.ids['city-map']={getBoundingClientRect:()=>({top:0,bottom:700})};f.ids['ai-sheet']={getBoundingClientRect:()=>({top:visibleBottom})};f.ids['environment-bar'].getBoundingClientRect=()=>({bottom:118});
+  // The host supplies the same panel affordance the visible collapse button uses.
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';
+  f.host.collapseCitySheet=()=>f.calls.push(['collapse']);await f.panel.search();f.ids['transit-alternatives'].children[0].click();
+  assert.equal(f.calls.filter(call=>call[0]==='collapse').length,visibleBottom===203?1:0);assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'selected');
  }
 });
