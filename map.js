@@ -491,5 +491,28 @@
     await leaflet.ready;
     return leaflet;
   };
+  // Short facts for the recommended cards in the conversation (theme, when, price, photo).
+  const themeLabels = { culture: 'Kultura', sport: 'Sport', education: 'Edukacja', meeting: 'Spotkanie', family: 'Rodzina', seniors: 'Seniorzy', outdoor: 'Plener' };
+  function cardWhen(place) {
+    const first = (place.dates || [])[0];
+    if (!first) return place.time || '';
+    const zone = { timeZone: 'Europe/Warsaw' };
+    const today = new Intl.DateTimeFormat('en-CA', zone).format(new Date());
+    const tomorrow = new Intl.DateTimeFormat('en-CA', zone).format(new Date(Date.now() + 864e5));
+    const dayLabel = first.from <= today && first.to >= today ? 'Dziś' : first.from === tomorrow ? 'Jutro'
+      : new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short', ...zone }).format(new Date(first.from + 'T12:00:00Z'));
+    let time = '';
+    if (typeof first.sourceFrom === 'string' && first.sourceFrom.includes('T')) {
+      const parsed = new Date(first.sourceFrom.replace(/([+-]\d{2})$/, '$1:00'));
+      if (Number.isFinite(parsed.getTime())) time = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit', ...zone }).format(parsed);
+      if (time === '00:00') time = '';
+    }
+    return [dayLabel, time || place.time].filter(Boolean).join(' ');
+  }
+  window.cityCardInfo = place => {
+    const theme = themeFor(place);
+    const price = priceInfo(place);
+    return { theme, themeLabel: themeLabels[theme], icon: themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+  };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();
