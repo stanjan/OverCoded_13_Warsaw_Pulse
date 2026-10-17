@@ -165,7 +165,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .environment-attribution a { color: #405d76; text-decoration: underline; }
 .weather-bar[data-stale='true'] summary { border-color: #c69b50; }
 @media (max-width: 370px) { .weather-bar summary { gap: 5px; padding-inline: 9px; font-size: 10px; } #environment-weather { font-size: 12px; } #environment-icon { font-size: 18px; } }
-.weather-bar[open] { z-index: 40; }
+.weather-bar:has(.environment-disclosure[open]) { z-index: 40; }
 .environment-details { max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain; }
 
 /* Transit lives in the same sheet; map attribution stays above it. */
@@ -207,7 +207,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 
 .app-shell > nav a:not([aria-current='page']) { color: #65727f; }
 
-.transit-waypoint { display: grid; place-items: center; width: 29px; height: 29px; border: 2px solid white; border-radius: 50%; background: #a6462c; color: white; font: 800 13px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 7px #0004; }
+.transit-destination { display: block; width: 36px; height: 44px; color: #a6462c; filter: drop-shadow(0 3px 4px #32251f40); pointer-events: none; }
+.transit-destination svg { display: block; overflow: visible; }
 
 .transit-vehicle { display: grid; place-items: center; min-width: 39px; height: 28px; padding: 2px 5px; border: 2px solid white; border-radius: 9px; background: #65727f; color: white; font: 800 11px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 5px #0003; }
 .transit-line-badge, .transit-alternative .transit-line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 23px; padding: 2px 6px; border-radius: 6px; background: #65727f; color: white; font-size: 12px; font-weight: 800; line-height: 1.25; vertical-align: middle; margin-top: 0; }
@@ -279,23 +280,25 @@ button.place-card__title:hover { background: #f2f4f6; }
 .route-walk-time, .transit-alternative .route-walk-time { margin: 0; color: #65727f; font-size: 10px; }
 .route-chain .transit-line-badge, .transit-alternative .route-chain .transit-line-badge { display: inline-flex; color: #fff; min-width: 24px; min-height: 21px; padding: 1px 4px; font-size: 11px; margin: 0; }
 .weather-bar { width: calc(100% - 24px); max-width: 350px; transition: max-width .45s cubic-bezier(.16,1,.3,1); }
-.weather-bar > summary { display: grid; gap: 0; padding: 8px 11px; border-radius: 25px; transition: border-radius .35s, padding .35s; }
+.weather-bar > .environment-disclosure > summary { display: grid; justify-content: stretch; gap: 0; padding: 8px 11px; border-radius: 25px; transition: border-radius .35s, padding .35s; }
 .environment-bottom-row, .environment-weather-row { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
-#environment-route[hidden], #environment-eta[hidden] { display: none; }
+#environment-route[hidden], #environment-eta[hidden], #environment-route-refresh[hidden] { display: none; }
 #environment-route { max-height: 0; opacity: 0; transition: max-height .4s, opacity .3s, padding .4s; }
 .weather-bar[data-route='true'] { max-width: calc(100% - 24px); }
-.weather-bar[data-route='true'] > summary { padding: 10px 13px; border-radius: 22px; }
-.weather-bar[data-route='true'] #environment-route { max-height: 38px; opacity: 1; padding-bottom: 8px; }
-.weather-bar[data-route='true'] #environment-route > .route-chain { width: 100%; }
-.weather-bar[data-route='true'] .environment-bottom-row { justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #dce1e580; }
-.weather-bar[data-route='true'] #environment-sun, .weather-bar[data-route='true'] .environment-divider { display: none; }
+.weather-bar[data-route='true'] > .environment-disclosure > summary { grid-template-rows: 44px 44px; padding: 6px 13px; border-radius: 22px; }
+.weather-bar[data-route='true'] #environment-route { display: block; height: 44px; max-height: 44px; opacity: 1; overflow-x: auto; }
+.weather-bar[data-route='true'] #environment-route > .route-chain { width: max-content; height: 100%; margin-inline: auto; overflow: visible; }
+.weather-bar[data-route='true'] .environment-bottom-row { height: 44px; box-sizing: border-box; justify-content: space-between; gap: 10px; padding-right: 42px; border-top: 1px solid #dce1e580; }
+.weather-bar[data-route='true'] #environment-sun, .weather-bar[data-route='true'] #environment-air, .weather-bar[data-route='true'] .environment-divider { display: none; }
 .weather-bar[data-route='true'] #environment-icon { font-size: 16px; }
-.weather-bar[data-route='true'] #environment-air { padding: 3px 5px; }
-#environment-eta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-variant-numeric: tabular-nums; }
+#environment-eta { display: flex; align-items: center; font-variant-numeric: tabular-nums; }
 #environment-eta strong { font-size: 15px; color: #263442; }
-#environment-eta small { font-size: 9px; color: #65727f; }
-@media (max-width: 370px) { .weather-bar[data-route='true'] .environment-weather-row { gap: 4px; } .weather-bar[data-route='true'] #environment-air-value { display: none; } #environment-eta strong { font-size: 13px; } }
-.weather-bar > summary { justify-content: stretch; }
+#environment-route-refresh { position: absolute; right: 12px; bottom: 7px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #536b60; background: transparent; cursor: pointer; }
+#environment-route-refresh:hover { background: #e4ece780; }
+#environment-route-refresh:focus-visible { outline: 3px solid #0051d5; outline-offset: -3px; }
+#environment-route-refresh:disabled { opacity: .5; cursor: wait; }
+#environment-route-refresh svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 370px) { .weather-bar[data-route='true'] .environment-weather-row { gap: 4px; } #environment-eta strong { font-size: 13px; } }
 .transit-actions:has(> [hidden]:only-child), .transit-actions:not(:has(> button:not([hidden]))) { display: none; }
 [data-transit='panel'] { position: relative; }
 .transit-editor:not([open]) > summary { position: absolute; top: 0; right: 42px; }

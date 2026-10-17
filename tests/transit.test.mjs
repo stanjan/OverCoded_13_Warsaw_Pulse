@@ -57,6 +57,28 @@ test('router verifies same-trip continuation and walk/transfer feasibility; equa
  const noPickup=graph();noPickup.trips[0].stopTimes[0].pickup=1;assert.equal(planGraph(noPickup,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')}).length,0);
  assert.throws(()=>planGraph(data,{origin:data.stops[0],destination:data.stops[3],departureTime:Date.parse('2026-11-01')}),{code:'DATE_OUTSIDE_FEED'});
 });
+
+test('router returns full geometry only for the selected official trip while retaining the boarded segment and schedule',()=>{
+ const data=graph(),request={origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')};
+ const baseline=planGraph(data,request)[0];
+ const firstShape=[{latitude:52.19,longitude:21},data.stops[0],{latitude:52.21,longitude:21},data.stops[1],{latitude:52.23,longitude:21}];
+ const secondShape=[{latitude:52.21,longitude:21.002},data.stops[2],{latitude:52.23,longitude:21.001},data.stops[3],{latitude:52.25,longitude:21}];
+ data.trips[0].shape=firstShape;data.trips[2].shape=secondShape;
+ // Another direction of the same numbered line must not leak into the context.
+ data.trips.push({...data.trips[0],id:'opposite@2026-10-17',shape:[{latitude:52.4,longitude:21.2},{latitude:52.5,longitude:21.3}],stopTimes:[event('b','14:00:00'),event('a','14:10:00')]});
+ const selected=planGraph(data,request)[0],rides=selected.steps.filter(step=>step.mode==='TRANSIT');
+ assert.equal(selected.arrival,baseline.arrival);assert.equal(selected.durationMillis,baseline.durationMillis);assert.equal(selected.transfers,baseline.transfers);
+ const coords=points=>points.map(({latitude,longitude})=>({latitude,longitude}));
+ assert.deepEqual(rides.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);
+ assert.deepEqual(rides[0].path,coords(firstShape.slice(1,-1)));assert.deepEqual(rides[0].fullPath,coords(firstShape));
+ assert.deepEqual(rides[1].path,coords(secondShape.slice(1,-1)));assert.deepEqual(rides[1].fullPath,coords(secondShape));
+ assert.ok(rides.every(step=>step.geometry==='gtfs_shape'&&step.fullPathGeometry==='gtfs_shape'));
+ assert.ok(selected.steps.filter(step=>step.mode==='WALK').every(step=>!Object.hasOwn(step,'fullPath')));
+ for(const shape of [[],[{latitude:52.2,longitude:21}],firstShape.map((point,index)=>index===1?{latitude:NaN,longitude:21}:point),[{latitude:52.4,longitude:21},{latitude:52.5,longitude:21}]]){
+  data.trips[0].shape=shape;const ride=planGraph(data,request)[0].steps.find(step=>step.tripId==='first@2026-10-17');
+  assert.equal(ride.geometry,'schematic');assert.equal(Object.hasOwn(ride,'fullPath'),false);
+ }
+});
 test('calendar exceptions and escaped CSV are interpreted without inventing service',()=>{
  assert.deepEqual(csvRow('a,"b,c","x""y"'),['a','b,c','x"y']);const calendar=[{service_id:'weekday',saturday:'1',start_date:'20261016',end_date:'20261025'}];const exceptions=[{service_id:'weekday',date:'20261017',exception_type:'2'},{service_id:'special',date:'20261017',exception_type:'1'}];assert.deepEqual([...activeServices(calendar,exceptions,'2026-10-17')],['special']);
 });

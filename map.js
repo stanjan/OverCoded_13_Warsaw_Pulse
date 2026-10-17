@@ -5,11 +5,12 @@
   const START_ZOOM = 12;
   // Below this zoom results are small icons; zooming in turns them into bubbles with photo and name.
   const DETAIL_ZOOM = 16;
+  const DESTINATION_PIN = { width: 36, height: 44 };
 
   function routePadding(element, { top = 65, bottom = 24 } = {}) {
-    // The coordinate anchors sit at the bottom of the 29px endpoint marker.
+    // The coordinate anchor sits at the tip of the destination pin.
     // Reserve the whole marker plus a small gap below the floating route bar.
-    top = Math.max(0, top) + 36;
+    top = Math.max(0, top) + DESTINATION_PIN.height + 8;
     const rect = element.getBoundingClientRect?.();
     const sheet = document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
     if (rect && sheet) bottom = Math.max(bottom, rect.bottom - sheet.top + 24);
@@ -83,22 +84,28 @@
         info.close();activeBubble?.setAttribute('aria-expanded','false');
         clearRoute();
         for (const step of route?.steps || []) {
+          const path = transitContextPath(step).map(point => ({ lat: point.latitude, lng: point.longitude }));
+          if (path.length < 2) continue;
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: transitColor(step), strokeOpacity: .2, strokeWeight: 5, clickable: false, zIndex: 0 }));
+        }
+        for (const step of route?.steps || []) {
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
           if (path.length < 2) continue;
-          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, clickable: false }));
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, clickable: false, zIndex: 1 }));
         }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
           const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
           map.fitBounds(bounds, routePadding(element, { top }));
-          [points[0],points.at(-1)].forEach((point,index) => { const label = document.createElement('span');label.className = 'transit-waypoint';label.textContent=index?'B':'A';routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content:label,title:index?'Cel przejazdu':'Początek przejazdu',zIndex:300})); });
+          const destination = points.at(-1);
+          routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content: destinationElement(), title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
         return routeLines.length > 0;
       },
       showVehicles(vehicles) {
         vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
         for (const vehicle of vehicles || []) {
-          if (!validTransitPath([vehicle]).length) continue;
+          if (!validTransitPath([vehicle]).length || !freshVehicle(vehicle)) continue;
           vehicleMarkers.push(new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), zIndex:250 }));
         }
       },
@@ -180,19 +187,29 @@
       ready,
       clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
-        map.closePopup?.();transitLayer.clearLayers();const points=[];
+        map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
+        const points=(route?.steps || []).flatMap(step=>validTransitPath(step.path)).map(point=>[point.latitude,point.longitude]);
+        let lineCount=0;
+        for(const step of route?.steps || []){
+          const path=transitContextPath(step).map(point=>[point.latitude,point.longitude]);
+          if(path.length>1)L.polyline(path,{color:transitColor(step),weight:5,opacity:.2,interactive:false}).addTo(transitLayer);
+        }
         for (const step of route?.steps || []) {
           const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
-          if(path.length<2)continue;points.push(...path);
-          L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,dashArray:step.mode==='WALK'?'6 7':null}).addTo(transitLayer);
+          if(path.length<2)continue;lineCount++;
+          L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
-        if(points.length){const padding=routePadding(element,{top});map.fitBounds(points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});}
-        return points.length>0;
+        if(points.length){
+          const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
+          L.marker(points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
+          const padding=routePadding(element,{top});map.fitBounds(points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom]});
+        }
+        return lineCount>0;
       },
       showVehicles(vehicles) {
         vehicleLayer.clearLayers();
         for(const vehicle of vehicles||[]) {
-          if(!validTransitPath([vehicle]).length)continue;
+          if(!validTransitPath([vehicle]).length||!freshVehicle(vehicle))continue;
           L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[44,30],iconAnchor:[22,15]}),title:vehicleTitle(vehicle),zIndexOffset:250}).addTo(vehicleLayer);
         }
       },
@@ -231,9 +248,21 @@
   }
 
   function validTransitPath(points) { return Array.isArray(points) ? points.filter(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180) : []; }
+  function transitContextPath(step) { const path=validTransitPath(step.fullPath);return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&step.fullPathGeometry==='gtfs_shape'&&path.length===step.fullPath?.length?path:[]; }
+  function destinationElement() {
+    const pin=document.createElement('span');pin.className='transit-destination';pin.setAttribute('aria-hidden','true');
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 36 44');svg.setAttribute('width',DESTINATION_PIN.width);svg.setAttribute('height',DESTINATION_PIN.height);
+    const drop=document.createElementNS('http://www.w3.org/2000/svg','path');
+    drop.setAttribute('d','M18 43C14 37 3 29 3 18a15 15 0 0 1 30 0c0 11-11 19-15 25Z');drop.setAttribute('fill','currentColor');drop.setAttribute('stroke','#fff');drop.setAttribute('stroke-width','2');drop.setAttribute('stroke-linejoin','round');
+    const flag=document.createElementNS('http://www.w3.org/2000/svg','path');
+    flag.setAttribute('d','M13.5 26V11.5m0 1h10l-2.5 4 2.5 4h-10');flag.setAttribute('fill','none');flag.setAttribute('stroke','#fff');flag.setAttribute('stroke-width','2');flag.setAttribute('stroke-linecap','round');flag.setAttribute('stroke-linejoin','round');
+    svg.append(drop,flag);pin.append(svg);return pin;
+  }
   function transitColor(record) { return /^#[0-9a-f]{6}$/i.test(record.transportColor||'')?record.transportColor:'#65727f'; }
+  function freshVehicle(vehicle) { const age=Date.now()-Date.parse(vehicle.observedAt);return vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000; }
   function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+(vehicle.freshness==='recent'?'świeży pomiar':'pomiar nieaktualny lub bez czasu')+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
-  function vehicleElement(vehicle) { const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.backgroundColor=vehicle.freshness==='recent'?transitColor(vehicle):'#737d85';element.textContent=vehicle.line;element.title=vehicleTitle(vehicle);return element; }
+  function vehicleElement(vehicle) { const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.backgroundColor=transitColor(vehicle);element.textContent=vehicle.line;element.title=vehicleTitle(vehicle);return element; }
 
   function userDotElement(vendor) {
     const wrap = document.createElement('div');

@@ -12,7 +12,7 @@ function element(tag='div') {
 function fixture({vendor='google',compute,fetchImpl}={}) {
  const ids=Object.fromEntries(['panel','origin','destination','time','status','alternatives','itinerary','external','search','cancel','clear','form','gps','close','origin-note','observations','origin-options','destination-options','editor','details'].map(id=>['transit-'+id,element(id==='origin'||id==='destination'?'input':'div')]));
  for(const [id,node]of Object.entries(ids))node.id=id;ids['transit-panel'].append(...Object.entries(ids).filter(([id])=>id!=='transit-panel').map(([,node])=>node));
- for(const id of ['chat-messages','welcome-prompts','environment-bar','environment-route','environment-eta'])ids[id]=element();
+ for(const id of ['chat-messages','welcome-prompts','environment-bar','environment-route','environment-eta','environment-route-refresh'])ids[id]=element();
  const shell=element(),nav=['city-pulse','transit-live'].map(path=>{const e=element('a');e.dataset.path=path;return e;});
  const events={},calls=[];const map={vendor,clearRoute(){calls.push(['clear']);},showRoute(raw){calls.push(['route',raw]);return true;},showVehicles(vehicles){calls.push(['vehicles',vehicles]);},fitTo(){}};
  const doc={getElementById:id=>ids[id],querySelector:()=>shell,querySelectorAll:()=>nav,createElement:element,createElementNS:(_ns,tag)=>element(tag)};
@@ -57,12 +57,48 @@ test('missing graph and municipal errors do not fabricate ETA; cancellation and 
 });
 
 test('successful empty live snapshots replace old vehicle markers, and refresh outages clear current observations without removing route',async()=>{
- let mode='empty';const vehicle={latitude:52.2,longitude:21,line:'17',freshness:'recent'};const f=fixture({compute:async()=>({...result([route('current')]),vehicles:[vehicle],vehicleCount:1,vehicleProvided:1}),fetchImpl:async()=>{if(mode==='outage')throw new Error('offline');return{ok:true,json:async()=>({vehicles:mode==='nonempty'?[vehicle]:[],vehicleCount:mode==='nonempty'?1:0,vehicleProvided:mode==='nonempty'?1:0,liveModel:{trackedVehicles:1,confirmedTrips:0}})};}});
+ let mode='empty';const vehicle={latitude:52.2,longitude:21,line:'17',freshness:'recent',observedAt:new Date().toISOString()};const f=fixture({compute:async()=>({...result([route('current')]),vehicles:[vehicle],vehicleCount:1,vehicleProvided:1}),fetchImpl:async()=>{if(mode==='outage')throw new Error('offline');return{ok:true,json:async()=>({vehicles:mode==='nonempty'?[vehicle]:[],vehicleCount:mode==='nonempty'?1:0,vehicleProvided:mode==='nonempty'?1:0,liveModel:{trackedVehicles:1,confirmedTrips:0}})};}});
  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();assert.equal(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1].length,1);await f.panel.refreshLive();assert.deepEqual(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1],[]);assert.equal(f.panel.getState().routeCount,1);
  mode='nonempty';await f.panel.refreshLive();assert.equal(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1].length,1);mode='outage';await f.panel.refreshLive();assert.deepEqual(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1],[]);assert.ok(f.ids['transit-observations'].children.some(node=>node.textContent.includes('Wcześniejsze znaczniki zostały ukryte')));assert.equal(f.panel.getState().routeCount,1);
 });
 test('a late failed refresh cannot clear a newer successful current vehicle snapshot',async()=>{
- const jobs=[];const f=fixture({compute:async()=>result([route('current')]),fetchImpl:()=>new Promise((resolve,reject)=>jobs.push({resolve,reject}))});f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();const first=f.panel.refreshLive(),second=f.panel.refreshLive();jobs[1].resolve({ok:true,json:async()=>({vehicles:[{line:'17'},{line:'unrelated'}],vehicleCount:1,vehicleProvided:1})});await second;jobs[0].reject(new Error('old request failed'));await first;assert.equal(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1][0].line,'17');
+ const jobs=[];const f=fixture({compute:async()=>result([route('current')]),fetchImpl:()=>new Promise((resolve,reject)=>jobs.push({resolve,reject}))});f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();const first=f.panel.refreshLive(),second=f.panel.refreshLive();jobs[1].resolve({ok:true,json:async()=>({vehicles:[{line:'17',freshness:'recent',observedAt:new Date().toISOString()},{line:'unrelated',freshness:'recent',observedAt:new Date().toISOString()}],vehicleCount:1,vehicleProvided:1})});await second;jobs[0].reject(new Error('old request failed'));await first;assert.equal(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1][0].line,'17');
+});
+
+test('expired and unconfirmed vehicle positions disappear before a hanging refresh without removing the selected route',async()=>{
+ const originalNow=Date.now;let now=originalNow(),finish;
+ Date.now=()=>now;
+ try{
+  const fresh={line:'17',freshness:'recent',observedAt:new Date(now).toISOString()},old={...fresh,freshness:'stale'},unknown={...fresh,freshness:'unknown'},unrelated={...fresh,line:'unrelated'};
+  const f=fixture({compute:async()=>({...result([route('current')]),vehicles:[fresh,old,unknown,unrelated],vehicleProvided:4,vehicleCount:4}),fetchImpl:()=>new Promise(resolve=>finish=resolve)});
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();
+  assert.deepEqual(f.calls.filter(call=>call[0]==='vehicles').at(-1)[1],[fresh]);
+  assert.ok(f.ids['transit-observations'].children.some(node=>node.textContent.includes('Pomiary nieaktualne lub bez potwierdzonego czasu są ukryte')));
+  now+=90001;const pending=f.panel.refreshLive();
+  assert.deepEqual(f.calls.filter(call=>call[0]==='vehicles').at(-1)[1],[]);assert.equal(f.panel.getState().routeCount,1);assert.equal(f.ids['environment-bar'].dataset.route,'true');
+  finish({ok:true,json:async()=>({vehicles:[fresh],vehicleProvided:1,vehicleCount:1})});await pending;
+  assert.deepEqual(f.calls.filter(call=>call[0]==='vehicles').at(-1)[1],[]);
+ }finally{Date.now=originalNow;}
+});
+
+test('route-bar refresh recomputes the journey once, clears old ETA while pending and selects the new plan',async()=>{
+ const requests=[];let finish;const f=fixture({compute:async request=>{requests.push(request);return requests.length===1?result([route('old')]):new Promise(resolve=>finish=resolve);}});
+ const start={latitude:52.23,longitude:21.01,label:'Mój start'},goal={latitude:52.25,longitude:21.02,label:'Cel'};
+ f.panel.open({origin:start,destination:goal});await tick();f.ids['transit-alternatives'].children[0].click();
+ const refresh=f.ids['environment-route-refresh'];assert.equal(refresh.hidden,false);assert.equal(f.ids['environment-eta'].children.length,1);assert.match(f.ids['environment-eta'].attributes['aria-label'],/wg rozkładu/);
+ let prevented=0,stopped=0;refresh.listeners.click({preventDefault(){prevented++;},stopPropagation(){stopped++;}});
+ assert.equal(prevented,1);assert.equal(stopped,1);assert.equal(refresh.disabled,true);assert.equal(refresh.attributes['aria-busy'],'true');assert.equal(f.ids['environment-eta'].children[0].textContent,'Odświeżam…');
+ await f.panel.refreshRoute();assert.equal(requests.length,2);assert.deepEqual(requests[1].origin.value,{lat:52.23,lng:21.01});assert.deepEqual(requests[1].destination.value,{lat:52.25,lng:21.02});assert.ok(Math.abs(requests[1].departureTime.getTime()-Date.now())<1000);
+ finish(result([route('new')]));await tick();assert.equal(refresh.disabled,false);assert.equal(refresh.attributes['aria-busy'],'false');assert.equal(f.panel.getState().selected,0);assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'new');assert.match(f.ids['environment-eta'].children[0].textContent,/^ok\./);
+});
+
+test('route-bar refresh preserves a future departure and removes old ETA after failure',async()=>{
+ const originalNow=Date.now;Date.now=()=>Date.parse('2026-10-17T12:00:00Z');
+ try{
+  let request,count=0;const f=fixture({compute:async next=>{request=next;if(++count>1)throw new Error('offline');return result([route('old')]);}});
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';f.ids['transit-time'].value='2026-10-17T16:00';await f.panel.search();f.ids['transit-alternatives'].children[0].click();await f.panel.refreshRoute();
+  assert.equal(request.departureTime.toISOString(),'2026-10-17T14:00:00.000Z');assert.equal(f.panel.getState().status,'error');assert.equal(f.ids['environment-bar'].dataset.route,'false');assert.equal(f.ids['environment-eta'].hidden,true);assert.equal(f.ids['environment-route-refresh'].hidden,true);assert.equal(f.ids['environment-route-refresh'].disabled,false);assert.match(f.ids['transit-status'].textContent,/Nie udało się/);
+ }finally{Date.now=originalNow;}
 });
 
 test('each answer retains its own selectable cards; switching plans clears selection and does not revive GPS snapshots',async()=>{
@@ -72,7 +108,7 @@ test('each answer retains its own selectable cards; switching plans clears selec
  f.panel.open(detail);await tick();const plans=f.ids['chat-messages'].children.filter(node=>node.dataset.transit==='panel');assert.equal(plans.length,2);
  const newAlternatives=plans[1].querySelectorAll('*').find(node=>node.dataset.transit==='alternatives'),newCard=newAlternatives.children[0];
  assert.equal(oldCard.attributes['aria-pressed'],'false');assert.equal(f.ids['environment-bar'].dataset.route,'false');newCard.click();assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'plan-2');
- oldCard.click();assert.equal(oldCard.attributes['aria-pressed'],'true');assert.equal(newCard.attributes['aria-pressed'],'false');assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'plan-1');assert.deepEqual(f.calls.filter(call=>call[0]==='vehicles').at(-1)[1],[]);assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);
+ oldCard.click();assert.equal(oldCard.attributes['aria-pressed'],'true');assert.equal(newCard.attributes['aria-pressed'],'false');assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].id,'plan-1');assert.deepEqual(f.calls.filter(call=>call[0]==='vehicles').at(-1)[1],[]);assert.match(f.ids['environment-eta'].attributes['aria-label'],/zapisany plan/);
 });
 
 test('a superseded pending plan cannot replace the newer answer or expand its route bar',async()=>{
@@ -96,8 +132,8 @@ test('card and selected ETA age before a hanging request, after outage and after
  try{
   const delayed=route('live');delayed.steps[0].delay={deltaMs:120000,observedAt:now};
   const f=fixture({compute:async()=>result([delayed]),fetchImpl:()=>mode==='pending'?new Promise((_resolve,fail)=>reject=fail):Promise.resolve({ok:true,json:async()=>({vehicles:[],vehicleCount:0,vehicleProvided:0})})});
-  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();const cardLabel=f.ids['transit-alternatives'].querySelectorAll('small')[0];assert.match(cardLabel.textContent,/GPS \+2/);assert.match(f.ids['environment-eta'].children[1].textContent,/GPS \+2/);
-  now+=180001;const refresh=f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);reject(new Error('offline'));await refresh;assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);
-  mode='success';await f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();const cardLabel=f.ids['transit-alternatives'].querySelectorAll('small')[0];assert.match(cardLabel.textContent,/GPS \+2/);assert.match(f.ids['environment-eta'].attributes['aria-label'],/GPS \+2/);
+  now+=180001;const refresh=f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].attributes['aria-label'],/zapisany plan/);reject(new Error('offline'));await refresh;assert.match(f.ids['environment-eta'].attributes['aria-label'],/zapisany plan/);
+  mode='success';await f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].attributes['aria-label'],/zapisany plan/);
  }finally{Date.now=originalNow;}
 });

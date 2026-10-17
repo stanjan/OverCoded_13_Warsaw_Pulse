@@ -28,7 +28,15 @@ export function timingLabel(route,{archived=false,computedAt=Date.now(),now=Date
 export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}={}){
  const template=doc.getElementById('transit-panel');if(!template)return;
  const pristine=template.cloneNode(true),chat=doc.getElementById('chat-messages'),sessions=[];let active,current,used=false,serial=0;
- const routeBar=(route,context)=>{const bar=doc.getElementById('environment-bar'),chain=doc.getElementById('environment-route'),eta=doc.getElementById('environment-eta');if(!bar||!chain||!eta)return;const summary=bar.querySelector?.('summary');summary?.setAttribute('aria-label',route?'Pogoda i wybrana trasa '+route.origin+' → '+route.destination+'. Szacowany przyjazd '+compactTime(route.arrival)+' · '+timingLabel(route,context)+'. Rozwiń informacje o pogodzie.':'Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.');bar.dataset.route=String(Boolean(route));chain.hidden=!route;eta.hidden=!route;chain.replaceChildren();eta.replaceChildren();if(route){chain.append(routeChain(doc,route));const time=doc.createElement('strong');time.textContent='ok. '+compactTime(route.arrival);const basis=doc.createElement('small');basis.textContent=timingLabel(route,context);eta.append(time,basis);eta.setAttribute('aria-label','Szacowany przyjazd '+time.textContent+' · '+basis.textContent);}};
+ const routeBar=(route,context={})=>{
+  const bar=doc.getElementById('environment-bar'),chain=doc.getElementById('environment-route'),eta=doc.getElementById('environment-eta'),refresh=doc.getElementById('environment-route-refresh');if(!bar||!chain||!eta)return;
+  const pending=Boolean(context.refreshing&&!route),shown=Boolean(route)||pending,summary=bar.querySelector?.('summary');
+  summary?.setAttribute('aria-label',pending?'Pogoda. Odświeżam trasę.':route?'Pogoda i wybrana trasa '+route.origin+' → '+route.destination+'. Szacowany przyjazd '+compactTime(route.arrival)+' · '+timingLabel(route,context)+'. Rozwiń informacje o pogodzie.':'Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.');
+  bar.dataset.route=String(shown);chain.hidden=!shown;eta.hidden=!shown;if(!pending)chain.replaceChildren();eta.replaceChildren();
+  if(refresh){refresh.hidden=!shown;refresh.disabled=Boolean(context.refreshing);refresh.setAttribute('aria-busy',String(Boolean(context.refreshing)));}
+  if(shown){if(route)chain.append(routeChain(doc,route));const time=doc.createElement('strong');time.textContent=pending?'Odświeżam…':'ok. '+compactTime(route.arrival);eta.append(time);const label=pending?'Odświeżam trasę':'Szacowany przyjazd '+time.textContent+' · '+timingLabel(route,context);eta.setAttribute('aria-label',label);eta.title=label;}
+ };
+ doc.getElementById('environment-route-refresh')?.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();active?.refreshRoute();});
  function create(panel){
   const elements={};for(const element of [panel,...panel.querySelectorAll('[id]')]){const name=element.id.replace('transit-','');elements[name]=element;element.dataset.transit=name;}
   // Labels and datalists remain unique even when multiple plans stay in chat history.
@@ -44,10 +52,10 @@ export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}=
  function appendConversation(panel,detail){const welcome=doc.getElementById('welcome-prompts');if(welcome)welcome.hidden=true;const answer=doc.createElement('p');answer.className='message';answer.textContent=detail.destination?'Sprawdźmy połączenia komunikacją miejską.':'Dokąd jedziemy? Wybierz start i cel.';chat?.append(answer,panel);}
  host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());if(!used)sessions.push(current);active=null;routeBar(null);});
  host.addEventListener('city:transit',event=>open(event.detail));host.addEventListener('city:pulse',()=>{active?.close();});host.addEventListener('city:map',()=>active?.replay());host.addEventListener('city:location',event=>active?.location(event.detail));
- return{open,search:(...args)=>current.search(...args),refreshLive:()=>active?.refreshLive(),reset:()=>active?.reset(),getState:()=>current.getState()};
+ return{open,search:(...args)=>current.search(...args),refreshLive:()=>active?.refreshLive(),refreshRoute:()=>active?.refreshRoute(),reset:()=>active?.reset(),getState:()=>current.getState()};
 }
 function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession,isActive,routeBar}={}) {
- const el=id=>elements[id];let api,computedAt=0,archived=false;
+ const el=id=>elements[id];let api,computedAt=0,archived=false,refreshing=false;
  const origin=el('origin'),destination=el('destination'),time=el('time'),status=el('status'),alternatives=el('alternatives'),itinerary=el('itinerary'),observations=el('observations');
  let liveTimer=null,liveController=null,liveSequence=0;
  let gpsMode=false,selectedDestination=null,selectedOrigin=null,state={status:'idle',routes:[]},selected=-1;
@@ -60,14 +68,15 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
   alternatives.querySelectorAll('small').forEach((label,index)=>label.textContent=timingLabel(state.routes[index],{computedAt,archived}));
   if(isActive(api)&&selected>=0){const route=state.routes[selected];routeBar(route,{computedAt,archived});if(status.dataset.compact==='true')message('Wybrano trasę · przyjazd ok. '+compactTime(route.arrival)+' · '+timingLabel(route,{computedAt,archived}));}
  }
- function clearView(){liveSequence++;liveController?.abort();if(isActive(api)){map()?.clearRoute?.();routeBar(null);}alternatives.replaceChildren();itinerary.replaceChildren();observations.replaceChildren();selected=-1;}
+ function clearView(){liveSequence++;liveController?.abort();if(isActive(api)){map()?.clearRoute?.();routeBar(null,{refreshing});}alternatives.replaceChildren();itinerary.replaceChildren();observations.replaceChildren();selected=-1;}
  function showObservations(){
   observations.replaceChildren();
-  const lines=new Set((state.routes[selected]?.steps||[]).filter(step=>step.mode==='TRANSIT').map(step=>String(step.line)));if(isActive(api))map()?.showVehicles?.(archived?[]:(state.vehicles||[]).filter(vehicle=>lines.has(String(vehicle.line))));if(archived)observations.append(node('p','Poniżej dane zapisane przy obliczaniu planu, a nie bieżące obserwacje. Odśwież połączenie przed wyjazdem.','transit-note'));
+  const fresh=(state.vehicles||[]).filter(vehicle=>{const age=Date.now()-Date.parse(vehicle.observedAt);return vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000;});
+  const lines=new Set((state.routes[selected]?.steps||[]).filter(step=>step.mode==='TRANSIT').map(step=>String(step.line)));if(isActive(api))map()?.showVehicles?.(archived?[]:fresh.filter(vehicle=>lines.has(String(vehicle.line))));if(archived)observations.append(node('p','Poniżej dane zapisane przy obliczaniu planu, a nie bieżące obserwacje. Odśwież połączenie przed wyjazdem.','transit-note'));
   if(state.liveRefreshUnavailable)observations.append(node('p','Nie można odświeżyć pozycji pojazdów. Wcześniejsze znaczniki zostały ukryte; połączenie pozostaje obliczonym wcześniej planem.','transit-note'));
   if(state.liveModel&&!state.liveRefreshUnavailable)observations.append(node('p','Model GPS: obserwowane pojazdy '+state.liveModel.trackedVehicles+' · potwierdzone kursy '+state.liveModel.confirmedTrips+'. Korekta wymaga zgodnej brygady i postojów na dwóch kolejnych przystankach; bez dopasowania obowiązuje rozkład.','transit-note'));
   if(state.graphSource){const source=state.graphSource;observations.append(node('p','Rozkład ZTM: '+source.validFrom+' – '+source.validTo+' · pobrano '+timeLabel(Date.parse(source.fetchedAt))+' · dane przetworzone przez aplikację.','transit-note'));const url=safeLink(source.documentationUrl||source.url);if(url)observations.append(link('Źródło rozkładu ZTM ↗',url));}
-  if(state.vehicles?.length){const recent=state.vehicles.filter(v=>v.freshness==='recent').length;observations.append(node('p','Pozycje pojazdów w pobliżu startu/celu: '+state.vehicleProvided+' z '+state.vehicleCount+' · świeże pomiary: '+recent+'. Szare znaczniki są nieaktualne lub bez potwierdzonego czasu. Na mapie pokazuję tylko linie wybranego połączenia. Sama zgodność linii nie oznacza dopasowania pojazdu do kursu ani ETA.','transit-note'));}
+  if(state.vehicles?.length){observations.append(node('p','Pozycje pojazdów w pobliżu startu/celu: '+state.vehicleProvided+' z '+state.vehicleCount+' · świeże pomiary: '+fresh.length+'. Na mapie pokazuję tylko świeże pozycje linii wybranego połączenia. Pomiary nieaktualne lub bez potwierdzonego czasu są ukryte. Sama zgodność linii nie oznacza dopasowania pojazdu do kursu ani ETA.','transit-note'));}
   if(state.departures?.length){const heading=node('h3','Odjazdy z miejskiego API');observations.append(heading,node('p','Godziny bez potwierdzonej daty obowiązywania — nie służą do łączenia kursów ani wyznaczania ETA. Sprawdzono do 2 przystanków przy każdym końcu i do 1 linii na przystanek.','transit-note'));
    for(const departure of state.departures){const card=node('details',null,'transit-departures'),summary=node('summary',departure.stopName+' · '+departure.stopId+' · linia '+departure.line+' ('+departure.records.length+' godzin)');card.append(summary);for(const record of departure.records)card.append(node('p',[record.clock,record.direction,record.brigade?'brygada '+record.brigade:'',record.variant?'wariant '+record.variant:''].filter(Boolean).join(' · ')));observations.append(card);}
   }
@@ -101,10 +110,18 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  const planner=createPlanner({compute,onState:render});
  async function refreshLive(){
   // Presentation freshness must age even when the request hangs or fails.
-  if(isActive(api)&&!panel.hidden)ageTiming();
+  if(isActive(api)&&!panel.hidden){ageTiming();if(['ready','limited'].includes(state.status))showObservations();}
   if(!isActive(api)||panel.hidden||archived||!['ready','limited'].includes(state.status)||!state.origin||!state.destination)return;
   const sequence=++liveSequence;liveController?.abort();liveController=new AbortController();
   try{const response=await fetchImpl('/api/transit/live',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([liveController.signal,AbortSignal.timeout(10000)]),body:JSON.stringify({origin:state.origin,destination:state.destination})});if(!response.ok)throw new Error('Vehicle refresh unavailable');const data=await response.json();if(sequence!==liveSequence)return;if(!Array.isArray(data.vehicles))throw new Error('Invalid vehicle snapshot');Object.assign(state,{vehicles:data.vehicles,vehicleCount:data.vehicleCount,vehicleProvided:data.vehicleProvided,liveModel:data.liveModel,liveRefreshUnavailable:false});showObservations();ageTiming();}catch{if(sequence!==liveSequence)return;Object.assign(state,{vehicles:[],vehicleCount:0,vehicleProvided:0,liveRefreshUnavailable:true});showObservations();ageTiming();}
+ }
+ async function refreshRoute(){
+  if(refreshing||state.status!=='ready'||selected<0)return;
+  refreshing=true;
+  // Keep a future departure chosen by the user; a passed time means leave now.
+  try{if(warsawDeparture(time.value).getTime()<Date.now())time.value='';}catch{time.value='';}
+  try{await search();if(isActive(api)&&state.status==='ready')select(0);}
+  finally{refreshing=false;if(isActive(api)){if(state.status==='ready'&&selected>=0)ageTiming();else routeBar(null);}}
  }
  function activate(on){panel.hidden=!on;if(on){activateSession(api);host.expandCitySheet?.();}else{if(liveTimer)clearInterval(liveTimer);liveTimer=null;liveController?.abort();liveSequence++;if(isActive(api)){map()?.clearRoute?.();map()?.showVehicles?.([]);routeBar(null);}}  }
  function startRefresh(){if(liveTimer)clearInterval(liveTimer);liveTimer=setInterval(refreshLive,15000);liveTimer.unref?.();}
@@ -116,6 +133,6 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  autocomplete(origin,el('origin-options'));autocomplete(destination,el('destination-options'));
  el('form').addEventListener('submit',search);el('gps').addEventListener('click',gps);el('cancel').addEventListener('click',()=>planner.reset('cancelled'));el('clear').addEventListener('click',()=>planner.reset());el('close').addEventListener('click',()=>{planner.reset();activate(false);});
  origin.addEventListener('input',()=>{gpsMode=false;selectedOrigin=null;el('origin-note').textContent='Wybierz przystanek z listy lub wpisz współrzędne.';planner.reset();});destination.addEventListener('input',()=>{selectedDestination=null;planner.reset();});time.addEventListener('input',()=>planner.reset());
- api={open,search,refreshLive,suspend,replay(){if(state.status==='ready'&&selected>=0)select(selected);else if(state.status==='limited')showObservations();},location(detail){if(!gpsMode)return;try{gpsOrigin(detail);}catch{planner.reset();message('Lokalizacja utraciła aktualność. Odśwież GPS lub wpisz start.',true);}},reset:()=>planner.reset(),close(){planner.reset();activate(false);},getState:()=>({status:state.status,selected,routeCount:state.routes.length})};return api;
+ api={open,search,refreshLive,refreshRoute,suspend,replay(){if(state.status==='ready'&&selected>=0)select(selected);else if(state.status==='limited')showObservations();},location(detail){if(!gpsMode)return;try{gpsOrigin(detail);}catch{planner.reset();message('Lokalizacja utraciła aktualność. Odśwież GPS lub wpisz start.',true);}},reset:()=>planner.reset(),close(){planner.reset();activate(false);},getState:()=>({status:state.status,selected,routeCount:state.routes.length})};return api;
 }
 if(typeof document!=='undefined')mountTransit();

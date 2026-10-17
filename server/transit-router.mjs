@@ -2,6 +2,7 @@ import {TransitError,distanceMeters,dateInWarsaw,transitAppearance} from '../tra
 const WALK_SPEED=1.2,WALK_FACTOR=1.3,TRANSFER_BUFFER=120000;
 const walkMs=distance=>Math.ceil(distance*WALK_FACTOR/WALK_SPEED)*1000;
 const coordinate=point=>({latitude:point.latitude,longitude:point.longitude});
+const validShape=shape=>Array.isArray(shape)&&shape.length>1&&shape.every(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point?.longitude)&&Math.abs(point.longitude)<=180);
 export function validateGraph(graph) {
  if(!graph||!Array.isArray(graph.stops)||!Array.isArray(graph.trips)||!graph.source||graph.timeZone!=='Europe/Warsaw')throw new TransitError('GRAPH_INVALID','Nieprawidłowy graf rozkładu ZTM.');
  let url;try{url=new URL(graph.source.url);}catch{throw new TransitError('GRAPH_INVALID','Brak źródła grafu.');}
@@ -29,8 +30,8 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
     if(boarding&&event.dropOff===0&&event.arrival>=boarding.event.departure&&event.arrival<=departureTime+horizonMs){
      const existing=next.get(stop.id);if(!existing||event.arrival<existing.time){
       const from=byId.get(boarding.event.stopId),sequence=trip.stopTimes.slice(boarding.index,index+1).map(item=>byId.get(item.stopId)).filter(Boolean);
-      const path=trip.shape&&trip.shape.length?shapeSlice(trip.shape,boarding.event,event,byId):sequence.map(coordinate);
-      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:path.length>1?path:sequence.map(coordinate),geometry:trip.shape&&path.length>1?'gtfs_shape':'schematic'}]});
+      const shapePath=validShape(trip.shape)?shapeSlice(trip.shape,boarding.event,event,byId):[];
+      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:shapePath.length>1?shapePath:sequence.map(coordinate),geometry:shapePath.length>1?'gtfs_shape':'schematic'}]});
      }
     }
     const label=previous.get(stop.id),buffer=round>1&&label?.path.some(segment=>segment.mode==='TRANSIT')?TRANSFER_BUFFER:0;
@@ -44,7 +45,13 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
   previous=next;
  }
  const distinct=new Map();for(const route of candidates.sort((a,b)=>a.arrival-b.arrival||a.transfers-b.transfers)){const key=route.steps.filter(step=>step.mode==='TRANSIT').map(step=>step.tripId+'@'+step.fromStopId+'>'+step.toStopId).join('|');if(!distinct.has(key))distinct.set(key,route);}
- return [...distinct.values()].slice(0,3);
+ // Attach the exact trip's full geometry only after routing: intermediate labels
+ // must not repeatedly copy whole lines while searching every stop/round.
+ const tripsById=new Map(graph.trips.map(trip=>[trip.id,trip]));
+ return [...distinct.values()].slice(0,3).map(route=>({...route,steps:route.steps.map(step=>{
+  const trip=tripsById.get(step.tripId);
+  return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&validShape(trip?.shape)?{...step,fullPath:trip.shape.map(coordinate),fullPathGeometry:'gtfs_shape'}:step;
+ })}));
 }
 function shapeSlice(shape,from,to,byId){
  const a=byId.get(from.stopId),b=byId.get(to.stopId);if(!a||!b)return[];
