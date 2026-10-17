@@ -197,7 +197,20 @@
 </div>
 <!-- COLLAPSIBLE CONTENT SECTION (Greeting & Quick Prompt Cards) -->
 <div class="w-full flex flex-col overflow-hidden px-margin" id="sheet-content" >
-<section id="place-results" aria-label="Wyniki na mapie"></section><div id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><div id="welcome-prompts"><!-- Greeting Text -->
+<section id="transit-panel" aria-labelledby="transit-heading" hidden>
+<div class="transit-heading"><div><p class="transit-eyebrow">KOMUNIKACJA MIEJSKA</p><h2 id="transit-heading">Jak dojedziemy?</h2></div><button type="button" id="transit-close" aria-label="Wróć do Pulse">✕</button></div>
+<form id="transit-form">
+<label for="transit-origin">Skąd</label><div class="transit-origin-row"><input id="transit-origin" maxlength="200" autocomplete="off" list="transit-origin-options" placeholder="Przystanek lub współrzędne"><button type="button" id="transit-gps">Mój GPS</button></div>
+<datalist id="transit-origin-options"></datalist><p id="transit-origin-note" class="transit-note">Podaj punkt startowy lub użyj świeżej lokalizacji.</p>
+<label for="transit-destination">Dokąd</label><input id="transit-destination" maxlength="200" autocomplete="off" list="transit-destination-options" placeholder="Przystanek lub współrzędne" required>
+<datalist id="transit-destination-options"></datalist><p class="transit-note">Cel wydarzenia wybierzesz też przyciskiem Dojedź na mapie.</p><label for="transit-time">Wyjazd · czas Warszawy</label><input id="transit-time" type="datetime-local" aria-describedby="transit-time-note"><p id="transit-time-note" class="transit-note">Puste pole oznacza wyjazd teraz.</p>
+<div class="transit-controls"><button type="submit" id="transit-search">Znajdź połączenie</button><button type="button" id="transit-cancel" hidden>Przerwij</button><button type="button" id="transit-clear" hidden>Usuń trasę</button></div>
+</form>
+<p id="transit-status" role="status" aria-live="polite" class="transit-note">Wybierz cel, by porównać połączenia.</p>
+<div id="transit-alternatives" aria-label="Dostępne połączenia"></div><div id="transit-itinerary"></div>
+<div id="transit-observations"></div>
+<p class="transit-note transit-attribution">Źródła: ZTM Warszawa (datowany GTFS) i miejskie API odjazdów oraz pozycji pojazdów. ETA z rozkładu; świeża korekta GPS jest stosowana tylko do pewnie dopasowanego kursu. Model przechowuje aktualny stan w pamięci, bez historii GPS na dysku.</p>
+</section><section id="place-results" aria-label="Wyniki na mapie"></section><div id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><div id="welcome-prompts"><!-- Greeting Text -->
 <div class="w-full pt-1 pb-3 text-center flex flex-col items-center shrink-0"><h1 class="text-[22px] text-slate-900 font-bold tracking-tight" style="letter-spacing: -0.03em; font-weight: 800;"><span class="anim-title">Dzień dobry, Warszawa.</span></h1>
 <p class="text-[15px] text-slate-500 font-normal mt-0.5 tracking-tight" style="line-height: 1.4;">Czym żyje dziś miasto?</p></div>
 <!-- Quick Action Prompt Cards -->
@@ -287,6 +300,7 @@
 <script src="/map.js" defer></script>
 <script src="/app.js" defer></script>
 <script src="/environment.js" defer></script>
+<script type="module" src="/transit-ui.mjs"></script>
 
 
 </main></body></html>

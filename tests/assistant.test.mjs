@@ -6,6 +6,25 @@ import { provider } from './catalog-fixture.mjs';
 const createAssistant = options => createRealAssistant({ ...options, provider });
 const executeTool = (name,args,state) => executeRealTool(name,args,state,provider);
 const call = (name, args) => ({ id: crypto.randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+test('transit planning streams a verified destination action without claiming a calculated ETA', async () => {
+  let step = 0;
+  const events = [];
+  const assistant = createAssistant({ completion: async history => {
+    if (++step === 1) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (step === 2) return { tool_calls: [call('plan_transit', { destinationId: 'demo-kopernik' })] };
+    const result = JSON.parse(history.at(-1).content);
+    assert.equal(result.status, 'planning_requested');
+    assert.equal(Object.hasOwn(result, 'routes'), false);
+    assert.equal(Object.hasOwn(result, 'eta'), false);
+    return { content: 'Otwieram panel dojazdu komunikacją miejską.' };
+  } });
+  const answer = await assistant.chat({ message: 'Jak dojechać do Kopernika komunikacją?' }, undefined, event => events.push(event));
+  assert.deepEqual(answer.actions, [{ type: 'plan_transit', destination: { latitude: 52.2418, longitude: 21.0287, label: 'Kopernik' } }]);
+  assert.equal(Object.hasOwn(answer.actions[0], 'origin'), false);
+  assert.ok(events.some(event => event.type === 'action' && event.action.type === 'plan_transit'));
+  assert.ok(events.some(event => event.type === 'progress' && event.label === 'Otwieram planowanie dojazdu…'));
+});
+
 test('data inventory answers without fetching records or replacing a prior selection', async () => {
   let searches = 0, step = 0;
   const noFetch = { search: async () => { searches++; throw new Error('Inventory must not fetch'); } };
@@ -123,7 +142,7 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
     const reply = await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (url, init) => {
       assert.equal(url, 'http://127.0.0.1:9999/v1/chat/completions');
-      assert.equal(JSON.parse(init.body).tools.length, 5);
+      assert.equal(JSON.parse(init.body).tools.length, 6);
       return { ok: true, json: async () => ({ choices: [{ message: { content: 'Cześć!' } }] }) };
     } });
     assert.equal(reply.content, 'Cześć!');

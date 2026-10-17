@@ -124,3 +124,48 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 @media (max-width: 370px) { .weather-bar summary { gap: 5px; padding-inline: 9px; font-size: 10px; } #environment-weather { font-size: 12px; } #environment-icon { font-size: 18px; } }
 .weather-bar[open] { z-index: 40; }
 .environment-details { max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Transit lives in the same sheet; map attribution stays above it. */
+#transit-panel[hidden], #transit-panel [hidden] { display: none !important; }
+.app-shell[data-section='transit'] #place-results, .app-shell[data-section='transit'] #chat-messages, .app-shell[data-section='transit'] #welcome-prompts, .app-shell[data-section='transit'] #search-container { display: none; }
+#transit-panel { padding: 2px 0 18px; color: #263442; font-size: 13px; user-select: text; }
+.transit-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; }
+.transit-heading h2 { font-size: 23px; font-weight: 800; letter-spacing: -.7px; margin: 3px 0; }
+.transit-eyebrow { color: #a14d32; font-size: 10px; letter-spacing: 1.3px; font-weight: 800; }
+#transit-panel button, #transit-panel a { min-height: 44px; cursor: pointer; }
+#transit-panel label { display: block; font-size: 12px; font-weight: 800; margin: 12px 0 5px; }
+#transit-panel input { min-height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #c8d1d9; border-radius: 12px; background: white; padding: 10px 12px; font: inherit; font-size: 16px; }
+#transit-panel input:focus-visible { outline: 2px solid #0051d5; outline-offset: 1px; }
+.transit-origin-row { display: flex; gap: 8px; }
+.transit-origin-row input { min-width: 0; flex: 1; }
+#transit-gps { flex: 0 0 76px; border-radius: 12px; background: #e8eef5; color: #174b77; font-weight: 700; }
+.transit-note { font-size: 11px; line-height: 1.6; color: #65727f; margin: 6px 0; }
+.transit-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.transit-controls button { border: 1px solid #cbd3da; border-radius: 12px; padding: 9px 13px; font-weight: 700; }
+#transit-search { background: #b95637; color: #fff; border-color: #b95637; }
+#transit-search:disabled { opacity: .6; cursor: wait; }
+#transit-status[data-state='error'] { color: #9a3329; background: #ffebe6; padding: 10px; border-radius: 10px; }
+.transit-alternative { display: block; text-align: left; width: 100%; border: 1px solid #d6dce0; border-radius: 14px; margin-top: 8px; padding: 12px; background: white; }
+.transit-alternative[aria-pressed='true'] { border: 2px solid #b95637; background: #fff8f2; }
+.transit-alternative strong, .transit-alternative span { display: block; }
+.transit-alternative strong { font-size: 14px; }
+.transit-alternative span { font-size: 11px; line-height: 1.7; color: #5d6973; margin-top: 3px; }
+#transit-itinerary { margin-top: 14px; }
+#transit-itinerary h3 { font-size: 15px; font-weight: 800; margin: 12px 0 5px; }
+#transit-itinerary ol { list-style: none; margin: 9px 0; padding: 0; }
+#transit-itinerary li { position: relative; border-left: 2px solid #d6c6b8; margin-left: 5px; padding: 4px 0 15px 16px; font-size: 12px; line-height: 1.6; }
+#transit-itinerary li::before { content: ''; position: absolute; top: 7px; left: -5px; width: 8px; height: 8px; background: #b95637; border-radius: 50%; }
+#transit-itinerary li strong { display: block; }
+#transit-itinerary li p { margin: 4px 0; }
+#transit-external, #transit-itinerary a { display: inline-flex; align-items: center; color: #a14d32; text-decoration: underline; font-weight: 700; }
+.transit-attribution { border-top: 1px solid #e1e5e8; padding-top: 9px; margin-top: 12px; }
+.result-detail__transit { display: block; min-height: 44px; color: #a14d32; font-size: 12px; font-weight: 800; }
+.app-shell > nav a[aria-current='page'] { color: #b95637; }
+
+.app-shell > nav a:not([aria-current='page']) { color: #65727f; }
+
+.transit-waypoint { display: grid; place-items: center; width: 29px; height: 29px; border: 2px solid white; border-radius: 50%; background: #a6462c; color: white; font: 800 13px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 7px #0004; }
+
+.transit-vehicle { display: grid; place-items: center; min-width: 39px; height: 28px; padding: 2px 5px; border: 2px solid white; border-radius: 9px; background: #9a3e70; color: white; font: 800 11px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 5px #0003; }
+.transit-vehicle[data-freshness='stale'], .transit-vehicle[data-freshness='unknown'] { background: #737d85; opacity: .7; }
+.transit-departures { padding: 10px; border: 1px solid #d6dce0; border-radius: 12px; margin: 9px 0; font-size: 12px; line-height: 1.6; }
