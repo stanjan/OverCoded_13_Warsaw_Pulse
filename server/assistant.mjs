@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { toolDefinitions, executeTool } from './tools.mjs';
 import { filtersSchema } from '../mcp/tools.mjs';
+import { normalizeLocation, locationContext } from './location.mjs';
 export const SYSTEM_PROMPT = `Jesteś asystentem Warszawy. Odpowiadaj wyłącznie po polsku w 1–3 krótkich zdaniach. Korzystaj z miejskiego MCP przez search_places. Z rozmowy wyciągaj znane preferencje: dzielnicę, daty, rodzaj aktywności, odbiorców, dzień tygodnia, długość trasy i obszar mapy; nie zgaduj lokalizacji. Kategorie: event, sports, weather, pitch, route, air_quality.
 Na pytania o dostępne dane, źródła lub możliwości (np. „jakie dane masz dostępne?”) użyj list_data_sources i opisz kategorie, bez search_places i bez pobierania całego katalogu. Opis konfiguracji nie potwierdza dostępności ani świeżości źródeł.
 Wyszukiwanie zwraca wszystkie trafienia; oceń je według całego kontekstu i przekaż WSZYSTKIE wybrane trafne identyfikatory do display_results wraz z 1–3 najlepszymi highlightIds (dla pustej listy obie listy puste). Nie stosuj arbitralnego limitu 20 ani nie pomijaj części wyników przez rozmiar. filter_results zawęża poprzedni zbiór. focus_map zmienia tylko mapę.
@@ -91,7 +92,7 @@ export async function bridgeCompletion(messages, { signal, fetchImpl = fetch, on
 }
 export function createAssistant({ completion = bridgeCompletion, provider, now = () => new Date() } = {}) {
   const sessions = new Map();
-  return { async chat({ message, sessionId }, signal, onEvent) {
+  return { async chat({ message, sessionId, location }, signal, onEvent) {
     if (typeof message !== 'string' || !message.trim() || message.length > 4000) throw new BridgeError('Wpisz pytanie o długości do 4000 znaków.', 400);
     for (const [id, s] of sessions) if (!s.busy && Date.now() - s.updatedAt > 1800000) sessions.delete(id);
     let session = typeof sessionId === 'string' ? sessions.get(sessionId) : null;
@@ -107,7 +108,8 @@ export function createAssistant({ completion = bridgeCompletion, provider, now =
     emit({ type: 'session', sessionId });
     let publishedDisplay, completed = false;
     const state = { results: [...session.results], actions: [], searchMeta: session.searchMeta };
-    const timeContext = { role: 'system', content: 'Data i czas rozmowy (Europe/Warsaw): ' + new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', dateStyle: 'full', timeStyle: 'short' }).format(now()) };
+    const turnTime = now();
+    const timeContext = { role: 'system', content: 'Data i czas rozmowy (Europe/Warsaw): ' + new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', dateStyle: 'full', timeStyle: 'short' }).format(turnTime) + '\n' + locationContext(normalizeLocation(location, turnTime)) };
     const history = [{ role: 'system', content: SYSTEM_PROMPT }, ...session.messages, timeContext, { role: 'user', content: message.trim() }];
     try {
       for (let round = 0; round < 6; round++) {

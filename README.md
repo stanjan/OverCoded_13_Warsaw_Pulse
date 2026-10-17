@@ -29,6 +29,8 @@ The UI receives live SSE progress, completed steps, elapsed time, assistant text
 
 The backend stores conversations in memory for 30 minutes, uses a Polish concise-answer system prompt, handles tool calls, limits tool rounds, and validates tool arguments. Restarting the server clears conversation state. It binds to loopback and accepts chat requests only from its own origin. This is local development, not an authenticated public deployment. `npm run build` produces frontend assets only; the assistant still requires the Node server.
 
+Each assistant turn includes the current browser location status. Available fixes carry validated coordinates, accuracy in metres, observation time and optional altitude/heading/speed; fixes older than five minutes are labelled stale and undated fixes have unknown freshness. Missing or refused location is explicit and never replaced with the map centre or a previous turn's coordinates. No street address or district is inferred from coordinates. The browser also publishes `city:location` events and exposes `window.getCityLocation()` for location-aware UI modules.
+
 Tools available to the assistant:
 
 - `search_places`: complete matching official data, with category, district, query, activity, audience, weekday, dates, map bounds and route-length filters.

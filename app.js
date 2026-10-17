@@ -80,11 +80,18 @@ const CENTER = window.CITY_CENTER || { lat: 52.2318, lng: 21.006, zoom: 12 };
 const gpsButton = document.querySelector('#gps-button');
 let watchId = null;
 let lastPosition = null; // { lat, lng, accuracy }
+let locationSnapshot = { status: 'unavailable', reason: 'not_requested' };
+window.getCityLocation = () => ({ ...locationSnapshot });
+function updateLocationSnapshot(snapshot) {
+  locationSnapshot = snapshot;
+  window.dispatchEvent(new CustomEvent('city:location', { detail: { ...snapshot } }));
+}
 function setGpsState(state) {
   gpsButton.dataset.state = state;
   const labels = { idle: 'Pokaż moją lokalizację', locating: 'Szukam lokalizacji…', active: 'Wyśrodkuj na mojej lokalizacji', denied: 'Lokalizacja niedostępna — wyśrodkuj mapę Warszawy' };
   gpsButton.setAttribute('aria-label', labels[state]);
   gpsButton.title = labels[state];
+  if (state !== 'active') updateLocationSnapshot({ status: 'unavailable', reason: { idle: 'not_requested', locating: 'locating', denied: 'unavailable' }[state] || 'unavailable' });
 }
 setGpsState('idle');
 function centerOnUser() {
@@ -107,6 +114,9 @@ function startLocating({ auto = false } = {}) {
     clearTimeout(stuckTimer);
     const { latitude: lat, longitude: lng, accuracy } = position.coords;
     lastPosition = { lat, lng, accuracy };
+    const observedAt = Number.isFinite(position.timestamp) && Math.abs(position.timestamp) <= 8640000000000000 ? new Date(position.timestamp).toISOString() : null;
+    const { altitude, altitudeAccuracy, heading, speed } = position.coords;
+    updateLocationSnapshot({ status: 'available', latitude: lat, longitude: lng, accuracy, observedAt, altitude, altitudeAccuracy, heading, speed });
     cityMap?.showUser(lastPosition);
     setGpsState('active');
     if (first) { first = false; centerOnUser(); }
@@ -116,6 +126,7 @@ function startLocating({ auto = false } = {}) {
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     setGpsState('denied');
+    if (error.code === error.PERMISSION_DENIED) updateLocationSnapshot({ status: 'unavailable', reason: 'denied' });
     if (auto) return;
     cityMap?.setView(CENTER, CENTER.zoom);
     // Location not found: the red button is enough. Only a refused permission explains itself.
@@ -266,7 +277,7 @@ async function send() {
   const renderStatus = () => { status.textContent = stage + ' · ' + Math.floor((Date.now() - startedAt) / 1000) + ' s'; };
   renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
   try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true }), signal: controller.signal });
+    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true, location: window.getCityLocation() }), signal: controller.signal });
     if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Nie udało się uzyskać odpowiedzi.'); }
     if (!response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('Serwer nie obsługuje transmisji odpowiedzi. Odśwież aplikację.');
     for await (const event of chatEvents(response.body)) {
