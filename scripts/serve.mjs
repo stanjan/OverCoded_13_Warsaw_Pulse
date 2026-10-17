@@ -11,8 +11,8 @@ if (process.env.DATA_API_KEY) transitService.startTracking().catch(() => {});
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
 const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `${host}:${port}`]);
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.jpg': 'image/jpeg' };
-const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg', '/transit-ui.mjs', '/transit-core.mjs']);
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg', '/transit-ui.mjs', '/transit-core.mjs', '/sw.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png', '/icons/apple-touch-icon.png']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
