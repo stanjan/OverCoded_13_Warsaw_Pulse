@@ -22,6 +22,7 @@
   "payments": "M3 6h18v12H3V6Zm9 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6M6 9h.01M18 15h.01",
   "money_off": "M3 6h18v12H3V6Zm9 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6M2 3l20 18",
   "close": "M6 6l12 12M18 6 6 18",
+  "open_in_full": "M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7",
   "schedule": "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0m-9-5v6l4 2",
   "hourglass_top": "M6 2h12M6 22h12M7 2v5l10 10v5M17 2v5L7 17v5",
   "water": "M2 7q3-3 6 0t6 0 6 0m-18 5q3-3 6 0t6 0 6 0m-18 5q3-3 6 0t6 0 6 0",

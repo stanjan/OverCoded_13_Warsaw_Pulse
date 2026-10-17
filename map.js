@@ -316,7 +316,7 @@
     if (/odpłatn|płatn|bilet|\d+\s*zł/.test(words)) return { kind: 'paid', label: 'Płatne' };
     return { kind: 'unknown', label: 'Cena: sprawdź u organizatora' };
   }
-  function resultDetails(place, recommended) {
+  function resultDetails(place, recommended, full = false) {
     const card = document.createElement('article'); card.className = 'result-detail';
     card.append(thumbnail(place, true));
     const body = document.createElement('div'); body.className = 'result-detail__body';
@@ -357,7 +357,39 @@
       transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
       body.append(transit);
     }
-    card.append(body); return card;
+    card.append(body);
+    if (!full) {
+      // Expand button on the photo's top-left corner (the close button sits top-right).
+      const expand = document.createElement('button'); expand.type = 'button'; expand.className = 'result-detail__expand';
+      expand.setAttribute('aria-label', 'Pełny ekran'); expand.title = 'Pełny ekran';
+      const expandIcon = document.createElement('span'); expandIcon.className = 'material-symbols-outlined'; expandIcon.setAttribute('aria-hidden', 'true'); expandIcon.textContent = 'open_in_full';
+      expand.append(expandIcon);
+      expand.addEventListener('click', event => { event.stopPropagation(); openFullDetails(place, recommended); });
+      card.append(expand); // absolutely positioned; kept last so the photo and body stay first
+    }
+    return card;
+  }
+  // Full-screen event view over the whole app; closes with the back button, Escape or a swipe down.
+  function openFullDetails(place, recommended) {
+    const shell = document.querySelector('.app-shell') || document.body;
+    shell.querySelector('.event-full')?.remove();
+    const overlay = document.createElement('div'); overlay.className = 'event-full';
+    overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', place.name);
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'event-full__back'; back.setAttribute('aria-label', 'Zamknij pełny opis');
+    const backIcon = document.createElement('span'); backIcon.className = 'material-symbols-outlined'; backIcon.setAttribute('aria-hidden', 'true'); backIcon.textContent = 'close';
+    back.append(backIcon);
+    const details = resultDetails(place, recommended, true); details.classList.add('result-detail--full');
+    overlay.append(back, details);
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = event => { if (event.key === 'Escape') close(); };
+    back.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    let startY = null;
+    overlay.addEventListener('pointerdown', event => { startY = overlay.scrollTop <= 0 ? event.clientY : null; });
+    overlay.addEventListener('pointerup', event => { if (startY !== null && event.clientY - startY > 80) close(); startY = null; });
+    shell.append(overlay);
+    window.renderLocalIcons?.(overlay);
+    back.focus();
   }
 
   async function readConfig() {
