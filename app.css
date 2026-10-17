@@ -38,6 +38,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 button.place-card__title { cursor: pointer; }
 button.place-card__title:hover { background: #f2f4f6; }
 .place-card span { font-size: 12px; line-height: 1.5; color: #45474c; }
+.place-card .place-card__address { padding: 0 14px 12px; }
 @media (max-height: 550px) { #sheet-content { max-height: 40dvh; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 .user-loc { position: relative; width: 22px; height: 22px; pointer-events: none; }
@@ -252,14 +253,6 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-detail--full .result-detail__fact { font-size: 14px; }
 .result-detail--full .result-detail__description { font-size: 15px; line-height: 1.65; }
 .result-detail--full .result-detail__link, .result-detail--full .result-detail__transit { font-size: 14px; }
-
-/* Full-screen conversation (swipe the handle up): the panel reaches the top and covers the weather bar. */
-#ai-sheet.is-full #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - env(safe-area-inset-top, 0px)); max-height: var(--sheet-full); min-height: var(--sheet-full); }
-.drawer-container.is-full > div:first-child { display: none; }
-#ai-sheet.is-dragging #sheet-content { transition: none !important; }
-#sheet-toggle { touch-action: none; }
-/* Only the small handle bar reacts to hover / drag, not the whole header strip. */
-#sheet-toggle:hover #drag-handle-pill, #ai-sheet.is-dragging #drag-handle-pill { background-color: #75777d; }
 
 /* Routes are part of the conversation. Each answer keeps its own cards. */
 [data-transit='panel'] { width: 100%; min-width: 0; padding-bottom: 8px; }

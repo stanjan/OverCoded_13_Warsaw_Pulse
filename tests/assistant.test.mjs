@@ -32,6 +32,8 @@ test('data inventory answers without fetching records or replacing a prior selec
   const inventory = await executeRealTool('list_data_sources', {}, state, noFetch);
   assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','pitch','route']);
   assert.ok(inventory.filters.includes('district'));
+  assert.equal(inventory.addressSearch.tool,'search_addresses');
+  assert.equal(inventory.addressSearch.source.name,'GUGiK UUG');
   assert.match(inventory.limitations.join(' '), /teraz otwarty/);
   assert.deepEqual(state, { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } });
   const assistant = createRealAssistant({ provider: noFetch, completion: async history => {
@@ -142,7 +144,7 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
     const reply = await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (url, init) => {
       assert.equal(url, 'http://127.0.0.1:9999/v1/chat/completions');
-      assert.equal(JSON.parse(init.body).tools.length, 6);
+      assert.equal(JSON.parse(init.body).tools.length, 7);
       return { ok: true, json: async () => ({ choices: [{ message: { content: 'Cześć!' } }] }) };
     } });
     assert.equal(reply.content, 'Cześć!');

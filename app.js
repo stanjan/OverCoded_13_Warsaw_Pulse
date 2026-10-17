@@ -15,16 +15,8 @@ window.expandCitySheet = () => setExpanded(true);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 
-// Full-screen snap state (swipe the handle up from the expanded panel); it covers the weather bar.
-let sheetFull = false;
-function setSheetFull(value) {
-  sheetFull = value;
-  document.querySelector('#ai-sheet').classList.toggle('is-full', value);
-  drawer.classList.toggle('is-full', value);
-}
 function setExpanded(value) {
   expanded = value;
-  if (!value && sheetFull) setSheetFull(false);
   content.inert = !value;
   content.setAttribute('aria-hidden', String(!value));
   document.querySelector('#ai-sheet').classList.toggle('is-collapsed', !value);
@@ -41,50 +33,13 @@ document.querySelector('#sheet-toggle').addEventListener('click', () => {
 toggle.addEventListener('click', event => { event.stopPropagation(); setExpanded(!expanded); });
 input.addEventListener('focus', () => setExpanded(true));
 document.querySelector('#search-bar-wrapper').addEventListener('click', () => input.focus());
-// Drag the handle: the panel follows the finger, then snaps to collapsed, half or full screen.
-// Pointer capture keeps the drag alive when the finger leaves the small handle area.
-const handle = document.querySelector('#sheet-toggle');
-let drag = null;
-const sheetHeights = () => ({
-  half: Math.min(innerHeight * (innerHeight <= 550 ? 0.4 : 0.48), 480),
-  full: Math.max(0, innerHeight - 128),
+// Match the drawer's touch affordance without interfering with map gestures.
+let touchStart;
+document.querySelector('#sheet-toggle').addEventListener('pointerdown', event => { touchStart = event.clientY; suppressHandleClick = false; });
+document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
+  if (touchStart !== undefined && Math.abs(event.clientY - touchStart) > 30) { suppressHandleClick = true; setExpanded(event.clientY < touchStart); }
+  touchStart = undefined;
 });
-handle.addEventListener('pointerdown', event => {
-  if (event.target.closest('button')) return; // the chevron keeps its own click
-  drag = { y: event.clientY, start: expanded ? content.getBoundingClientRect().height : 0, moved: false, id: event.pointerId };
-  suppressHandleClick = false;
-  handle.setPointerCapture?.(event.pointerId);
-});
-handle.addEventListener('pointermove', event => {
-  if (!drag || event.pointerId !== drag.id) return;
-  const dy = drag.y - event.clientY;
-  if (!drag.moved && Math.abs(dy) < 6) return;
-  if (!drag.moved) {
-    drag.moved = true;
-    document.querySelector('#ai-sheet').classList.add('is-dragging');
-    content.inert = false;
-  }
-  const height = Math.min(Math.max(drag.start + dy, 0), sheetHeights().full);
-  Object.assign(content.style, { maxHeight: height + 'px', minHeight: height + 'px', opacity: '1', transform: 'none' });
-});
-const endDrag = event => {
-  if (!drag || event.pointerId !== drag.id) return;
-  const { moved, y } = drag; drag = null;
-  document.querySelector('#ai-sheet').classList.remove('is-dragging');
-  if (!moved) return; // a tap: the click handler toggles the panel
-  suppressHandleClick = true;
-  const height = content.getBoundingClientRect().height;
-  Object.assign(content.style, { maxHeight: '', minHeight: '', opacity: '', transform: '' });
-  const { half, full } = sheetHeights();
-  const goingUp = event.clientY < y;
-  // Snap to the nearest height, nudged in the drag direction.
-  const target = height + (goingUp ? 60 : -60);
-  if (target > (half + full) / 2) { setExpanded(true); setSheetFull(true); }
-  else if (target > half / 2) { setSheetFull(false); setExpanded(true); }
-  else setExpanded(false);
-};
-handle.addEventListener('pointerup', endDrag);
-handle.addEventListener('pointercancel', endDrag);
 
 const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
@@ -208,6 +163,8 @@ function showResults(action) {
   const title = document.createElement('h2'); title.textContent = action.title;
   const note = document.createElement('p'); note.className = 'results-note';
   note.textContent = action.complete === false ? 'Niepełne wyniki · część źródeł jest niedostępna' : 'Dane miejskie · sprawdź termin i czas aktualizacji';
+  if (action.results.some(place => !Number.isFinite(place.lat) || !Number.isFinite(place.lng) || Math.abs(place.lat) > 90 || Math.abs(place.lng) > 180)) note.textContent += ' · Wyniki bez punktu na mapie pozostają na liście; ich odległość jest nieznana.';
+  if (action.audienceFilterMapping) note.textContent += ' · Filtr rodzinny uwzględnia oznaczenie „Dla dzieci”.';
   resultPanel.append(title, note);
   if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = action.complete === false ? 'Nie można potwierdzić braku pasujących wyników.' : 'Brak pasujących wyników.'; resultPanel.append(empty); }
   const points = [], highlighted = new Set(action.highlightIds || []);
@@ -231,6 +188,11 @@ function showResults(action) {
       const name = document.createElement('strong'); name.className = 'place-card__title'; name.textContent = label;
       card.append(name);
       resultPanel.append(card);
+    }
+    if (!spatial && listed.has(place) && (place.address || place.addresses?.length)) {
+      const address = document.createElement('span'); address.className = 'place-card__address';
+      address.textContent = [place.address || place.addresses.join(', '), place.district].filter(Boolean).join(' · ');
+      card.append(address);
     }
     if (spatial) {
       const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';

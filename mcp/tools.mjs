@@ -1,13 +1,15 @@
 import { waypoint, departure } from '../transit-core.mjs';
-import { catalogProvider, matches, coordinates, locate } from './catalog.mjs';
+import { catalogProvider, matches, coordinates, locate, audienceFilterMapping } from './catalog.mjs';
 import { SOURCES, SEARCH_CATEGORIES } from './sources.mjs';
+import { addressProvider as defaultAddressProvider, addressRequest, addressQueryKey, addressWaypoint, retainedAddresses, ADDRESS_TTL_MS, ADDRESS_SOURCE } from './addresses.mjs';
 const bounds = { type: 'object', properties: Object.fromEntries(['south','west','north','east'].map(k => [k,{type:'number'}])), required: ['south','west','north','east'], additionalProperties:false };
-export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:SEARCH_CATEGORIES}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0} };
+export const filtersSchema = { query:{type:'string'}, category:{type:'string',enum:SEARCH_CATEGORIES}, district:{type:'string'}, activity:{type:'string'}, audience:{type:'string',description:'Oznaczenie odbiorców ze źródła, np. Dla dzieci, Dla młodzieży i dorosłych, Dla seniorów; rodziny mapuje także na Dla dzieci z jawnym audienceFilterMapping.'}, weekday:{type:'string',enum:['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela']}, dateFrom:{type:'string'}, dateTo:{type:'string'}, bounds, maxLengthKm:{type:'number',minimum:0} };
 const schema = (properties, required=[]) => ({type:'object', properties, required, additionalProperties:false});
 const transitPoint = schema({latitude:{type:'number',minimum:-90,maximum:90},longitude:{type:'number',minimum:-180,maximum:180},label:{type:'string',maxLength:200}},['latitude','longitude']);
 export const mcpTools = [
- {name:'plan_transit',description:'Otwórz planowanie dojazdu komunikacją w przeglądarce. Cel: dokładnie jedno z destinationId (zweryfikowany wynik), destinationQuery (konkretny przystanek wybrany przez użytkownika; bez geokodowania adresów), destinationCoordinates. Start: opcjonalne originQuery (przystanek) lub originCoordinates; bez nich panel poprosi o start lub użyje świeżego GPS. Wynik planning_requested oznacza tylko zlecenie planowania, NIE potwierdzenie trasy ani ETA; nie wymyślaj linii, czasu ani przystanków.',inputSchema:schema({destinationId:{type:'string'},destinationQuery:{type:'string',maxLength:200},destinationCoordinates:transitPoint,originQuery:{type:'string',maxLength:200},originCoordinates:transitPoint,departureTime:{type:'string',maxLength:40}})},
- {name:'list_data_sources',description:'Opisz dostępne kategorie miejskich danych i obsługiwane filtry, bez pobierania rekordów. Użyj dla pytań typu „jakie dane masz dostępne?”, „co możesz pokazać?” lub o możliwości aplikacji. Nie potwierdza aktualnej dostępności źródeł.',inputSchema:schema({})},
+ {name:'search_addresses',description:'Znajdź numer budynku w Warszawie w oficjalnym GUGiK. Podaj ulicę i numer osobno, bez wymyślania współrzędnych. Zwraca zweryfikowane identyfikatory do plan_transit. exact_match pozwala użyć addressId; clarification_required wymaga pytania do użytkownika. Przybliżone ulice/numery nie są celem trasy: po potwierdzeniu użytkownika wyszukaj wskazany adres ponownie. Wyniki nie zastępują wydarzeń ani miejsc.',inputSchema:schema({street:{type:'string',maxLength:120},number:{type:'string',maxLength:20},city:{type:'string',enum:['Warszawa']}},['street','number'])},
+ {name:'plan_transit',description:'Otwórz planowanie dojazdu komunikacją w przeglądarce. Cel: dokładnie jedno z destinationAddressId (dokładny wynik search_addresses), destinationId (zweryfikowane miejsce), destinationQuery (konkretny przystanek), destinationCoordinates. Start: opcjonalne originAddressId, originQuery (przystanek) lub originCoordinates; bez nich użyje świeżego GPS albo poprosi o start. Adresy najpierw sprawdź przez search_addresses. planning_requested NIE potwierdza trasy ani ETA; nie wymyślaj linii, czasu ani przystanków.',inputSchema:schema({destinationAddressId:{type:'string'},destinationId:{type:'string'},destinationQuery:{type:'string',maxLength:200},destinationCoordinates:transitPoint,originAddressId:{type:'string'},originQuery:{type:'string',maxLength:200},originCoordinates:transitPoint,departureTime:{type:'string',maxLength:40}})},
+ {name:'list_data_sources',description:'Opisz dostępne kategorie miejskich danych, wyszukiwanie adresów GUGiK i obsługiwane filtry, bez pobierania rekordów. Użyj dla pytań typu „jakie dane masz dostępne?”, „co możesz pokazać?” lub o możliwości aplikacji. Nie potwierdza aktualnej dostępności źródeł.',inputSchema:schema({})},
  {name:'search_places',description:'Pobierz WSZYSTKIE pasujące dane z miejskiego MCP. Kategorie: event wydarzenia, sports zajęcia, pitch boiska, route trasy. Filtry wyłącznie ze znanych preferencji rozmowy. Bez limitu wyników. complete=false oznacza niedostępne źródło, nigdy pusty katalog. Daty ISO YYYY-MM-DD: rekordy bez dat wykluczone; do cyklicznych zajęć użyj weekday. Otwarte boiska to nazwa zbioru, godziny wymagają sprawdzenia.',inputSchema:schema(filtersSchema)},
  {name:'filter_results',description:'Zawęź ostatnie wyniki na podstawie kontekstu rozmowy. Nie pobiera nowych danych. Brakujące cechy nie spełniają filtra.',inputSchema:schema(filtersSchema)},
  {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
@@ -29,20 +31,30 @@ function validateFilters(args) {
  for(const key of ['dateFrom','dateTo'])if(args[key]!==undefined&&(!/^\d{4}-\d{2}-\d{2}$/.test(args[key])||new Date(args[key]).toISOString().slice(0,10)!==args[key]))throw new Error('Nieprawidłowa data.');
  if(args.dateFrom&&args.dateTo&&args.dateFrom>args.dateTo)throw new Error('Nieprawidłowy zakres dat.');
 }
-export async function runTool(name,args,state,provider=catalogProvider) {
+export async function runTool(name,args,state,provider=catalogProvider,addressProvider=defaultAddressProvider) {
  const tool=mcpTools.find(t=>t.name===name);
  if(!tool)throw new Error('Nieznane narzędzie.');
  validate(args,tool.inputSchema);
+ if(name==='search_addresses') {
+   const query=addressRequest(args), key=addressQueryKey(query);
+   // A failed refresh invalidates this query's former IDs, while preserving a
+   // separately verified origin/destination and the independent event results.
+   state.addressSearches=retainedAddresses(state).filter(set=>set.key!==key);
+   const result=await addressProvider.search(query);
+   state.addressSearches=[...state.addressSearches,{key,expiresAt:Date.now()+ADDRESS_TTL_MS,candidates:result.candidates}].slice(-4);
+   return result;
+ }
  if(name==='plan_transit') {
-   if(['destinationId','destinationQuery','destinationCoordinates'].filter(key=>args[key]!==undefined).length!==1 || ['originQuery','originCoordinates'].filter(key=>args[key]!==undefined).length>1) throw new Error('Wskaż jeden cel i najwyżej jeden punkt startowy.');
+   if(['destinationAddressId','destinationId','destinationQuery','destinationCoordinates'].filter(key=>args[key]!==undefined).length!==1 || ['originAddressId','originQuery','originCoordinates'].filter(key=>args[key]!==undefined).length>1) throw new Error('Wskaż jeden cel i najwyżej jeden punkt startowy.');
    let destination=args.destinationCoordinates??args.destinationQuery;
+   if(args.destinationAddressId!==undefined) destination=addressWaypoint(args.destinationAddressId,state);
    if(args.destinationId!==undefined) {
      const record=state.results.find(item=>item.id===args.destinationId);
      if(!record || !Number.isFinite(record.lat) || !Number.isFinite(record.lng)) throw new Error('Wybierz wynik z potwierdzonymi współrzędnymi.');
      destination={latitude:record.lat,longitude:record.lng,label:record.name};
    }
    waypoint(destination,'cel');
-   const origin=args.originCoordinates??args.originQuery;
+   const origin=args.originAddressId!==undefined?addressWaypoint(args.originAddressId,state):args.originCoordinates??args.originQuery;
    if(origin!==undefined)waypoint(origin,'punkt startowy');
    if(args.departureTime!==undefined)departure(args.departureTime);
    const action={type:'plan_transit',destination,...(origin!==undefined?{origin}:{}),...(args.departureTime?{departureTime:args.departureTime}:{})};
@@ -51,6 +63,7 @@ export async function runTool(name,args,state,provider=catalogProvider) {
  }
  if(name==='list_data_sources')return {
    sources:SEARCH_CATEGORIES.map(category=>({category,title:SOURCES[category].title})),
+   addressSearch:{tool:'search_addresses',source:ADDRESS_SOURCE,scope:'Warszawa, ulica i numer budynku; dokładne dopasowanie przed planowaniem ZTM'},
    filters:Object.keys(filtersSchema),
    limitations:['Opis skonfigurowanych źródeł; ich dostępność i liczba rekordów są sprawdzane dopiero podczas wyszukiwania.','Zajęcia sportowe mogą mieć dni tygodnia bez konkretnych dat.','Nazwa Otwarte boiska nie potwierdza, że obiekt jest teraz otwarty.','Nie wszystkie rekordy mają współrzędne; można pokazać je na liście bez pinezki.'],
  };
@@ -68,6 +81,7 @@ export async function runTool(name,args,state,provider=catalogProvider) {
  if(name==='filter_results'){
    if(!state.searchMeta)throw new Error('Najpierw wyszukaj rekordy.');
    state.results=state.results.filter(p=>matches(p,args)).map(p=>locate(p,args));
+   if(args.audience!==undefined){state.searchMeta={...state.searchMeta};delete state.searchMeta.audienceFilterMapping;const mapping=audienceFilterMapping(args.audience);if(mapping)state.searchMeta.audienceFilterMapping=mapping;}
    return {...state.searchMeta,results:state.results,total:state.results.length};
  }
  if(name==='display_results'){
@@ -77,7 +91,7 @@ export async function runTool(name,args,state,provider=catalogProvider) {
    const byId=new Map(state.results.map(p=>[p.id,p]));
    if(ids.some(id=>!byId.has(id)))throw new Error('Najpierw wyszukaj wskazane rekordy.');
    const results=ids.map(id=>byId.get(id));
-   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[]};
+   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[],...(state.searchMeta.audienceFilterMapping?{audienceFilterMapping:state.searchMeta.audienceFilterMapping}:{})};
    state.actions.push(action);
    return {displayed:results.length,highlightIds:highlights,action};
  }

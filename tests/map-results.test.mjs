@@ -31,6 +31,16 @@ test('result cards remain available while asynchronous map is not ready',()=>{
  assert.equal(panel.children.filter(e=>e.tag==='article').length,1);assert.equal(context.lastDisplayedAction,action);
 });
 
+test('address-only pitches remain readable on the list without implying a measured distance',()=>{
+ const panel=element('section'),place={id:'pitch',category:'pitch',name:'Boisko szkolne',address:'ul. Testowa 9',district:'Wola'};
+ const context={document:{createElement:element},resultPanel:panel,lastDisplayedAction:null,cityMap:undefined,action:{title:'Boiska',results:[place],highlightIds:[],complete:true},drawer:{offsetHeight:150},mapCanvas:{clientHeight:700}};
+ runInNewContext(render+'\nshowResults(action);',context);
+ const card=panel.children.find(e=>e.tag==='article');assert.ok(card);
+ assert.equal(card.children.find(e=>e.className==='place-card__address').textContent,'ul. Testowa 9 · Wola');
+ assert.match(panel.children[1].textContent,/odległość jest nieznana/);
+ assert.equal(card.children.some(e=>e.tag==='button'),false);
+});
+
 for(const early of [false,true])test('MCP results follow a replacement map without stale markers (early='+early+')',async()=>{
  const panel=element('section'),calls=[];
  const node={classList:{add(){},remove(){}},textContent:''};
