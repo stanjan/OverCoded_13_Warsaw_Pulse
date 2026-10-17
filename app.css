@@ -4,8 +4,7 @@ body { background: #e6e8ea; min-width: 320px; }
 .app-shell { position: relative; width: 100%; max-width: 520px; height: 100dvh; margin-inline: auto; overflow: hidden; background: #f7f9fb; box-shadow: 0 0 70px #09142618; }
 .weather-bar { z-index: 20; max-width: calc(100% - 24px); }
 .weather-bar > div { gap: 6px; }
-.drawer-container { bottom: calc(64px + var(--safe-bottom)) !important; }
-.app-shell > nav { position: absolute !important; height: calc(64px + var(--safe-bottom)); padding-bottom: var(--safe-bottom); }
+.drawer-container { bottom: 0 !important; padding-bottom: var(--safe-bottom); }
 #sheet-content { max-height: min(48dvh, 480px); opacity: 1; transform: translateY(0); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
 .is-collapsed #sheet-content { max-height: 0; opacity: 0; transform: translateY(12px); overflow: hidden; pointer-events: none; }
 #welcome-prompts[hidden] { display: none; }

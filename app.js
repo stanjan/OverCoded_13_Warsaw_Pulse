@@ -45,7 +45,7 @@ const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
 // Keep the map's usable area (markers, fitting, attribution) above the bottom sheet.
 new ResizeObserver(() => {
-  const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
+  const obstruction = document.querySelector('#ai-sheet').offsetHeight + 4;
   appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
 }).observe(document.querySelector('#ai-sheet'));
 let mapWasReplaced = false;
