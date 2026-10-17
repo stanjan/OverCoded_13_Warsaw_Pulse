@@ -58,19 +58,37 @@ function showResults(action) {
   resultPanel.replaceChildren();
   markers?.clearLayers();
   const title = document.createElement('h2'); title.textContent = action.title;
-  const note = document.createElement('p'); note.className = 'results-note'; note.textContent = 'Dane demonstracyjne · bez informacji na żywo';
+  const note = document.createElement('p'); note.className = 'results-note';
+  note.textContent = action.complete === false ? 'Niepełne wyniki · część źródeł jest niedostępna' : 'Dane miejskie · sprawdź termin i czas aktualizacji';
   resultPanel.append(title, note);
-  if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = 'Brak pasujących miejsc.'; resultPanel.append(empty); }
-  const points = [];
+  if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = action.complete === false ? 'Nie można potwierdzić braku pasujących wyników.' : 'Brak pasujących wyników.'; resultPanel.append(empty); }
+  const points = [], highlighted = new Set(action.highlightIds || []);
   for (const place of action.results) {
-    const card = document.createElement('button'); card.type = 'button'; card.className = 'place-card';
-    const name = document.createElement('strong'); name.textContent = place.name;
-    const detail = document.createElement('span'); detail.textContent = `${place.district} · ${place.description}`;
-    card.append(name, detail); resultPanel.append(card);
-    if (cityMap) {
+    const spatial = Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180;
+    const card = document.createElement('article'); card.className = 'place-card';
+    const name = document.createElement('strong'); name.textContent = (highlighted.has(place.id) ? '★ Polecane: ' : '') + place.name;
+    const detail = document.createElement('span'); detail.textContent = [place.district, place.description, place.address].filter(Boolean).join(' · ');
+    card.append(name, detail);
+    const timing = document.createElement('span');
+    timing.textContent = [
+      ...(place.dates || []).map(d => d.from === d.to ? d.from : d.from + ' – ' + d.to),
+      ...(place.weekdays || []), place.time,
+      ...Object.entries(place.schedule || {}).map(([day, hours]) => day + ': ' + hours),
+      place.provenance?.observedAt?.length ? 'Pomiar: ' + place.provenance.observedAt.join(', ') + ' (Europe/Warsaw); aktualność niepotwierdzona' : '',
+      place.provenance?.sourceUpdatedAt ? 'Aktualizacja źródła: ' + place.provenance.sourceUpdatedAt : '',
+      place.provenance?.fetchedAt ? 'Pobrano: ' + place.provenance.fetchedAt : '',
+    ].filter(Boolean).join(' · ');
+    card.append(timing);
+    if (place.measurements?.length) {
+      const measurements = document.createElement('span'); measurements.textContent = place.measurements.map(m => m.parameter + ': ' + (m.value ?? 'brak pomiaru') + ' ' + m.unit).join(' · '); card.append(measurements);
+    }
+    const source = document.createElement('a'); source.textContent = place.source || 'Źródło miejskie'; source.href = place.url || place.sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; card.append(source);
+    resultPanel.append(card);
+    if (cityMap && spatial) {
       const popup = document.createElement('div'); popup.textContent = place.name;
-      const marker = L.circleMarker([place.lat, place.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#0051d5', fillOpacity: 1 }).bindPopup(popup).addTo(markers);
-      card.addEventListener('click', () => { setExpanded(false); cityMap.setView([place.lat, place.lng], 15); marker.openPopup(); });
+      const marker = L.circleMarker([place.lat, place.lng], { radius: highlighted.has(place.id) ? 12 : 9, color: '#fff', weight: 3, fillColor: '#0051d5', fillOpacity: 1 }).bindPopup(popup).addTo(markers);
+      const focus = document.createElement('button'); focus.type = 'button'; focus.textContent = 'Pokaż na mapie';
+      focus.addEventListener('click', () => { setExpanded(false); cityMap.setView([place.lat, place.lng], 15); marker.openPopup(); }); card.append(focus);
       points.push([place.lat, place.lng]);
     }
   }

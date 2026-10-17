@@ -23,14 +23,18 @@ The backend stores conversations in memory for 30 minutes, uses a Polish concise
 
 Tools available to the assistant:
 
-- `search_places`: query, category, district, map bounds and result limit.
+- `search_places`: complete matching official data, with category, district, query, activity, audience, weekday, dates, map bounds and route-length filters.
 - `filter_results`: refine previous results.
-- `display_results`: show verified result IDs as map markers and app cards.
+- `display_results`: selected verified IDs and 1–3 highlighted recommendations as cards, with map markers where source coordinates exist.
 - `focus_map`: move and zoom the map.
 
-## Next: external-data MCP provider
+## Official city-data MCP
 
-`server/catalog.mjs` is the data-provider seam. Its `search(filters)` currently returns five explicitly labeled demonstration records, never live data. No external API or MCP integration is implemented yet. Replace this provider with the planned MCP client while retaining the tools, validation and frontend action format. Provider records use `id`, `name`, `category`, `district`, `lat`, `lng`, `description`, `source` and `live`. Update tool descriptions and data-mode metadata when live sources are connected. Tool-sourced text must remain untrusted data.
+The app now routes search, filter, display and map tools through a real MCP JSON-RPC client/dispatcher. The same implementation can be launched independently over stdio with `npm run mcp`. See [mcp/README.md](mcp/README.md) for setup, source evidence, filters, protocol details, error behavior and verified limits.
+
+Set `DATA_API_KEY` to a token for the new Warsaw open-data portal. Production has no demo fallback: missing credentials or unavailable/changed sources are explicit errors with incomplete-result metadata. Six official sources are supported: city events, sports classes, weather station observations, open pitches, tourist routes and air quality. Searches return every matching record from full upstream datasets. The assistant then selects relevant records and 1–3 highlights. Source observation/update times are separate from retrieval time; unknown freshness is never labelled current. Records without coordinates remain cards without pins.
+
+Large complete searches can exceed the local bridge's 2 MiB request / 1,000,000-character prompt capacity. The adapter rejects these explicitly and asks to narrow context filters without slicing records. The top weather/AQI/sunset design pill remains sample content and is visibly labelled Przykład; official station measurements appear in source-linked result cards.
 
 Run `npm test` (or `node --test tests/*.test.mjs`) for backend/tool tests. These test the tool loop with controlled model replies, not the actual bridge.
 

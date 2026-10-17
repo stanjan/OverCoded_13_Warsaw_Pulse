@@ -12,7 +12,7 @@ createServer(async (req, res) => {
   try {
     if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) return json(res, 403, { error: 'Niedozwolony host.' });
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'demo' });
+    if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return json(res, 403, { error: 'Niedozwolone źródło zapytania.' });
       if (!req.headers['content-type']?.startsWith('application/json')) return json(res, 415, { error: 'Wymagany JSON.' });
