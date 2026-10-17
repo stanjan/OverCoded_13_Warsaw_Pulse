@@ -3,7 +3,7 @@ export class TransitError extends Error {constructor(code,message){super(message
 const transportStyles = {
  bus: {transportColor:'#880077',transportLabel:'Autobus'},
  night_bus: {transportColor:'#000000',transportLabel:'Autobus nocny'},
- tram: {transportColor:'#E50000',transportLabel:'Tramwaj'},
+ tram: {transportColor:'#8A0000',transportLabel:'Tramwaj'},
  skm: {transportColor:'#8A0000',transportLabel:'SKM'},
  unknown: {transportColor:'#65727f',transportLabel:'Transport'},
 };

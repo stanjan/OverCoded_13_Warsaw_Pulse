@@ -10,9 +10,9 @@ test('transport colors distinguish city fleet types from GTFS route_type and kee
  const cases=[
   [{line:'175',type:1},'bus','#880077'],
   [{line:'N31',type:1},'night_bus','#000000'],
-  [{line:'17',type:2},'tram','#E50000'],
+  [{line:'17',type:2},'tram','#8A0000'],
   [{line:'S2',routeType:2},'skm','#8A0000'],
-  [{line:'17',routeType:0},'tram','#E50000'],
+  [{line:'17',routeType:0},'tram','#8A0000'],
   [{line:'175',routeType:3},'bus','#880077'],
   [{line:'R1',routeType:2},'unknown','#65727f'],
   [{line:'17'},'unknown','#65727f'],
@@ -53,7 +53,7 @@ const instant=clock=>gtfsInstant('2026-10-17',clock);
 const event=(stopId,arrival,departure=arrival,pickup=0,dropOff=0)=>({stopId,arrival:instant(arrival),departure:instant(departure),pickup,dropOff});
 function graph(){return{timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:[{id:'a',name:'A',latitude:52.2,longitude:21},{id:'b',name:'B',latitude:52.22,longitude:21},{id:'c',name:'C',latitude:52.22,longitude:21.002},{id:'d',name:'D',latitude:52.24,longitude:21}],trips:[{id:'first@2026-10-17',serviceDate:'2026-10-17',line:'17',routeType:0,headsign:'B',stopTimes:[event('a','14:00:00'),event('b','14:10:00')]},{id:'missed@2026-10-17',serviceDate:'2026-10-17',line:'17',headsign:'D',stopTimes:[event('b','14:11:00'),event('d','14:20:00')]},{id:'transfer@2026-10-17',serviceDate:'2026-10-17',line:'22',headsign:'D',stopTimes:[event('c','14:16:00'),event('d','14:25:00')]}]};}
 test('router verifies same-trip continuation and walk/transfer feasibility; equal lines never imply same trip',()=>{
- const data=graph(),routes=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')});assert.ok(routes.length);const ride=routes[0].steps.filter(step=>step.mode==='TRANSIT');assert.deepEqual(ride.map(step=>step.line),['17','22']);assert.deepEqual(ride.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);assert.equal(ride[0].transportColor,'#E50000');assert.equal(ride[0].routeType,0);assert.equal(routes[0].transfers,1);assert.equal(routes[0].arrival,instant('14:25:00'));assert.equal(routes[0].realtimeConfirmed,false);assert.equal(ride[0].geometry,'schematic');
+ const data=graph(),routes=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')});assert.ok(routes.length);const ride=routes[0].steps.filter(step=>step.mode==='TRANSIT');assert.deepEqual(ride.map(step=>step.line),['17','22']);assert.deepEqual(ride.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);assert.equal(ride[0].transportColor,'#8A0000');assert.equal(ride[0].routeType,0);assert.equal(routes[0].transfers,1);assert.equal(routes[0].arrival,instant('14:25:00'));assert.equal(routes[0].realtimeConfirmed,false);assert.equal(ride[0].geometry,'schematic');
  const noPickup=graph();noPickup.trips[0].stopTimes[0].pickup=1;assert.equal(planGraph(noPickup,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')}).length,0);
  assert.throws(()=>planGraph(data,{origin:data.stops[0],destination:data.stops[3],departureTime:Date.parse('2026-11-01')}),{code:'DATE_OUTSIDE_FEED'});
 });

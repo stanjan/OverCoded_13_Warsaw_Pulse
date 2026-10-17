@@ -8,7 +8,7 @@ const route={steps:[{mode:'WALK',path:[{latitude:52.2,longitude:21},{latitude:52
 test('Google and Leaflet preserve transport colors, walking style and stale-marker gray',async()=>{
  const{context,lines,markers,calls}=setup();let leaflet;
  const google=await context.window.createCityMap(element('div'),{onReplace:adapter=>leaflet=adapter});
- const colors=['#880077','#000000','#E50000','#8A0000'];
+ const colors=['#880077','#000000','#8A0000','#8A0000'];
  const colored={steps:[route.steps[0],...colors.map(transportColor=>({...route.steps[1],transportColor}))]};
  google.showRoute(colored);assert.deepEqual(lines.map(line=>line.strokeColor),['#61776a',...colors]);
  const vehicles=colors.map((transportColor,index)=>({latitude:52.2,longitude:21,line:String(index),freshness:'recent',transportColor}));
