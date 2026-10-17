@@ -340,13 +340,13 @@ function showResults(action) {
   for (const place of action.results) {
     const spatial = Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180;
     const isRecommended = highlighted.has(place.id);
-    const marker = cityMap && spatial ? cityMap.addMarker(place, { recommended: isRecommended, onOpen: () => setExpanded(false) }) : null;
+    const marker = cityMap && spatial ? cityMap.addMarker(place, { recommended: isRecommended, onOpen: () => { action.selectedTouristId = place.category === 'route' ? place.id : undefined; setExpanded(false); } }) : null;
     if (spatial) points.push([place.lat, place.lng]);
     if (!listed.has(place)) continue;
     // Recommended card (Stitch prototype, our warm style): tag + when/price, title, address, photo, actions.
     const info = globalThis.cityCardInfo?.(place) || {};
     const card = document.createElement('article'); card.className = 'place-card rec-card' + (info.theme ? ' rec-card--' + info.theme : '');
-    const focusMap = () => { if (!cityMap || !marker) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); };
+    const focusMap = () => { if (!cityMap || !marker) return; setExpanded(false); if(place.category !== 'route')cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); };
     const title = document.createElement(marker ? 'button' : 'strong'); title.className = 'place-card__title rec-card__title'; title.textContent = place.name;
     if (marker) { title.type = 'button'; title.addEventListener('click', focusMap); }
     const meta = document.createElement('div'); meta.className = 'rec-card__meta';
@@ -354,6 +354,11 @@ function showResults(action) {
     const when = document.createElement('span'); when.className = 'rec-card__when'; when.textContent = [info.when, info.price].filter(Boolean).join(' · ');
     meta.append(tag, when);
     card.append(title, meta);
+    if (place.category === 'route') {
+      const note=document.createElement('span');note.className='tourist-card-note';
+      note.textContent=[Number.isFinite(place.lengthKm)?place.lengthKm+' km':'',place.geometryStatus==='partial'?'Ślad ma przerwy':place.geometryStatus!=='published'?'Brak pełnego śladu na mapie':''].filter(Boolean).join(' · ');
+      if(note.textContent)card.append(note);
+    }
     const where = [place.address || (place.addresses || []).join(', '), place.district].filter(Boolean).join(' · ');
     if (where) { const address = document.createElement('span'); address.className = 'place-card__address'; address.textContent = where; card.append(address); }
     const thumb = document.createElement('div'); thumb.className = 'rec-card__thumb';
@@ -378,6 +383,7 @@ function showResults(action) {
     resultPanel.append(card);
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
+  cityMap?.showTouristRoutes?.(action.results, {selectedId:action.selectedTouristId});
 }
 
 const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia komunikacji ZTM?', 'Gdzie znajdę najbliższe Veturilo?'];

@@ -74,7 +74,7 @@ function refinementExamples(records) {
 // Only the model's copy is projected when a single record is too large. The
 // selected original records (including descriptions, dates and provenance)
 // remain available to cards and subsequent manual filtering on the server.
-function projectRecord(record) {
+function projectRecord(record, browser = false) {
   const short = (value, length = 500) => typeof value === 'string' ? value.slice(0, length) : value;
   const list = (value, count = 8) => Array.isArray(value) ? value.slice(0, count).map(item => short(item)) : undefined;
   return Object.fromEntries(Object.entries({
@@ -88,6 +88,8 @@ function projectRecord(record) {
     paid: record.paid, accessible: record.accessible, changingTable: record.changingTable,
     openingHours: short(record.openingHours), toiletType: short(record.toiletType), operator: short(record.operator),
     updatedAt: short(record.updatedAt), surface: short(record.surface), lengthKm: record.lengthKm,
+    ...(record.category === 'route' ? { geometryStatus: record.geometryStatus, traceVertexCount: record.traceVertexCount,
+      ...(browser ? { traceSegments: record.traceSegments, touristPoints: record.touristPoints } : {}) } : {}),
     schedule: record.schedule && Object.fromEntries(Object.entries(record.schedule).slice(0, 7).map(([day, hours]) => [day, short(hours)])),
     sourceUrl: typeof record.sourceUrl === 'string' && record.sourceUrl.length <= 2000 ? record.sourceUrl : undefined,
     url: typeof record.url === 'string' && record.url.length <= 2000 ? record.url : undefined,
@@ -101,7 +103,13 @@ export function boundDisplayAction(action) {
   if (action.type !== 'display_results' || JSON.stringify(action).length <= 250000) return action;
   // Full descriptions can be megabytes even when the model's copy fits. Keep
   // the browser's SSE frame bounded too, without altering retained originals.
-  action.results = action.results.map(projectRecord);
+  action.results = action.results.map(record => projectRecord(record, true));
+  // Unusually large future feeds remain bounded without drawing truncated paths.
+  for (const record of [...action.results].sort((a,b) => (b.traceVertexCount || 0) - (a.traceVertexCount || 0))) {
+    if (JSON.stringify(action.results).length <= 110000) break;
+    if (record.traceSegments?.length) { record.traceSegments = []; record.geometryStatus = 'browser_capacity'; }
+    if (JSON.stringify(action.results).length > 110000 && record.touristPoints?.length) { record.touristPoints = []; record.geometryStatus = 'browser_capacity'; }
+  }
   const byId = new Map(action.results.map(record => [record.id, record]));
   action.highlights = action.highlightIds.map(id => byId.get(id));
   action.displayProjection = { reason: 'conversation_capacity', fieldsProjected: true, originalRecordsRetained: true };
@@ -110,7 +118,20 @@ export function boundDisplayAction(action) {
 
 // Complete scopes are preferred. If none fits, disclose a bounded preview.
 // The caller retains the original records independently of this effective set.
-export function fitResultBudget(result, {
+export function fitResultBudget(result, options = {}) {
+  if (!result.results.some(record => record.category === 'route' && record.traceSegments)) return fitModelResultBudget(result, options);
+  const originals = new Map(result.results.map(record => [record.id, record]));
+  const modelResults = result.results.map(record => {
+    if (record.category !== 'route') return record;
+    const { traceSegments, ...summary } = record; return summary;
+  });
+  const fitted = fitModelResultBudget({ ...result, results: modelResults }, options);
+  return { ...fitted, records: fitted.records.map(record => {
+    const original=originals.get(record.id);
+    return record.lat === original.lat && record.lng === original.lng ? original : { ...original, lat: record.lat, lng: record.lng };
+  }) };
+}
+function fitModelResultBudget(result, {
   history = [], toolCallId, now = new Date(), location, filters = {}, requestOptions = {}, limits = RESULT_LIMITS,
 } = {}) {
   const context = { history, toolCallId, requestOptions, limits };

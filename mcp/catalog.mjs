@@ -15,6 +15,19 @@ export function coordinates(lat, lng) {
 const days = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
 function date(value) { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null; }
 function list(value) { return Array.isArray(value) ? value : []; }
+// City sbt_trasy_turystyczne_pw.json publishes [latitude, longitude], not GeoJSON.
+// Split at malformed vertices: removing them would invent a bridge across a gap.
+export function touristGeometry(raw) {
+  const traces = list(raw.traces), segments = []; let current = [], invalid = false;
+  if (traces.length > 10000) return { traceSegments: [], geometryStatus: 'too_large' };
+  for (const vertex of traces) {
+    const point = Array.isArray(vertex) && vertex.length === 2 ? coordinates(vertex[0], vertex[1]) : null;
+    if (point) current.push([point.lat, point.lng]);
+    else { if (current.length > 1) segments.push(current); current = []; invalid = true; }
+  }
+  if (current.length > 1) segments.push(current);
+  return { traceSegments: segments, geometryStatus: segments.length ? invalid ? 'partial' : 'published' : 'unavailable' };
+}
 export function eventImage(raw) {
   const candidates = [raw.image?.small?.path, raw.image?.highlighted?.path];
   for (const value of candidates) {
@@ -73,8 +86,13 @@ export function normalizeRecord(raw, category, fetchedAt) {
     details = { address: text(raw['Adres obiektu']), surface: text(raw['Rodzaj nawierzchni']), updatedAt: text(raw['Data aktualizacji']), schedule };
   } else if (category === 'route') {
     name = text(raw.title); description = text(raw.description);
-    position = coordinates(raw.traces?.[0]?.[0], raw.traces?.[0]?.[1]);
-    details = { lengthKm: finite(raw.length), touristPoints: list(raw.tourist_points).map(p => ({ name: text(p.name), ...coordinates(p.latlng?.lat, p.latlng?.lng) })) };
+    const geometry = touristGeometry(raw);
+    const touristPoints = list(raw.tourist_points).flatMap(p => {
+      const point = coordinates(p?.latlng?.lat, p?.latlng?.lng), name = text(p?.name);
+      return point && name ? [{ name, ...point }] : [];
+    });
+    position = coordinates(raw.traces?.[0]?.[0], raw.traces?.[0]?.[1]) || (geometry.traceSegments[0] && coordinates(...geometry.traceSegments[0][0])) || coordinates(touristPoints[0]?.lat, touristPoints[0]?.lng);
+    details = { lengthKm: finite(raw.length), ...geometry, traceVertexCount: geometry.traceSegments.reduce((count, segment) => count + segment.length, 0), touristPoints };
   } else if (category === 'toilet') {
     if (raw.type !== 'Feature' || !raw.properties || typeof raw.properties !== 'object' || Array.isArray(raw.properties)) throw new SourceError('SOURCE_SCHEMA', category);
     const p = raw.properties, address = text(p.lokalizacja), type = text(p.typ);

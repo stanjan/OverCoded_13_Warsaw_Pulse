@@ -189,7 +189,8 @@ export function createAssistant({ completion = bridgeCompletion, provider, addre
               emit({ type: 'action', action });
               if (onEvent && action.type === 'display_results') publishedDisplay = snapshot();
             }
-            history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+            // Tourist vertices belong to the map action, never the language-model context.
+            history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result, (key, value) => key === 'traceSegments' ? undefined : value) });
           }
           continue;
         }
