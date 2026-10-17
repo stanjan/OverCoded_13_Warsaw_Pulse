@@ -98,7 +98,7 @@ test('active stops preserve exact boarded sequence including loops without leaki
 });
 
 test('vehicle directions require fresh unambiguous confirmed same-vehicle and same-line trip binding',()=>{
- const data=graph(),vehicle={id:'2:1',line:'17',freshness:'recent',observedAt:new Date(now).toISOString()},delta={vehicleId:'2:1',tripId:data.trips[0].id,observedAt:now,confidence:'brigade_two_stop_dwell'},decorate=(vehicles,deltas)=>withVehicleDirections(vehicles,data,new Map(deltas.map((delta,index)=>[index,delta])),now);
+ const data=graph(),vehicle={id:'2:1',line:'17',freshness:'recent',observedAt:new Date(now).toISOString()},delta={vehicleId:'2:1',tripId:data.trips[0].id,observedAt:now,confidence:'brigade_route_progress'},decorate=(vehicles,deltas)=>withVehicleDirections(vehicles,data,new Map(deltas.map((delta,index)=>[index,delta])),now);
  assert.equal(decorate([vehicle],[delta])[0].direction,'B');assert.equal(decorate([vehicle],[delta])[0].directionTripId,data.trips[0].id);
  for(const value of [{...delta,observedAt:now-180001},{...delta,observedAt:now+60001},{...delta,confidence:'unconfirmed'},{...delta,vehicleId:'2:other'},{...delta,tripId:'missing'},{...delta,tripId:data.trips[2].id}])assert.equal(decorate([vehicle],[value])[0].direction,null);
  assert.equal(decorate([vehicle],[delta,{...delta,tripId:data.trips[1].id}])[0].direction,null);assert.equal(decorate([{...vehicle,freshness:'stale'}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,observedAt:new Date(now-90001).toISOString()}],[delta])[0].direction,null);assert.equal(decorate([{...vehicle,line:'22'}],[delta])[0].direction,null);
