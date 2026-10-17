@@ -3,11 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { createAssistant, BridgeError } from '../server/assistant.mjs';
 import { getEnvironment, EnvironmentError } from '../server/environment.mjs';
+import { transitService } from '../server/transit.mjs';
+import { TransitError } from '../transit-core.mjs';
 const root = resolve(import.meta.dirname, '..');
 const assistant = createAssistant({ environmentProvider: getEnvironment });
+if (process.env.DATA_API_KEY) transitService.startTracking().catch(() => {});
 const port = Number(process.env.PORT || 5173);
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
-const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js']);
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript' };
+const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/transit-ui.mjs', '/transit-core.mjs']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
@@ -24,6 +27,21 @@ createServer(async (req, res) => {
       const controller = new AbortController();
       res.on('close', () => { if (!res.writableEnded) controller.abort(); });
       return json(res, 200, await getEnvironment(location, { signal: controller.signal }));
+    }
+    if (url.pathname === '/api/transit/stops' && req.method === 'GET') {
+      const controller = new AbortController();
+      res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+      return json(res, 200, await transitService.searchStops(url.searchParams.get('q'), { signal: controller.signal }));
+    }
+    if (['/api/transit/plan','/api/transit/live'].includes(url.pathname) && req.method === 'POST') {
+      if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return json(res, 403, { error: 'Niedozwolone źródło zapytania.' });
+      if (!req.headers['content-type']?.startsWith('application/json')) return json(res, 415, { error: 'Wymagany JSON.' });
+      let size=0;const chunks=[];
+      for await (const chunk of req) {size+=chunk.length;if(size>5000)return json(res,413,{error:'Zapytanie jest zbyt długie.'});chunks.push(chunk);}
+      let data;try{data=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return json(res,400,{error:'Nieprawidłowy JSON.'});}
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+      res.on('close',()=>{if(!res.writableEnded)controller.abort();});
+      try{return json(res,200,url.pathname==='/api/transit/live'?transitService.liveSnapshot(data):await transitService.plan(data,{signal:controller.signal}));}finally{clearTimeout(timer);}
     }
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return json(res, 403, { error: 'Niedozwolone źródło zapytania.' });
@@ -56,6 +74,7 @@ createServer(async (req, res) => {
     const data = await readFile(resolve(root, '.' + path));
     res.writeHead(200, { 'Content-Type': types[extname(path)], 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
   } catch (error) {
+    if (error instanceof TransitError && !res.headersSent && !res.destroyed) return json(res, /SOURCE|GTFS_UNAVAILABLE/.test(error.code) ? 503 : 400, { error: error.message, code: error.code });
     if (!res.headersSent && !res.destroyed) json(res, error instanceof BridgeError || error instanceof EnvironmentError ? error.status : 500, { error: error instanceof BridgeError || error instanceof EnvironmentError ? error.message : 'Nie udało się obsłużyć zapytania.' });
   }
 }).listen(port, '127.0.0.1', () => console.log(`Local: http://127.0.0.1:${port}\nBridge: ${process.env.CODEX_BRIDGE_URL ? 'configured' : 'not configured'}`));

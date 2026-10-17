@@ -1,0 +1,48 @@
+# Municipal transit planning and current delay estimates
+
+The Transit panel calculates journeys from official Warsaw/ZTM data. Google is an optional base-map renderer only: no Google routing, Directions, Routes or Places call is made. The same municipal geometry and vehicle markers render on Leaflet/OpenStreetMap.
+
+## Sources and source contracts
+
+- Official ZTM download page: https://www.ztm.waw.pl/pliki-do-pobrania/dane-rozkladowe/ . Its section on data sources links the current complete GTFS at https://gtfs.ztm.waw.pl/last . The verified download is a ZIP containing agency, feed_info, calendar, calendar_dates, routes, trips, stops, stop_times and shapes CSV files. Actual feed verified 17 October 2026: version schedule_ZTM_2026.10.16_1253869430_0735, valid 16–25 October, 6,940 stops. Validity is checked from every imported feed; these dates are not hard-coded.
+- Municipal stop catalogue: dataset009fce84-0024-431a-aa5e-9515c539899e, POST get_ztm_przystanki_komunikacji_miejskiej. Bare array; each values array carries zespol, slupek, nazwa_zespolu, szer_geo and dlug_geo.
+- Stop lines: dataset8eb065b6-f3a0-41d4-a842-732c6c1c3063, POST get_ztm_lista_linii_na_przystanku, JSON busstopId/busstopNr; values array has linia.
+- Departures: datasetdedad7b7-85f4-4be9-b73e-8395cefb434c, POST get_ztm_odjazdy_linii_z_przystanku, JSON busstopId/busstopNr/line. Rows of key/value pairs: czas, brygada, kierunek, trasa. This endpoint has no verified service-date or unique-trip field. It never supplies a standalone invented itinerary. It is used as bounded brigade evidence or as explicitly undated fallback observations when GTFS is unavailable.
+- Bus/tram positions: datasetf319f602-7292-4e8c-b3d1-f5898aa9a638, POST get_ztm_lokalizacja_pojazdow, JSON type1bus/type2tram. Actual fields: Brigade, Lines, Lat, Lon, Time, VehicleNumber. Time is interpreted as Warsaw local wall-clock time; ambiguous DST times remain unknown. The API includes old last-known records: HTTP200/download time does not make a position live. Older than90seconds, excessively future and unparseable observations do not train the model.
+
+Municipal action URLs are https://dane.um.warszawa.pl/api/action/{action}; Authorization contains the existing DATA_API_KEY value directly, without Bearer. Credentials stay on the server and never reach the browser, repository, logs or source links.
+
+## Runtime and retained data
+
+Use the existing local server command. With DATA_API_KEY configured, one background tracker starts at server startup and polls both fleets every15seconds; it does not wait for a journey query. It shares the current-day GTFS import/cache with journey planning. Source failures are retried; estimates expire rather than becoming invented live times.
+
+The sole persisted bulk cache is .local/transit/gtfs.zip, ignored by Git. Download streams to an atomic temporary file, with a100MB compressed limit, and replaces the single current ZIP; failed temporary downloads are removed. The large stop_times CSV is streamed without extraction. Only relevant dated trip instances are retained: selected day, prior-day overnight trips and next-day trips within the four-hour overnight search horizon. The current-day graph remains cached for prediction; future-day query graphs are ephemeral and do not replace/reset the continuous current-day model. Calendar-day changes load the new day and clear incompatible matches. Download/import cache TTL is six hours; unavailable/expired calendar days produce an explicit planning limitation. Do not commit, archive or duplicate GPS/vehicle history files.
+
+RAM-only model state: at most5,000vehicles, one preceding current position plus current dwell/trip state per vehicle, and current trip deltas. Position/match and delta TTL are3minutes; invalid/stale/line-or-brigade-changed observations invalidate corresponding estimates. Brigade evidence has a bounded100-entry, ten-minute current cache and a fair100-entry pending queue (two-minute queue TTL), at most four evidence lookups per15-second cycle. No GPS sampling history or completed-journey archive is written to disk.
+
+## Routing and limits
+
+Resolve a named stop by selecting its platform suggestion, use explicit coordinates, or choose Dojedź przy an existing map result. Arbitrary street-address geocoding is intentionally absent. GPS must be a valid browser measurement no older than5minutes, with accuracy at most2km. No city-centre origin substitution.
+
+The round-based search retains GTFS trip identity and order, calendar/exception service membership, pickup/drop-off restrictions, and actual dated instants. GTFS service clocks follow the specification's local-noon-minus12hours plus elapsed seconds, including25-hour services and DST. User wall-clock departure input rejects nonexistent/ambiguous DST clocks rather than guessing an offset.
+
+Search bounds: eight nearest stops within900m at each end; up to three boardings/two transfers; four-hour horizon; up to three distinct alternatives sorted by arrival. These are best among checked journeys, not a global optimality claim. Walking uses straight distance×1.3 at1.2m/s; transfers include two additional minutes. Walking paths are schematic, with no verified pedestrian access, accessibility or turn-by-turn directions. Transit uses official shape segments when endpoint matching is reliable, otherwise explicitly schematic stop connections. Fare, capacity, disruptions, road closures and guaranteed transfer connections are outside the verified contract.
+
+The ordinary valid-GTFS journey makes at most three municipal calls (stops plus both vehicle types, usually cached), avoiding thousands of stop-departure requests. If GTFS is unavailable, fallback observations check at most one line on one stop at each end (maximum seven city calls). Separate continuous prediction uses both vehicle snapshots and at most four pending departure-evidence calls per cycle.
+
+## Live delta confidence
+
+A line number or nearest schedule alone never proves a trip. A stationary observation must follow an observed entry into a40m stop neighbourhood (preceding sample no more than30seconds old), remain for at least8seconds with sampled speed at most0.8m/s, and match a stop by line/spatial context. Starting the server while a vehicle is already parked does not count as observing its arrival.
+
+A candidate must also have municipal brigade evidence matching the vehicle Brigade to the same dated GTFS stop departure clock and terminal direction; platform/name/coordinate matching bridges the two stop catalogues. Multiple plausible brigade-bound trips within±15minutes are rejected. Two compatible dwells at increasing stops on that exact trip are required before publishing a signed delta. Missing brigade, ambiguous stops/calendars, unknown API fields or unresolved evidence stays unconfirmed. Dense service and delayed evidence may produce no correction; this is preferable to attaching a late bus to the next scheduled trip. The model is approximate sampling, not proof of door opening or a certified real-time arrival feed.
+
+A fresh accepted delta adjusts only later stops of that exact dated trip before boarding and transfer feasibility checks. Negative delta can adjust an arrival estimate but never moves a departure before its published time (the vehicle may wait). UI shows signed minutes, observation age and model basis. Missing/stale/uncertain deltas use timetable times. Map vehicle observations refresh independently every15seconds; use Find connection again to recalculate an existing itinerary with new deltas. Newly started tracking is explicitly warming until enough corroborated stops exist.
+
+## Local API and assistant seam
+
+- GET /api/transit/stops?q=... returns up to12suggestions plus total/provided counts and source; no credential.
+- POST /api/transit/plan accepts origin/destination strings (selected stop/platform) or latitude/longitude objects, and departureTime ISO with explicit offset. It returns bounded alternatives, geometry, source/calendar provenance, observations, live-model coverage and explicit limitations.
+- POST /api/transit/live accepts coordinate origin/destination and returns current nearby vehicle observations/model coverage for map refresh.
+- MCP plan_transit accepts exactly one destinationId, destinationQuery or destinationCoordinates; optional originQuery/originCoordinates and departureTime. A destinationId is resolved only from verified existing results. It emits a plan_transit browser action and status planning_requested. This is acceptance of a request, never a computed route or ETA. Browser/provider output alone supplies the itinerary.
+
+Verification commands: node --test tests/*.test.mjs; node scripts/build.mjs; node --test bridge/*.test.mjs. Focused fixtures cover GTFS ZIP/CSV/calendar/DST/pickup data, exact trip identity, transfer feasibility, brigade evidence, headway aliasing, sampled dwell, stale/negative delays, request races, safe text, current vehicle markers and both map adapters. See issue8 comments for the current exact candidate, real source/browser smoke and RAM measurements.

@@ -123,7 +123,7 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
     const reply = await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (url, init) => {
       assert.equal(url, 'http://127.0.0.1:9999/v1/chat/completions');
-      assert.equal(JSON.parse(init.body).tools.length, 5);
+      assert.equal(JSON.parse(init.body).tools.length, 6);
       return { ok: true, json: async () => ({ choices: [{ message: { content: 'Cześć!' } }] }) };
     } });
     assert.equal(reply.content, 'Cześć!');

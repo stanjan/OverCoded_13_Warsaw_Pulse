@@ -43,10 +43,35 @@
     const optionalCollision = google.maps.CollisionBehavior?.OPTIONAL_AND_HIDES_LOWER_PRIORITY;
     info.addListener('closeclick', () => { activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; });
     let markers = [];
+    let routeLines = [], routeMarkers = [], vehicleMarkers = [];
+    const clearRoute = () => { routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
 
     return {
       vendor: 'google',
+      clearRoute,
+      showRoute(route) {
+        clearRoute();
+        for (const step of route?.steps || []) {
+          const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
+          if (path.length < 2) continue;
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : '#b95637', strokeOpacity: step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, clickable: false }));
+        }
+        const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
+        if (points.length) {
+          const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
+          map.fitBounds(bounds, { top: 65, left: 24, right: 24, bottom: 24 });
+          [points[0],points.at(-1)].forEach((point,index) => { const label = document.createElement('span');label.className = 'transit-waypoint';label.textContent=index?'B':'A';routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content:label,title:index?'Cel przejazdu':'Początek przejazdu',zIndex:300})); });
+        }
+        return routeLines.length > 0;
+      },
+      showVehicles(vehicles) {
+        vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
+        for (const vehicle of vehicles || []) {
+          if (!validTransitPath([vehicle]).length) continue;
+          vehicleMarkers.push(new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), zIndex:250 }));
+        }
+      },
       setView({ lat, lng }, zoom) { map.panTo({ lat, lng }); map.setZoom(zoom); },
       clearMarkers() { info.close(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
@@ -94,6 +119,8 @@
     const map = L.map(element, { zoomControl: false }).setView([WARSAW.lat, WARSAW.lng], START_ZOOM);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
     const layer = L.layerGroup().addTo(map);
+    const transitLayer = L.layerGroup().addTo(map);
+    const vehicleLayer = L.layerGroup().addTo(map);
     const results = [];
     let activeMarker;
     function arrangeBubbles() {
@@ -114,6 +141,25 @@
     new ResizeObserver(() => map.invalidateSize()).observe(element);
     return {
       vendor: 'leaflet',
+      clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      showRoute(route) {
+        transitLayer.clearLayers();const points=[];
+        for (const step of route?.steps || []) {
+          const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
+          if(path.length<2)continue;points.push(...path);
+          L.polyline(path,{color:step.mode==='WALK'?'#61776a':'#b95637',weight:step.mode==='WALK'?4:6,dashArray:step.mode==='WALK'?'6 7':null}).addTo(transitLayer);
+        }
+        if(points.length)map.fitBounds(points,{paddingTopLeft:[24,65],paddingBottomRight:[24,24]});
+        return points.length>0;
+      },
+      showVehicles(vehicles) {
+        vehicleLayer.clearLayers();
+        for(const vehicle of vehicles||[]) {
+          if(!validTransitPath([vehicle]).length)continue;
+          L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[44,30],iconAnchor:[22,15]}),title:vehicleTitle(vehicle),zIndexOffset:250}).addTo(vehicleLayer);
+        }
+      },
+
       setView({ lat, lng }, zoom) { map.setView([lat, lng], zoom); },
       clearMarkers() { layer.clearLayers(); results.length = 0; activeMarker = undefined; },
       addMarker(place, { recommended = false, onOpen } = {}) {
@@ -146,6 +192,10 @@
       },
     };
   }
+
+  function validTransitPath(points) { return Array.isArray(points) ? points.filter(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180) : []; }
+  function vehicleTitle(vehicle) { return (vehicle.type===2?'Tramwaj ':'Autobus ')+vehicle.line+' · '+(vehicle.freshness==='recent'?'świeży pomiar':'pomiar nieaktualny lub bez czasu')+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
+  function vehicleElement(vehicle) { const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.textContent=vehicle.line;element.title=vehicleTitle(vehicle);return element; }
 
   function userDotElement(vendor) {
     const wrap = document.createElement('div');
@@ -238,6 +288,11 @@
       source.textContent = place.category === 'event' || place.category === 'sports' ? 'Szczegóły u organizatora ↗' : 'Zobacz źródło ↗';
       source.target = '_blank'; source.rel = 'noopener noreferrer'; body.append(source);
     }
+    if (Number.isFinite(place.lat) && Math.abs(place.lat) <= 90 && Number.isFinite(place.lng) && Math.abs(place.lng) <= 180) {
+      const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'result-detail__transit'; transit.textContent = 'Dojedź komunikacją →';
+      transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
+      body.append(transit);
+    }
     card.append(body); return card;
   }
 
@@ -267,6 +322,7 @@
         let replaced = false;
         const fallBack = () => {
           if (replaced) return;
+          google.clearRoute();
           replaced = true;
           console.warn('[map] Google Maps rejected the API key, switching to OpenStreetMap.');
           try { onReplace?.(replaceWithLeaflet(element)); } catch (error) { console.warn('[map]', error.message); onReplace?.(null); }

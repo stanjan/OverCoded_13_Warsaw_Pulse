@@ -10,6 +10,8 @@ let sessionId = null;
 let pending = false;
 let expanded = true;
 let cityMap;
+window.getCityMap = () => cityMap;
+window.expandCitySheet = () => setExpanded(true);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 
@@ -56,12 +58,13 @@ function useMap(map) {
   cityMap = map;
   mapContainer.classList.remove('map-google', 'map-leaflet');
   mapContainer.classList.add('map-ready', `map-${map.vendor}`);
+  window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: map.vendor } }));
   return map;
 }
 // If Google rejects the key after loading, continue on OpenStreetMap with the same state.
 function onMapReplaced(map) {
   mapWasReplaced = true;
-  if (!map) { cityMap = undefined; showMapUnavailable(); return; }
+  if (!map) { cityMap = undefined; window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: null } })); showMapUnavailable(); return; }
   useMap(map);
   if (lastPosition) map.showUser(lastPosition);
   if (lastDisplayedAction) showResults(lastDisplayedAction);
@@ -190,6 +193,11 @@ function showResults(action) {
       focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); }); card.append(focus);
       points.push([place.lat, place.lng]);
     }
+    if (spatial) {
+      const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';
+      transit.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('city:transit',{detail:{destination:{latitude:place.lat,longitude:place.lng,label:place.name}}})));
+      card.append(transit);
+    }
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
 }
@@ -253,6 +261,7 @@ async function* chatEvents(body) {
   } finally { reader.releaseLock(); }
 }
 function applyAction(action) {
+  if (action.type === 'plan_transit') window.dispatchEvent(new CustomEvent('city:transit', { detail: action }));
   if (action.type === 'display_results') showResults(action);
   if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
 }
@@ -314,6 +323,7 @@ document.querySelector('#mic-btn').addEventListener('click', event => {
 });
 document.querySelectorAll('nav a').forEach(link => link.addEventListener('click', event => {
   event.preventDefault();
-  if (link.dataset.path === 'city-pulse') { setExpanded(true); return; }
+  if (link.dataset.path === 'transit-live') { window.dispatchEvent(new CustomEvent('city:transit', { detail: {} })); return; }
+  if (link.dataset.path === 'city-pulse') { window.dispatchEvent(new CustomEvent('city:pulse')); setExpanded(true); return; }
   addMessage(`Sekcja ${link.querySelector('span:last-child').textContent.trim()} będzie dostępna w kolejnej wersji aplikacji.`);
 }));
