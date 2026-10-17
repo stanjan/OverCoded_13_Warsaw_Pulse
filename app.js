@@ -173,8 +173,24 @@ function showMapUnavailable() {
   document.querySelector('#map-loading-label').textContent = 'Mapa jest chwilowo niedostępna';
   mapContainer.classList.add('map-unavailable');
 }
+// Marker handles by place id, so the favourites list reuses a result's marker instead of stacking a second one.
+// The adapter is wrapped once; every clearMarkers() drops the handles with the markers.
+const placeMarkers = new Map();
+function trackPlaceMarkers(map) {
+  if (map.tracksPlaces || typeof map.addMarker !== 'function' || typeof map.clearMarkers !== 'function') return;
+  const add = map.addMarker.bind(map), clear = map.clearMarkers.bind(map);
+  map.addMarker = (place, options) => { const marker = add(place, options); if (marker) placeMarkers.set(String(place.id), marker); return marker; };
+  map.clearMarkers = () => { placeMarkers.clear(); return clear(); };
+  map.tracksPlaces = true;
+}
+window.focusCityPlace = place => {
+  if (!cityMap || !Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return false;
+  const marker = placeMarkers.get(String(place.id)) || cityMap.addMarker(place, { onOpen: () => setExpanded(false) });
+  setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker?.open();
+  return true;
+};
 function useMap(map) {
-  cityMap = map;
+  cityMap = map; placeMarkers.clear(); trackPlaceMarkers(map);
   mapContainer.classList.remove('map-google', 'map-leaflet');
   mapContainer.classList.add('map-ready', `map-${map.vendor}`);
   window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: map.vendor } }));
@@ -183,7 +199,7 @@ function useMap(map) {
 // If Google rejects the key after loading, continue on OpenStreetMap with the same state.
 function onMapReplaced(map) {
   mapWasReplaced = true;
-  if (!map) { cityMap = undefined; window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: null } })); showMapUnavailable(); return; }
+  if (!map) { cityMap = undefined; placeMarkers.clear(); window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: null } })); showMapUnavailable(); return; }
   useMap(map);
   if (lastPosition) map.showUser(lastPosition);
   if (lastDisplayedAction) showResults(lastDisplayedAction);
@@ -360,6 +376,7 @@ function showResults(action) {
     if (info.imageUrl) { const img = document.createElement('img'); img.src = info.imageUrl; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.addEventListener('error', () => img.remove()); thumb.append(img); }
     const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined rec-card__glyph'; glyph.textContent = info.icon || 'local_activity';
     thumb.append(glyph); card.append(thumb);
+    const favorite = globalThis.cityFavorites?.button(place);
     if (spatial) {
       const actions = document.createElement('div'); actions.className = 'rec-card__actions';
       const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'rec-card__transit';
@@ -373,7 +390,11 @@ function showResults(action) {
         const showIcon = document.createElement('span'); showIcon.className = 'material-symbols-outlined'; showIcon.textContent = 'map';
         show.append(showIcon); show.addEventListener('click', focusMap); actions.append(show);
       }
+      if (favorite) actions.append(favorite);
       card.append(actions);
+    } else if (favorite) {
+      const actions = document.createElement('div'); actions.className = 'rec-card__actions';
+      actions.append(favorite); card.append(actions);
     }
     resultPanel.append(card);
   }

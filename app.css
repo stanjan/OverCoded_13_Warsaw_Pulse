@@ -364,3 +364,34 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
+
+/* Favourites: heart on place cards, top-right list button (below the weather bar on phones) and its panel. */
+.rec-card__favorite { flex: none; width: 44px; height: 44px; display: grid; place-items: center; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: #f3ece4; color: #3a2a22; cursor: pointer; }
+.rec-card__actions .rec-card__transit + .rec-card__favorite, .rec-card__actions .rec-card__map + .rec-card__favorite { margin-left: 0; }
+.rec-card__favorite:hover { background: #ead9cc; }
+.rec-card__favorite[aria-pressed='true'] { background: #fce7f3; color: #be185d; }
+.rec-card__favorite .material-symbols-outlined { width: 20px; height: 20px; }
+.rec-card__favorite[aria-pressed='true'] svg, .favorites-trigger:not([data-count='0']) svg { fill: currentColor; }
+.favorites-trigger { position: absolute; z-index: 20; right: 12px; top: var(--favorites-top, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 72px)); width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid #0000000c; border-radius: 50%; background: #f7f9fbf5; backdrop-filter: blur(18px); color: #be185d; box-shadow: 0 8px 22px #09142624; cursor: pointer; }
+.favorites-trigger:focus-visible, .favorites-panel button:focus-visible, .rec-card__favorite:focus-visible { outline: 3px solid #0051d5; outline-offset: 2px; }
+.favorites-trigger .material-symbols-outlined { width: 22px; height: 22px; }
+.favorites-trigger__badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: #be185d; color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+.favorites-trigger__badge[hidden] { display: none; }
+.favorites-panel { position: absolute; z-index: 45; right: 12px; top: calc(var(--favorites-top, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 72px)) + 52px); width: min(340px, calc(100% - 24px)); max-height: min(60dvh, 520px); box-sizing: border-box; display: flex; flex-direction: column; padding: 14px; border: 1px solid #efe6dc; border-radius: 22px; background: #fffdf9; color: #1f1a17; box-shadow: 0 16px 40px -8px #09142640; overflow-y: auto; overscroll-behavior: contain; }
+.favorites-panel[hidden] { display: none; }
+.favorites-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.favorites-panel__head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
+.favorites-panel__close { width: 44px; height: 44px; display: grid; place-items: center; margin: -8px -8px -8px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #3a2a22; cursor: pointer; }
+.favorites-panel__close .material-symbols-outlined { width: 20px; height: 20px; }
+.favorites-panel__note { margin: 8px 0 0; padding: 8px 10px; border-radius: 12px; background: #fef3c7; color: #8a5a00; font-size: 12px; line-height: 1.4; }
+.favorites-panel__empty { margin: 10px 0 2px; color: #74675f; font-size: 14px; line-height: 1.45; }
+.favorites-panel__note[hidden], .favorites-panel__empty[hidden] { display: none; }
+.favorites-panel__list { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.favorites-item { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #efe6dc; border-radius: 16px; background: #fff; }
+.favorites-item__name { font-size: 15px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.favorites-item__address { color: #74675f; font-size: 12px; line-height: 1.4; }
+.favorites-item__actions { display: flex; gap: 6px; margin-top: 8px; }
+.favorites-item__actions button { display: inline-grid; grid-auto-flow: column; place-items: center; gap: 6px; min-width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: #f3ece4; color: #3a2a22; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.favorites-item__actions .favorites-item__transit { flex: 1; padding: 0 12px; background: #3a2a22; color: #fffdf9; }
+.favorites-item__actions .favorites-item__remove { margin-left: auto; }
+.favorites-item__actions .material-symbols-outlined { width: 18px; height: 18px; }
