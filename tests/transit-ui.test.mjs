@@ -69,3 +69,15 @@ test('route summaries preserve actual transfers, combine adjacent walks, and cla
 test('compact ETA keeps dates for another Warsaw day and includes dates across midnight',()=>{
  const now=Date.parse('2026-10-17T20:00Z');assert.equal(compactTime(Date.parse('2026-10-17T21:15Z'),now),'23:15');assert.match(compactTime(Date.parse('2026-10-17T23:15Z'),now),/18.*01:15/);
 });
+
+test('card and selected ETA age before a hanging request, after outage and after successful refresh',async()=>{
+ const originalNow=Date.now;let now=originalNow(),mode='pending',reject;
+ Date.now=()=>now;
+ try{
+  const delayed=route('live');delayed.steps[0].delay={deltaMs:120000,observedAt:now};
+  const f=fixture({compute:async()=>result([delayed]),fetchImpl:()=>mode==='pending'?new Promise((_resolve,fail)=>reject=fail):Promise.resolve({ok:true,json:async()=>({vehicles:[],vehicleCount:0,vehicleProvided:0})})});
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();const cardLabel=f.ids['transit-alternatives'].querySelectorAll('small')[0];assert.match(cardLabel.textContent,/GPS \+2/);assert.match(f.ids['environment-eta'].children[1].textContent,/GPS \+2/);
+  now+=180001;const refresh=f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);reject(new Error('offline'));await refresh;assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);
+  mode='success';await f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].children[1].textContent,/zapisany plan/);
+ }finally{Date.now=originalNow;}
+});

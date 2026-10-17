@@ -54,6 +54,11 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  const link=(text,url)=>{const a=node('a',text);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;};
  const lineBadge=record=>{const appearance=transitAppearance(record),badge=node('span',record.line,'transit-line-badge');badge.style.backgroundColor=appearance.transportColor;badge.title=appearance.transportLabel+' '+record.line;badge.setAttribute('aria-label',badge.title);return badge;};
  function message(text,error=false){status.textContent=text;status.dataset.state=error?'error':'info';}
+ function ageTiming(){
+  if(state.status!=='ready')return;
+  alternatives.querySelectorAll('small').forEach((label,index)=>label.textContent=timingLabel(state.routes[index],{computedAt,archived}));
+  if(isActive(api)&&selected>=0){const route=state.routes[selected];routeBar(route,{computedAt,archived});if(status.dataset.compact==='true')message('Wybrano trasę · przyjazd ok. '+compactTime(route.arrival)+' · '+timingLabel(route,{computedAt,archived}));}
+ }
  function clearView(){liveSequence++;liveController?.abort();if(isActive(api)){map()?.clearRoute?.();routeBar(null);}alternatives.replaceChildren();itinerary.replaceChildren();observations.replaceChildren();selected=-1;}
  function showObservations(){
   observations.replaceChildren();
@@ -70,7 +75,10 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  }
  function select(index){
   activateSession(api);selected=index;const route=state.routes[index];alternatives.querySelectorAll('button').forEach((button,i)=>button.setAttribute('aria-pressed',String(i===index)));itinerary.replaceChildren();
-  const rendered=map()?.showRoute?.(route,{top:120});status.dataset.compact=String(Boolean(rendered));routeBar(route,{computedAt,archived});el('details').hidden=false;
+  routeBar(route,{computedAt,archived});
+  const barBottom=doc.getElementById('environment-bar')?.getBoundingClientRect?.().bottom;
+  const mapTop=doc.getElementById('city-map')?.getBoundingClientRect?.().top||0;
+  const rendered=map()?.showRoute?.(route,{top:Math.max(120,(barBottom||0)-mapTop+8)});status.dataset.compact=String(Boolean(rendered));el('details').hidden=false;ageTiming();
   message(!rendered?'Mapa jest niedostępna. Sprawdź wskazówki w szczegółach.':archived?'Zapisany plan z '+timeLabel(computedAt)+' · odśwież połączenie przed wyjazdem.':'Wybrano trasę · przyjazd ok. '+compactTime(route.arrival)+' · '+timingLabel(route,{archived,computedAt}));
   itinerary.append(node('h3',route.origin+' → '+route.destination),node('p','Wyjazd '+timeLabel(route.departure)+' · przyjazd ok. '+compactTime(route.arrival)+' · Europe/Warsaw','transit-note'));
   const list=node('ol');for(const step of route.steps){const item=node('li');const heading=node('strong');if(step.mode==='TRANSIT')heading.append(lineBadge(step),node('span',' → '+step.headsign));else heading.textContent='Pieszo · w przybliżeniu';item.append(heading);item.append(node('p',step.from+' → '+step.to));item.append(node('p',timeLabel(step.start)+' – '+timeLabel(step.end)+(step.mode==='TRANSIT'?' · przystanki: '+step.stops:'')));if(step.delay){const minutes=Math.round(step.delay.deltaMs/6000)/10;item.append(node('p','Korekta GPS przy obliczaniu planu: '+(minutes>=0?'+':'')+minutes+' min · obserwacja sprzed '+Math.max(0,Math.floor((Date.now()-step.delay.observedAt)/1000))+' s · zgodna brygada i dwa postoje. To szacunek, nie gwarancja przyjazdu.'));}if(step.assumption)item.append(node('p',step.assumption));if(step.geometry==='schematic'&&step.mode==='TRANSIT')item.append(node('p','Przebieg schematyczny między przystankami; brak potwierdzonego odcinka geometrii.'));list.append(item);}itinerary.append(list);itinerary.append(node('p','Plan obliczony '+timeLabel(computedAt)+'. Odśwież połączenie, by uwzględnić najnowszą korektę ETA.','transit-note'));for(const warning of route.warnings||[])itinerary.append(node('p',warning,'transit-note'));showObservations();
@@ -91,9 +99,11 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  }
  const planner=createPlanner({compute,onState:render});
  async function refreshLive(){
+  // Presentation freshness must age even when the request hangs or fails.
+  if(isActive(api)&&!panel.hidden)ageTiming();
   if(!isActive(api)||panel.hidden||archived||!['ready','limited'].includes(state.status)||!state.origin||!state.destination)return;
   const sequence=++liveSequence;liveController?.abort();liveController=new AbortController();
-  try{const response=await fetchImpl('/api/transit/live',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([liveController.signal,AbortSignal.timeout(10000)]),body:JSON.stringify({origin:state.origin,destination:state.destination})});if(!response.ok)throw new Error('Vehicle refresh unavailable');const data=await response.json();if(sequence!==liveSequence)return;if(!Array.isArray(data.vehicles))throw new Error('Invalid vehicle snapshot');Object.assign(state,{vehicles:data.vehicles,vehicleCount:data.vehicleCount,vehicleProvided:data.vehicleProvided,liveModel:data.liveModel,liveRefreshUnavailable:false});showObservations();if(selected>=0)routeBar(state.routes[selected],{computedAt,archived});}catch{if(sequence!==liveSequence)return;Object.assign(state,{vehicles:[],vehicleCount:0,vehicleProvided:0,liveRefreshUnavailable:true});showObservations();}
+  try{const response=await fetchImpl('/api/transit/live',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([liveController.signal,AbortSignal.timeout(10000)]),body:JSON.stringify({origin:state.origin,destination:state.destination})});if(!response.ok)throw new Error('Vehicle refresh unavailable');const data=await response.json();if(sequence!==liveSequence)return;if(!Array.isArray(data.vehicles))throw new Error('Invalid vehicle snapshot');Object.assign(state,{vehicles:data.vehicles,vehicleCount:data.vehicleCount,vehicleProvided:data.vehicleProvided,liveModel:data.liveModel,liveRefreshUnavailable:false});showObservations();ageTiming();}catch{if(sequence!==liveSequence)return;Object.assign(state,{vehicles:[],vehicleCount:0,vehicleProvided:0,liveRefreshUnavailable:true});showObservations();ageTiming();}
  }
  function activate(on){panel.hidden=!on;if(on){activateSession(api);host.expandCitySheet?.();}else{if(liveTimer)clearInterval(liveTimer);liveTimer=null;liveController?.abort();liveSequence++;if(isActive(api)){map()?.clearRoute?.();map()?.showVehicles?.([]);routeBar(null);}}  }
  function startRefresh(){if(liveTimer)clearInterval(liveTimer);liveTimer=setInterval(refreshLive,15000);liveTimer.unref?.();}
