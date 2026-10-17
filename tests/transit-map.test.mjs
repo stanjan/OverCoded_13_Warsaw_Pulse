@@ -117,7 +117,7 @@ test('white stop dots use only official active-leg stop positions and clear on s
  const selected={steps:[{...route.steps[1],stopPositionSource:'gtfs_stop_sequence',stopPositions:[stop('a',52.21),stop('b',52.26),stop('c',52.25),stop('b',52.26),null,stop('bad',91)],fullPath:[stop('outside',52.8)]},{...route.steps[0],stopPositionSource:'gtfs_stop_sequence',stopPositions:[stop('walk',52.2)]},{...route.steps[1],stopPositions:[stop('unverified',52.24)]}]};
  google.showRoute(selected);let dots=markers.filter(marker=>marker.content.className==='transit-stop');assert.equal(dots.length,3);assert.deepEqual(dots.map(dot=>dot.position.lat),[52.21,52.26,52.25]);assert.ok(calls.find(call=>call[0]==='bounds')[1].points.some(point=>point.lat===52.26),'include source stop coordinates beyond the shape in active framing');assert.ok(dots.every(dot=>dot.zIndex===150&&dot.anchorTop==='-50%'));google.showRoute(route);assert.ok(dots.every(dot=>dot.map===null));
  google.showRoute(selected);dots=markers.filter(marker=>marker.content.className==='transit-stop');context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));assert.ok(dots.every(dot=>dot.map===null));leaflet.showRoute(selected);
- const layer=groups[1],leafDots=layer.items.filter(item=>item.options?.icon?.html?.className==='transit-stop');assert.equal(leafDots.length,3);assert.ok(calls.filter(call=>call[0]==='leaflet-bounds').at(-1)[1].some(point=>point[0]===52.26));assert.ok(leafDots.every(dot=>dot.options.interactive===false&&dot.options.icon.iconSize.join(',')==='9,9'));leaflet.showRoute(route);assert.equal(layer.items.filter(item=>item.options?.icon?.html?.className==='transit-stop').length,0);leaflet.showRoute(selected);leaflet.clearRoute();assert.equal(layer.items.length,0);
+ const layer=groups[1],leafDots=layer.items.filter(item=>item.options?.icon?.html?.className==='transit-stop');assert.equal(leafDots.length,3);assert.ok(calls.filter(call=>call[0]==='leaflet-bounds').at(-1)[1].some(point=>point[0]===52.26));assert.ok(leafDots.every(dot=>dot.options.interactive===false&&dot.options.icon.iconSize.join(',')==='6,6'));leaflet.showRoute(route);assert.equal(layer.items.filter(item=>item.options?.icon?.html?.className==='transit-stop').length,0);leaflet.showRoute(selected);leaflet.clearRoute();assert.equal(layer.items.length,0);
 });
 
 test('round vehicle glyphs open safe line/direction popups, reject stale markers, and refresh removes popups',async()=>{
@@ -137,4 +137,45 @@ test('vehicle popup panning respects weather, sheet and canvas edges, with dynam
  rect={top:420,bottom:520,left:760,right:900};popup.listeners.domready();assert.deepEqual(calls.filter(call=>call[0]==='pan').at(-1),['pan',112,32]);
  rect={top:180,bottom:280,left:100,right:220};const count=calls.filter(call=>call[0]==='pan').length;popup.listeners.domready();assert.equal(calls.filter(call=>call[0]==='pan').length,count,'already visible popup stays put');google.showVehicles([]);popup.listeners.domready();assert.equal(calls.filter(call=>call[0]==='pan').length,count,'late domready cannot pan after refresh');
  context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));const holder=canvas.children.at(-1);holder.getBoundingClientRect=canvas.getBoundingClientRect;leaflet.showVehicles([vehicle]);const marker=groups[2].items[0];assert.equal(marker.popupOptions.autoPanPaddingTopLeft.join(','),'12,106');assert.equal(marker.popupOptions.autoPanPaddingBottomRight.join(','),'12,212');barBottom=170;sheetTop=450;marker.listeners.popupopen();assert.equal(marker.popupOptions.autoPanPaddingTopLeft.join(','),'12,158');assert.equal(marker.popupOptions.autoPanPaddingBottomRight.join(','),'12,262');assert.ok(calls.some(call=>call[0]==='update-popup'));
+});
+
+
+test('small stop dots follow the active curved path on both maps without changing official stop positions or framing',async()=>{
+ const{context,markers,calls,groups}=setup();let leaflet;const google=await context.window.createCityMap(element('div'),{onReplace:adapter=>leaflet=adapter});
+ const point=(latitude,longitude)=>({latitude,longitude});
+ const path=[point(52,21),point(52.001,21),point(52.001,21.002)];
+ const source=[{id:'a',name:'A',...point(52.0005,21.00008)},{id:'b',name:'B',...point(52.00106,21.001)}];
+ const selected={steps:[{mode:'TRANSIT',path,geometry:'gtfs_shape',fullPathGeometry:'gtfs_shape',fullPath:[point(51.99,21.00008),...path,point(52.02,21.001)],stopPositionSource:'gtfs_stop_sequence',stopPositions:source}]};
+ const before=JSON.stringify(selected);google.showRoute(selected);
+ const dots=markers.filter(marker=>marker.content.className==='transit-stop');assert.equal(dots.length,2);
+ assert.ok(Math.abs(dots[0].position.lng-21)<1e-10);assert.ok(Math.abs(dots[0].position.lat-52.0005)<1e-10);
+ assert.ok(Math.abs(dots[1].position.lat-52.001)<1e-10);assert.ok(Math.abs(dots[1].position.lng-21.001)<1e-10);
+ assert.ok(dots.every(dot=>dot.anchorLeft==='-50%'&&dot.anchorTop==='-50%'&&dot.content.style.width==='6px'&&dot.content.style.height==='6px'));
+ assert.equal(JSON.stringify(selected),before,'display projection must not mutate GTFS coordinates, walking endpoints or ETA data');
+ const fitted=calls.find(call=>call[0]==='bounds')[1].points;assert.ok(fitted.some(p=>p.lat===source[1].latitude&&p.lng===source[1].longitude),'framing retains the true stop location');
+ context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));assert.ok(dots.every(dot=>dot.map===null));leaflet.showRoute(selected);
+ const leafDots=groups[1].items.filter(item=>item.options?.icon?.html?.className==='transit-stop');
+ assert.equal(leafDots.length,2);for(let i=0;i<2;i++){assert.equal(leafDots[i].position[0],dots[i].position.lat);assert.equal(leafDots[i].position[1],dots[i].position.lng);assert.equal(leafDots[i].options.icon.iconSize.join(','),'6,6');assert.equal(leafDots[i].options.icon.iconAnchor.join(','),'3,3');}
+ leaflet.clearRoute();assert.equal(groups[1].items.length,0);assert.equal(JSON.stringify(selected),before);
+});
+
+test('ordered stop matching does not jump to the nearer returning loop arm or another active leg',async()=>{
+ const{context,markers}=setup(),google=await context.window.createCityMap(element('div'));
+ const point=(latitude,longitude)=>({latitude,longitude});
+ const path=[point(52,21),point(52.004,21),point(52.004,21.0002),point(52,21.0002)];
+ const stops=[{id:'a',...point(52.001,21.00018)},{id:'b',...point(52.003,21.00002)},{id:'c',...point(52.002,21.00018)}];
+ const selected={steps:[{mode:'TRANSIT',path,stopPositionSource:'gtfs_stop_sequence',stopPositions:stops},{mode:'TRANSIT',path:[point(52,21.00018),point(52.004,21.00018)]}]};
+ google.showRoute(selected);const dots=markers.filter(marker=>marker.content.className==='transit-stop');assert.equal(dots.length,3);
+ assert.ok(Math.abs(dots[0].position.lng-21)<1e-10,'following stops disambiguate the first stop onto the outbound arm');
+ assert.ok(Math.abs(dots[1].position.lng-21)<1e-10);assert.ok(Math.abs(dots[2].position.lng-21.0002)<1e-10);
+ google.clearRoute();assert.ok(dots.every(dot=>dot.map===null));
+});
+
+test('unusable or distant active geometry retains source stop positions instead of inventing a match',async()=>{
+ const{context,markers}=setup(),google=await context.window.createCityMap(element('div'));
+ const stop={id:'a',latitude:52.1,longitude:21.1};
+ for(const path of [[],[null,{latitude:52.1,longitude:21.1}],[{latitude:52.1,longitude:21.1},{latitude:52.1,longitude:21.1}],[{latitude:52,longitude:21},{latitude:52.001,longitude:21}]]){
+  google.showRoute({steps:[{mode:'TRANSIT',path,stopPositionSource:'gtfs_stop_sequence',stopPositions:[stop]}]});
+  const dot=markers.filter(marker=>marker.map&&marker.content.className==='transit-stop').at(-1);assert.equal(dot.position.lat,stop.latitude);assert.equal(dot.position.lng,stop.longitude);
+ }
 });
