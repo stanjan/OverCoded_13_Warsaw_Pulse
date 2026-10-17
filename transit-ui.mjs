@@ -100,7 +100,7 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
   else if(next.status==='cancelled')message('Przerwano planowanie.');
   else if(next.status==='idle')message('Wybierz start i cel, by sprawdzić miejski rozkład.');
   else if(next.status==='limited'){el('details').hidden=false;el('editor').open=true;
-   message(next.reason==='NO_VERIFIED_ROUTE'?'Nie znaleziono potwierdzonego połączenia w sprawdzonym zakresie. Zmień start, cel lub czas.':'Nie udało się potwierdzić trasy z datowanego rozkładu ZTM. Pokazuję dostępne dane przystanków i pojazdów; bez ETA.',true);
+   message(String(next.reason||'').startsWith('WALK_')?'Nie udało się potwierdzić przejść pieszych. Odśwież trasę lub spróbuj później.':next.reason==='NO_VERIFIED_ROUTE'?'Nie znaleziono potwierdzonego połączenia w sprawdzonym zakresie. Zmień start, cel lub czas.':'Nie udało się potwierdzić trasy z datowanego rozkładu ZTM. Pokazuję dostępne dane przystanków i pojazdów; bez ETA.',true);
    if(next.stops?.length)map()?.fitTo?.(next.stops.map(stop=>[stop.latitude,stop.longitude]),{top:65,left:24,right:24,bottom:24});showObservations();
   }else if(next.status==='ready'){
    computedAt=Date.now();archived=false;el('editor').open=false;message('Wybierz połączenie, aby zobaczyć je na mapie.');
@@ -133,6 +133,6 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  autocomplete(origin,el('origin-options'));autocomplete(destination,el('destination-options'));
  el('form').addEventListener('submit',search);el('gps').addEventListener('click',gps);el('cancel').addEventListener('click',()=>planner.reset('cancelled'));el('clear').addEventListener('click',()=>planner.reset());el('close').addEventListener('click',()=>{planner.reset();activate(false);});
  origin.addEventListener('input',()=>{gpsMode=false;selectedOrigin=null;el('origin-note').textContent='Wybierz przystanek z listy lub wpisz współrzędne.';planner.reset();});destination.addEventListener('input',()=>{selectedDestination=null;planner.reset();});time.addEventListener('input',()=>planner.reset());
- api={open,search,refreshLive,refreshRoute,suspend,replay(){if(state.status==='ready'&&selected>=0)select(selected);else if(state.status==='limited')showObservations();},location(detail){if(!gpsMode)return;try{gpsOrigin(detail);}catch{planner.reset();message('Lokalizacja utraciła aktualność. Odśwież GPS lub wpisz start.',true);}},reset:()=>planner.reset(),close(){planner.reset();activate(false);},getState:()=>({status:state.status,selected,routeCount:state.routes.length})};return api;
+ api={open,search,refreshLive,refreshRoute,suspend,replay(){if(state.status==='ready'&&selected>=0)select(selected);else if(state.status==='limited')showObservations();},location(detail){if(!gpsMode)return;try{gpsOrigin(detail);}catch{planner.reset();message('Brak lokalizacji. Podaj punkt startowy lub włącz GPS.',true);}},reset:()=>planner.reset(),close(){planner.reset();activate(false);},getState:()=>({status:state.status,selected,routeCount:state.routes.length})};return api;
 }
 if(typeof document!=='undefined')mountTransit();

@@ -137,3 +137,11 @@ test('card and selected ETA age before a hanging request, after outage and after
   mode='success';await f.panel.refreshLive();assert.match(cardLabel.textContent,/zapisany plan/);assert.match(f.ids['environment-eta'].attributes['aria-label'],/zapisany plan/);
  }finally{Date.now=originalNow;}
 });
+
+test('walking verification failures explain the missing pedestrian path without blaming a valid ZTM schedule or retaining ETA',async()=>{
+ for(const reason of ['WALK_ROUTING_UNAVAILABLE','WALK_SCHEMA','WALK_VERIFICATION_LIMIT']){
+  let calls=0;const f=fixture({compute:async()=>++calls===1?result([route('old')]):({...result([]),reason,graphSource:{validFrom:'2026-10-16',validTo:'2026-10-25',url:'https://gtfs.ztm.waw.pl/last'}})});
+  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';await f.panel.search();f.ids['transit-alternatives'].children[0].click();assert.equal(f.ids['environment-bar'].dataset.route,'true');
+  await f.panel.search();assert.equal(f.panel.getState().status,'limited');assert.match(f.ids['transit-status'].textContent,/przejść pieszych/);assert.match(f.ids['transit-status'].textContent,/Odśwież trasę/);assert.doesNotMatch(f.ids['transit-status'].textContent,/rozkładu ZTM/);assert.equal(f.ids['transit-alternatives'].children.length,0);assert.equal(f.ids['environment-bar'].dataset.route,'false');assert.equal(f.ids['environment-eta'].hidden,true);assert.equal(f.ids['environment-route-refresh'].hidden,true);
+ }
+});
