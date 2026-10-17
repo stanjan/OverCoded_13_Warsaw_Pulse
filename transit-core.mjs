@@ -1,5 +1,20 @@
 // Provider records are data, never instructions.
 export class TransitError extends Error {constructor(code,message){super(message);this.code=code;}}
+const transportStyles = {
+ bus: {transportColor:'#880077',transportLabel:'Autobus'},
+ night_bus: {transportColor:'#000000',transportLabel:'Autobus nocny'},
+ tram: {transportColor:'#E50000',transportLabel:'Tramwaj'},
+ skm: {transportColor:'#8A0000',transportLabel:'SKM'},
+ unknown: {transportColor:'#65727f',transportLabel:'Transport'},
+};
+export function transitAppearance(record={}) {
+ const line=String(record.line||'').trim().toUpperCase();
+ const routeType=record.routeType===undefined||record.routeType===null||record.routeType===''?null:Number(record.routeType);
+ const kind=Object.hasOwn(transportStyles,record.transportKind)?record.transportKind:
+  /^N\d+$/.test(line)?'night_bus':/^S\d+$/.test(line)?'skm':
+  routeType===0?'tram':routeType===3?'bus':routeType===null&&record.type===2?'tram':routeType===null&&record.type===1?'bus':'unknown';
+ return {transportKind:kind,...transportStyles[kind]};
+}
 const fail=(code,message)=>{throw new TransitError(code,message);};
 export function waypoint(input,label='miejsce'){
  if(typeof input==='string'){

@@ -1,4 +1,4 @@
-import {TransitError,waypoint,departure,dateInWarsaw,serviceSeconds,serviceInstant,distanceMeters} from '../transit-core.mjs';
+import {TransitError,waypoint,departure,dateInWarsaw,serviceSeconds,serviceInstant,distanceMeters,transitAppearance} from '../transit-core.mjs';
 import {planGraph,validateGraph} from './transit-router.mjs';
 import {getGtfsGraph} from './transit-gtfs.mjs';
 import {createDelayModel} from './transit-live.mjs';
@@ -19,7 +19,7 @@ export function normalizeVehicles(rows,type,now=Date.now()) {return rows.map(row
  const p=point(row.Lat,row.Lon),match=/^(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)$/.exec(row.Time||'');
  if(!p||!clean(row.Lines)||!clean(row.VehicleNumber))return null;
  const observed=match?serviceInstant(match[1],match[2]):null,age=observed===null?null:now-observed;
- return {id:type+':'+clean(row.VehicleNumber),type,line:clean(row.Lines),brigade:clean(row.Brigade),vehicle:clean(row.VehicleNumber),...p,observedAt:observed===null?null:new Date(observed).toISOString(),sourceClock:clean(row.Time),freshness:age===null?'unknown':age< -60000||age>90000?'stale':'recent',eta:null};
+ return {id:type+':'+clean(row.VehicleNumber),type,line:clean(row.Lines),...transitAppearance({line:clean(row.Lines),type}),brigade:clean(row.Brigade),vehicle:clean(row.VehicleNumber),...p,observedAt:observed===null?null:new Date(observed).toISOString(),sourceClock:clean(row.Time),freshness:age===null?'unknown':age< -60000||age>90000?'stale':'recent',eta:null};
  }).filter(Boolean);}
 export const normalizeBrigade=value=>/^\d+$/.test(String(value||''))?String(Number(value)):fold(value);
 const tripDirection=value=>fold(value).replace(/^.*?->\s*/,'');

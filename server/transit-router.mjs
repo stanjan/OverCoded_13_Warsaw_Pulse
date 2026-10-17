@@ -1,4 +1,4 @@
-import {TransitError,distanceMeters,dateInWarsaw} from '../transit-core.mjs';
+import {TransitError,distanceMeters,dateInWarsaw,transitAppearance} from '../transit-core.mjs';
 const WALK_SPEED=1.2,WALK_FACTOR=1.3,TRANSFER_BUFFER=120000;
 const walkMs=distance=>Math.ceil(distance*WALK_FACTOR/WALK_SPEED)*1000;
 const coordinate=point=>({latitude:point.latitude,longitude:point.longitude});
@@ -30,7 +30,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
      const existing=next.get(stop.id);if(!existing||event.arrival<existing.time){
       const from=byId.get(boarding.event.stopId),sequence=trip.stopTimes.slice(boarding.index,index+1).map(item=>byId.get(item.stopId)).filter(Boolean);
       const path=trip.shape&&trip.shape.length?shapeSlice(trip.shape,boarding.event,event,byId):sequence.map(coordinate);
-      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:path.length>1?path:sequence.map(coordinate),geometry:trip.shape&&path.length>1?'gtfs_shape':'schematic'}]});
+      next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:path.length>1?path:sequence.map(coordinate),geometry:trip.shape&&path.length>1?'gtfs_shape':'schematic'}]});
      }
     }
     const label=previous.get(stop.id),buffer=round>1&&label?.path.some(segment=>segment.mode==='TRANSIT')?TRANSFER_BUFFER:0;

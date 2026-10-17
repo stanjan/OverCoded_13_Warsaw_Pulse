@@ -210,6 +210,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 
 .transit-waypoint { display: grid; place-items: center; width: 29px; height: 29px; border: 2px solid white; border-radius: 50%; background: #a6462c; color: white; font: 800 13px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 7px #0004; }
 
-.transit-vehicle { display: grid; place-items: center; min-width: 39px; height: 28px; padding: 2px 5px; border: 2px solid white; border-radius: 9px; background: #9a3e70; color: white; font: 800 11px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 5px #0003; }
+.transit-vehicle { display: grid; place-items: center; min-width: 39px; height: 28px; padding: 2px 5px; border: 2px solid white; border-radius: 9px; background: #65727f; color: white; font: 800 11px 'Plus Jakarta Sans', sans-serif; box-shadow: 0 2px 5px #0003; }
+.transit-line-badge, .transit-alternative .transit-line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 23px; padding: 2px 6px; border-radius: 6px; background: #65727f; color: white; font-size: 12px; font-weight: 800; line-height: 1.25; vertical-align: middle; margin-top: 0; }
+.transit-lines, .transit-alternative .transit-lines { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .transit-vehicle[data-freshness='stale'], .transit-vehicle[data-freshness='unknown'] { background: #737d85; opacity: .7; }
 .transit-departures { padding: 10px; border: 1px solid #d6dce0; border-radius: 12px; margin: 9px 0; font-size: 12px; line-height: 1.6; }

@@ -1,10 +1,26 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {waypoint,gpsOrigin,departure,warsawDeparture,serviceSeconds,serviceInstant,createPlanner,computeMunicipal,TransitError} from '../transit-core.mjs';
+import {waypoint,gpsOrigin,departure,warsawDeparture,serviceSeconds,serviceInstant,createPlanner,computeMunicipal,TransitError,transitAppearance} from '../transit-core.mjs';
 import {runTool} from '../mcp/tools.mjs';import {normalizeStops,normalizeDepartures,normalizeVehicles,createTransitService,TRANSIT_SOURCES} from '../server/transit.mjs';import {gtfsInstant,activeServices,csvRow} from '../server/transit-gtfs.mjs';import {planGraph} from '../server/transit-router.mjs';
 const now=Date.parse('2026-10-17T12:00:00Z');
 const stop=(id,name,latitude,longitude)=>({values:Object.entries({zespol:id.split('-')[0],slupek:id.split('-')[1],nazwa_zespolu:name,szer_geo:String(latitude),dlug_geo:String(longitude)}).map(([key,value])=>({key,value}))});
 const rows=[stop('1000-01','Start',52.2,21),stop('2000-01','Cel',52.23,21.02)];
 const dep=Object.entries({czas:'25:10:00',brygada:'9',kierunek:'Żerań',trasa:'TP-FSO'}).map(([key,value])=>({key,value}));
+
+test('transport colors distinguish city fleet types from GTFS route_type and keep unknown service neutral',()=>{
+ const cases=[
+  [{line:'175',type:1},'bus','#880077'],
+  [{line:'N31',type:1},'night_bus','#000000'],
+  [{line:'17',type:2},'tram','#E50000'],
+  [{line:'S2',routeType:2},'skm','#8A0000'],
+  [{line:'17',routeType:0},'tram','#E50000'],
+  [{line:'175',routeType:3},'bus','#880077'],
+  [{line:'R1',routeType:2},'unknown','#65727f'],
+  [{line:'17'},'unknown','#65727f'],
+ ];
+ for(const[record,kind,color]of cases){const appearance=transitAppearance(record);assert.equal(appearance.transportKind,kind);assert.equal(appearance.transportColor,color);}
+ const bus=normalizeVehicles([{Lat:52.2,Lon:21,Lines:'175',VehicleNumber:'1',Time:'2026-10-17 14:00:00'}],1,now)[0];
+ assert.equal(bus.transportKind,'bus');assert.equal(bus.transportColor,'#880077');
+});
 test('named/coordinate waypoint and fresh GPS validation never substitute city centre',()=>{
  assert.deepEqual(waypoint('52.2,21').value,{lat:52.2,lng:21});for(const value of ['',{latitude:91,longitude:21},'a'.repeat(201)])assert.throws(()=>waypoint(value));
  const location={status:'available',latitude:52.2,longitude:21,accuracy:20,observedAt:new Date(now).toISOString()};assert.deepEqual(gpsOrigin(location,now).value,{lat:52.2,lng:21});for(const value of [null,{...location,status:'unavailable'},{...location,observedAt:new Date(now-300001).toISOString()},{...location,accuracy:2001}])assert.throws(()=>gpsOrigin(value,now),{code:'ORIGIN_REQUIRED'});
@@ -35,9 +51,9 @@ test('source failures and caller cancellation cannot become a successful empty c
 });
 const instant=clock=>gtfsInstant('2026-10-17',clock);
 const event=(stopId,arrival,departure=arrival,pickup=0,dropOff=0)=>({stopId,arrival:instant(arrival),departure:instant(departure),pickup,dropOff});
-function graph(){return{timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:[{id:'a',name:'A',latitude:52.2,longitude:21},{id:'b',name:'B',latitude:52.22,longitude:21},{id:'c',name:'C',latitude:52.22,longitude:21.002},{id:'d',name:'D',latitude:52.24,longitude:21}],trips:[{id:'first@2026-10-17',serviceDate:'2026-10-17',line:'17',headsign:'B',stopTimes:[event('a','14:00:00'),event('b','14:10:00')]},{id:'missed@2026-10-17',serviceDate:'2026-10-17',line:'17',headsign:'D',stopTimes:[event('b','14:11:00'),event('d','14:20:00')]},{id:'transfer@2026-10-17',serviceDate:'2026-10-17',line:'22',headsign:'D',stopTimes:[event('c','14:16:00'),event('d','14:25:00')]}]};}
+function graph(){return{timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:[{id:'a',name:'A',latitude:52.2,longitude:21},{id:'b',name:'B',latitude:52.22,longitude:21},{id:'c',name:'C',latitude:52.22,longitude:21.002},{id:'d',name:'D',latitude:52.24,longitude:21}],trips:[{id:'first@2026-10-17',serviceDate:'2026-10-17',line:'17',routeType:0,headsign:'B',stopTimes:[event('a','14:00:00'),event('b','14:10:00')]},{id:'missed@2026-10-17',serviceDate:'2026-10-17',line:'17',headsign:'D',stopTimes:[event('b','14:11:00'),event('d','14:20:00')]},{id:'transfer@2026-10-17',serviceDate:'2026-10-17',line:'22',headsign:'D',stopTimes:[event('c','14:16:00'),event('d','14:25:00')]}]};}
 test('router verifies same-trip continuation and walk/transfer feasibility; equal lines never imply same trip',()=>{
- const data=graph(),routes=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')});assert.ok(routes.length);const ride=routes[0].steps.filter(step=>step.mode==='TRANSIT');assert.deepEqual(ride.map(step=>step.line),['17','22']);assert.deepEqual(ride.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);assert.equal(routes[0].transfers,1);assert.equal(routes[0].arrival,instant('14:25:00'));assert.equal(routes[0].realtimeConfirmed,false);assert.equal(ride[0].geometry,'schematic');
+ const data=graph(),routes=planGraph(data,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')});assert.ok(routes.length);const ride=routes[0].steps.filter(step=>step.mode==='TRANSIT');assert.deepEqual(ride.map(step=>step.line),['17','22']);assert.deepEqual(ride.map(step=>step.tripId),['first@2026-10-17','transfer@2026-10-17']);assert.equal(ride[0].transportColor,'#E50000');assert.equal(ride[0].routeType,0);assert.equal(routes[0].transfers,1);assert.equal(routes[0].arrival,instant('14:25:00'));assert.equal(routes[0].realtimeConfirmed,false);assert.equal(ride[0].geometry,'schematic');
  const noPickup=graph();noPickup.trips[0].stopTimes[0].pickup=1;assert.equal(planGraph(noPickup,{origin:{...data.stops[0],label:'A'},destination:{...data.stops[3],label:'D'},departureTime:instant('13:59:00')}).length,0);
  assert.throws(()=>planGraph(data,{origin:data.stops[0],destination:data.stops[3],departureTime:Date.parse('2026-11-01')}),{code:'DATE_OUTSIDE_FEED'});
 });

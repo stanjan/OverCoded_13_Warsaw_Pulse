@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mountTransit} from '../transit-ui.mjs';
 import {TransitError} from '../transit-core.mjs';
 function element(tag='div') {
- const node={tag,children:[],listeners:{},attributes:{},dataset:{},hidden:false,value:'',textContent:'',
+ const node={tag,children:[],listeners:{},attributes:{},dataset:{},style:{},hidden:false,value:'',textContent:'',
  append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},
  setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},addEventListener(k,v){this.listeners[k]=v;},focus(){this.focused=true;},click(){return this.listeners.click?.({});},
  querySelectorAll(selector){return this.children.flatMap(child=>[...(selector==='button'&&child.tag==='button'?[child]:[]),...child.querySelectorAll(selector)]);}};
