@@ -144,7 +144,7 @@ function showResults(action) {
     const source = document.createElement('a'); source.textContent = place.source || 'Źródło miejskie'; source.href = place.url || place.sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; card.append(source);
     resultPanel.append(card);
     if (cityMap && spatial) {
-      const marker = cityMap.addMarker(place);
+      const marker = cityMap.addMarker(place, { recommended: highlighted.has(place.id), onOpen: () => setExpanded(false) });
       const focus = document.createElement('button'); focus.type = 'button'; focus.textContent = 'Pokaż na mapie';
       focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); }); card.append(focus);
       points.push([place.lat, place.lng]);

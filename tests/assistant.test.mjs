@@ -6,6 +6,64 @@ import { provider } from './catalog-fixture.mjs';
 const createAssistant = options => createRealAssistant({ ...options, provider });
 const executeTool = (name,args,state) => executeRealTool(name,args,state,provider);
 const call = (name, args) => ({ id: crypto.randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+test('data inventory answers without fetching records or replacing a prior selection', async () => {
+  let searches = 0, step = 0;
+  const noFetch = { search: async () => { searches++; throw new Error('Inventory must not fetch'); } };
+  const state = { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } };
+  const inventory = await executeRealTool('list_data_sources', {}, state, noFetch);
+  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','weather','pitch','route','air_quality']);
+  assert.ok(inventory.filters.includes('district'));
+  assert.match(inventory.limitations.join(' '), /nie prognozę/);
+  assert.deepEqual(state, { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } });
+  const assistant = createRealAssistant({ provider: noFetch, completion: async history => {
+    if (++step === 1) return { tool_calls: [call('list_data_sources', {})] };
+    assert.equal(JSON.parse(history.at(-1).content).sources.length, 6);
+    return { content: 'Mam dane o wydarzeniach, sporcie, pogodzie, boiskach, trasach i jakości powietrza.' };
+  } });
+  const answer = await assistant.chat({ message: 'jakie dane masz dostępne?' });
+  assert.equal(searches, 0);
+  assert.deepEqual(answer.actions, []);
+});
+
+test('oversized search stays complete on server and can be refined next turn without refetching', async () => {
+  const records = Array.from({length: 200}, (_, i) => ({id:`pitch-${i}`,name:'Boisko',category:'pitch',district:'Wola',districts:['Wola'],description:'Opis '.repeat(2000)}));
+  records.push({id:'last',name:'Koncert',category:'event',district:'Ochota',districts:['Ochota'],description:'Muzyka'});
+  const errors = [{category:'sports',code:'SOURCE_UNAVAILABLE'}];
+  let searches = 0, step = 0;
+  const largeProvider = {search:async()=>{searches++;return {results:records,total:records.length,complete:false,dataMode:'official',errors};}};
+  const external = await executeRealTool('search_places', {}, {results:[],actions:[]}, largeProvider);
+  assert.equal(external.results.length, 201);
+  assert.equal(external.results.at(-1).id, 'last');
+  searches = 0;
+  const assistant = createRealAssistant({provider:largeProvider,completion:async history=>{
+    assert.ok(JSON.stringify(history).length < 1000000);
+    if (++step === 1) return {tool_calls:[call('search_places',{})]};
+    if (step === 3) return {tool_calls:[call('filter_results',{district:'Ochota'})]};
+    const result = JSON.parse(history.at(-1).content);
+    if (step === 2) {
+      assert.equal(result.status,'refinement_required');
+      assert.equal(result.total,201);
+      assert.equal(result.recordsProvided,0);
+      assert.equal(Object.hasOwn(result,'results'),false);
+      assert.deepEqual(result.countsByCategory,{pitch:200,event:1});
+      assert.equal(result.complete,false);
+      assert.deepEqual(result.errors,errors);
+      return {content:'Która dzielnica Cię interesuje? Część źródeł jest niedostępna.'};
+    }
+    if (step === 4) {
+      assert.deepEqual(result.results.map(r=>r.id),['last']);
+      return {tool_calls:[call('display_results',{ids:['last'],highlightIds:['last'],title:'Ochota'})]};
+    }
+    return {content:'Pokazuję koncert na Ochocie. Część źródeł jest niedostępna.'};
+  }});
+  const first = await assistant.chat({message:'Pokaż wszystko'});
+  assert.deepEqual(first.actions,[]);
+  const next = await assistant.chat({message:'Ochota',sessionId:first.sessionId});
+  assert.equal(searches,1);
+  assert.deepEqual(next.actions[0].results.map(r=>r.id),['last']);
+  assert.equal(next.actions[0].complete,false);
+  assert.deepEqual(next.actions[0].errors,errors);
+});
 test('search, filter and display share verified results', async () => {
   const state = { results: [], actions: [] };
   const found = await executeTool('search_places', { category: 'event' }, state);
@@ -65,7 +123,7 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
     const reply = await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (url, init) => {
       assert.equal(url, 'http://127.0.0.1:9999/v1/chat/completions');
-      assert.equal(JSON.parse(init.body).tools.length, 4);
+      assert.equal(JSON.parse(init.body).tools.length, 5);
       return { ok: true, json: async () => ({ choices: [{ message: { content: 'Cześć!' } }] }) };
     } });
     assert.equal(reply.content, 'Cześć!');

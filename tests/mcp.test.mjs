@@ -10,6 +10,14 @@ const response = payload => ({ok:true,json:async()=>payload});
 const event = {title:'Koncert',text:'<p>Muzyka dla rodzin</p>',localization:[{name:'Praga-Północ'},{name:'Targówek'}],map:{features:[{geometry:{type:'Point',coordinates:[21.03,52.25]},properties:{district:'Praga-Północ'}},{geometry:{type:'Point',coordinates:[21.05,52.28]},properties:{district:'Targówek'}}]},occurrence:[{from:'2026-10-17T12:00:00+02',to:'2026-10-18T12:00:00+02'}]};
 const pitch={Dzielnica:'Wola','Nazwa placówki oświatowej':'Szkoła','Typ obiektu':'Koszykówka',Poniedziałek:'Od 17:00 do 20:00',Wtorek:'Zamknięte',Środa:'-','Data aktualizacji':'2026-07-02'};
 const at='2026-10-17T14:30:00Z';
+test('official event photos survive normalization as HTTPS without accepting executable or credential URLs',()=>{
+ const record=normalizeRecord({...event,image:{small:{path:'http://um.warszawa.pl/documents/event.jpg'},highlighted:{path:'https://um.warszawa.pl/documents/large.jpg'}}},'event',at);
+ assert.equal(record.imageUrl,'https://um.warszawa.pl/documents/event.jpg');
+ for(const path of ['javascript:alert(1)','data:image/svg+xml,unsafe','https://user:password@example.com/event.jpg']) {
+  assert.equal(normalizeRecord({...event,image:{small:{path}}},'event',at).imageUrl,null);
+ }
+ assert.equal(normalizeRecord(event,'event',at).imageUrl,null);
+});
 test('city POST uses raw authorization and returns entire 1227-record dataset without truncation',async()=>{
  let calls=0;
  const provider=createCatalog({token:()=> 'test-city-token',now:()=>at,fetchImpl:async(url,init)=>{
@@ -81,7 +89,7 @@ test('MCP malformed params, initialization ordering, unknown tools and execution
  const rpc=(id,method,params)=>dispatch({jsonrpc:'2.0',id,method,params});
  assert.equal((await rpc(1,'tools/list',{})).error.code,-32000);
  assert.equal((await rpc(2,'initialize',null)).error.code,-32602);
- const client=createMcpClient(dispatch);assert.equal((await client.listTools()).length,4);
+ const client=createMcpClient(dispatch);assert.equal((await client.listTools()).length,5);
  assert.equal((await rpc(3,'tools/call',null)).error.code,-32602);
  assert.equal((await rpc(4,'tools/call',{name:'fake'})).error.code,-32602);
  assert.equal((await rpc(40,'tools/call',{name:'search_places',arguments:null})).error.code,-32602);
@@ -98,7 +106,7 @@ test('real stdio subprocess emits only newline JSON-RPC and supports initialize/
  try{
  assert.equal((await request(1,'initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'test',version:'1'}})).result.serverInfo.name,'warsaw-city-data');
  proc.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized'})+'\n');
- assert.equal((await request(2,'tools/list',{})).result.tools.length,4);
+ assert.equal((await request(2,'tools/list',{})).result.tools.length,5);
  const reply=await request(3,'tools/call',{name:'search_places',arguments:{category:'weather'}});const data=JSON.parse(reply.result.content[0].text);assert.equal(data.complete,false);assert.equal(data.errors[0].code,'SOURCE_NOT_CONFIGURED');
  assert.equal(stderr,'');
  }finally{proc.stdin.end();proc.kill();}
