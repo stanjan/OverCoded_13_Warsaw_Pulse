@@ -86,7 +86,7 @@ export function createAssistant({ completion = bridgeCompletion, provider, now =
     const emit = event => { if (!signal?.aborted) onEvent?.({ ...event, elapsedMs: Date.now() - startedAt }); };
     const checkAbort = () => { if (signal?.aborted) throw new BridgeError('Przerwano odpowiedź.', 499); };
     emit({ type: 'session', sessionId });
-    let publishedActions = false;
+    let publishedDisplay, completed = false;
     const state = { results: [...session.results], actions: [], searchMeta: session.searchMeta };
     const timeContext = { role: 'system', content: 'Data i czas rozmowy (Europe/Warsaw): ' + new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', dateStyle: 'full', timeStyle: 'short' }).format(now()) };
     const history = [{ role: 'system', content: SYSTEM_PROMPT }, ...session.messages, timeContext, { role: 'user', content: message.trim() }];
@@ -113,7 +113,10 @@ export function createAssistant({ completion = bridgeCompletion, provider, now =
               const completed = { search_places: 'Wyszukano miejsca', filter_results: 'Przefiltrowano wyniki', display_results: 'Zaktualizowano mapę i listę', focus_map: 'Ustawiono widok mapy' };
               emit({ type: 'activity', label: completed[call.function.name] || 'Sprawdzono wyniki' });
             }
-            for (const action of state.actions.slice(actionCount)) { emit({ type: 'action', action }); if (onEvent) publishedActions = true; }
+            for (const action of state.actions.slice(actionCount)) {
+              emit({ type: 'action', action });
+              if (onEvent && action.type === 'display_results') publishedDisplay = { results: [...state.results], searchMeta: state.searchMeta };
+            }
             history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
           }
           continue;
@@ -125,9 +128,10 @@ export function createAssistant({ completion = bridgeCompletion, provider, now =
         session.results = state.results;
         session.searchMeta = state.searchMeta;
         emit({ type: 'progress', label: 'Gotowe' });
+        completed = true;
         return { sessionId, message: reply.content.trim(), actions: state.actions, dataMode: 'official' };
       }
       throw new BridgeError('Zapytanie wymaga zbyt wielu operacji. Spróbuj je zawęzić.');
-    } finally { if (publishedActions) { session.results = state.results; session.searchMeta = state.searchMeta; } session.busy = false; session.updatedAt = Date.now(); }
+    } finally { if (!completed && publishedDisplay) { session.results = publishedDisplay.results; session.searchMeta = publishedDisplay.searchMeta; } session.busy = false; session.updatedAt = Date.now(); }
   } };
 }

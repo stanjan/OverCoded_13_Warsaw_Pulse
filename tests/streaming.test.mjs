@@ -105,3 +105,33 @@ test('failed nonstream display preserves the existing session records, warnings 
   assert.equal(next.actions[0].complete, false);
   assert.equal(next.actions[0].errors[0].code, 'SOURCE_UNAVAILABLE');
 });
+
+for (const publishDisplay of [true, false]) test(`failed stream retains the last displayed snapshot after an undisplayed search (display=${publishDisplay})`, async () => {
+  let round = 0, searches = 0;
+  const events = [];
+  const call = (name, args) => ({ id: `call-${round}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const records = ['shown', 'hidden'].map(id => ({ id, name: id, category: 'event', districts: ['Wola'] }));
+  const assistant = createAssistant({ provider: { search: async () => {
+    const index = searches++;
+    return { results: [records[index]], total: 1, complete: index !== 0, dataMode: 'official', sources: [], errors: index === 0 ? [{ category: 'sports', code: 'SOURCE_UNAVAILABLE' }] : [] };
+  } }, completion: async () => {
+    round++;
+    if (round === 1 || round === 4) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (round === 2) return { tool_calls: [call('display_results', { ids: ['shown'], highlightIds: ['shown'], title: 'Widoczne' })] };
+    if (round === 3) return { content: 'Widoczne wyniki.' };
+    if (round === 5) return { tool_calls: [call(publishDisplay ? 'display_results' : 'focus_map', publishDisplay ? { ids: ['hidden'], highlightIds: ['hidden'], title: 'Nowe widoczne' } : { latitude: 52, longitude: 21, zoom: 12 })] };
+    if (round === 6 && publishDisplay) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if ((round === 6 && !publishDisplay) || (round === 7 && publishDisplay)) throw new Error('Failure after undisplayed search');
+    const expected = publishDisplay ? 'hidden' : 'shown';
+    if ((round === 7 && !publishDisplay) || (round === 8 && publishDisplay)) return { tool_calls: [call('display_results', { ids: [expected], highlightIds: [expected], title: 'Ponownie' })] };
+    return { content: 'Przywrócono widoczne wyniki.' };
+  } });
+  const first = await assistant.chat({ message: 'Pierwsze wyniki' });
+  // A third search after the streamed display is deliberately different again.
+  if (publishDisplay) records.push({ id: 'never-shown', name: 'never-shown', category: 'event', districts: ['Wola'] });
+  await assert.rejects(assistant.chat({ message: 'Następne wyszukiwanie', sessionId: first.sessionId }, undefined, event => events.push(event)), /Failure after/);
+  const next = await assistant.chat({ message: 'Pokaż widoczne', sessionId: first.sessionId });
+  assert.equal(next.actions[0].results[0].id, publishDisplay ? 'hidden' : 'shown');
+  assert.equal(next.actions[0].complete, publishDisplay);
+  assert.deepEqual(next.actions[0].errors, publishDisplay ? [] : [{ category: 'sports', code: 'SOURCE_UNAVAILABLE' }]);
+});
