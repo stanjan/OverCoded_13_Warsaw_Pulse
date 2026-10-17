@@ -189,7 +189,8 @@
 <!-- Drag Handle and Toggle Button Bar (Clickable header to toggle collapse/expand) -->
 <div class="w-full flex flex-col items-center pt-3 pb-1 px-margin cursor-pointer group touch-none select-none hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors rounded-t-[2rem]" id="sheet-toggle">
 <div class="relative flex items-center justify-center w-full py-1">
-<div class="w-12 h-1.5 rounded-full bg-outline-variant/80 group-hover:bg-outline transition-colors" id="drag-handle-pill"></div>
+<button id="sheet-fullscreen-btn" type="button" aria-label="Rozwiń rozmowę na cały ekran" aria-controls="ai-sheet" aria-pressed="false"><span aria-hidden="true">↗</span></button>
+<button type="button" id="sheet-handle" aria-label="Powiększ panel rozmowy" aria-controls="sheet-content" title="Przeciągnij lub użyj strzałek w górę i w dół"><span class="w-12 h-1.5 rounded-full bg-outline-variant/80 group-hover:bg-outline transition-colors" id="drag-handle-pill" aria-hidden="true"></span></button>
 <button aria-label="Zwiń panel" aria-controls="sheet-content" class="absolute right-1 -top-1 w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" id="collapse-toggle-btn" type="button" aria-expanded="true" title="Zwiń panel">
 <span class="material-symbols-outlined text-[22px]" id="sheet-chevron">keyboard_arrow_up</span>
 </button>

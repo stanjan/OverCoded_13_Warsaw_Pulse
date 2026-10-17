@@ -5,6 +5,16 @@ body { background: #e6e8ea; min-width: 320px; }
 .weather-bar { z-index: 20; max-width: calc(100% - 24px); }
 .weather-bar > div { gap: 6px; }
 .drawer-container { bottom: 0 !important; padding-bottom: var(--safe-bottom); }
+#sheet-toggle, #search-container { flex-shrink: 0; }
+#sheet-handle { display: flex; align-items: center; justify-content: center; width: 80px; min-height: 44px; border: 0; padding: 0; background: none; cursor: ns-resize; }
+#sheet-fullscreen-btn { position: absolute; left: 4px; top: 4px; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #45474c; background: none; font-size: 25px; cursor: pointer; }
+#sheet-fullscreen-btn:hover { background: #0914260a; }
+.drawer-container.is-fullscreen { height: 100%; box-sizing: border-box; z-index: 50; background: #f7f9fb; }
+.is-fullscreen #gps-button { display: none; }
+.is-fullscreen > div:first-child { display: none; }
+.is-fullscreen #ai-sheet { flex: 1; min-height: 0; border-radius: 0; border-top: 0; padding-top: env(safe-area-inset-top, 0px); }
+.is-fullscreen #sheet-content { flex: 1; min-height: 0; max-height: none; }
+.app-shell:has(.drawer-container.is-fullscreen) .weather-bar { visibility: hidden; }
 #sheet-content { max-height: min(48dvh, 480px); opacity: 1; transform: translateY(0); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
 .is-collapsed #sheet-content { max-height: 0; opacity: 0; transform: translateY(12px); overflow: hidden; pointer-events: none; }
 #welcome-prompts[hidden] { display: none; }

@@ -8,44 +8,94 @@ const welcome = document.querySelector('#welcome-prompts');
 const drawer = document.querySelector('.drawer-container');
 let sessionId = null;
 let pending = false;
-let expanded = true;
+let sheetState = 'normal';
 let cityMap;
 window.getCityMap = () => cityMap;
 window.expandCitySheet = () => setExpanded(true);
 let lastDisplayedAction;
-let suppressHandleClick = false;
+const sheet = document.querySelector('#ai-sheet');
+const handle = document.querySelector('#sheet-handle');
+const fullScreenToggle = document.querySelector('#sheet-fullscreen-btn');
+const weatherBar = document.querySelector('#environment-bar');
+const sheetStates = ['collapsed', 'normal', 'fullscreen'];
 
 function setExpanded(value) {
-  expanded = value;
-  content.inert = !value;
-  content.setAttribute('aria-hidden', String(!value));
-  document.querySelector('#ai-sheet').classList.toggle('is-collapsed', !value);
-  toggle.setAttribute('aria-expanded', String(value));
-  toggle.setAttribute('aria-label', value ? 'Zwiń panel' : 'Rozwiń panel');
-  toggle.title = value ? 'Zwiń panel' : 'Rozwiń panel';
-  document.querySelector('#sheet-chevron').textContent = value ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
+  setSheetState(value ? (sheetState === 'collapsed' ? 'normal' : sheetState) : 'collapsed');
 }
-setExpanded(true);
-document.querySelector('#sheet-toggle').addEventListener('click', () => {
-  if (suppressHandleClick) { suppressHandleClick = false; return; }
-  setExpanded(!expanded);
+function setSheetState(value) {
+  sheetState = value;
+  const expanded = value !== 'collapsed';
+  const fullScreen = value === 'fullscreen';
+  content.inert = !expanded;
+  content.setAttribute('aria-hidden', String(!expanded));
+  sheet.classList.toggle('is-collapsed', !expanded);
+  drawer.classList.toggle('is-fullscreen', fullScreen);
+  sheet.dataset.snap = value;
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.setAttribute('aria-label', fullScreen ? 'Zmniejsz panel' : expanded ? 'Zwiń panel' : 'Rozwiń panel');
+  toggle.title = toggle.getAttribute('aria-label');
+  fullScreenToggle.setAttribute('aria-pressed', String(fullScreen));
+  fullScreenToggle.setAttribute('aria-label', fullScreen ? 'Wróć do mapy' : 'Rozwiń rozmowę na cały ekran');
+  fullScreenToggle.title = fullScreenToggle.getAttribute('aria-label');
+  fullScreenToggle.querySelector('span').textContent = fullScreen ? '↙' : '↗';
+  handle.setAttribute('aria-label', fullScreen ? 'Zmniejsz panel rozmowy' : 'Powiększ panel rozmowy');
+  weatherBar.inert = fullScreen;
+  if (fullScreen) weatherBar.setAttribute('aria-hidden', 'true');
+  else weatherBar.removeAttribute('aria-hidden');
+  document.querySelector('#sheet-chevron').textContent = expanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
+}
+function moveSheet(direction) {
+  setSheetState(sheetStates[Math.max(0, Math.min(2, sheetStates.indexOf(sheetState) + direction))]);
+}
+setSheetState('normal');
+
+handle.addEventListener('click', () => sheetState === 'fullscreen' ? moveSheet(-1) : moveSheet(1));
+toggle.addEventListener('click', () => sheetState === 'collapsed' ? moveSheet(1) : moveSheet(-1));
+fullScreenToggle.addEventListener('click', () => setSheetState(sheetState === 'fullscreen' ? 'normal' : 'fullscreen'));
+handle.addEventListener('keydown', event => {
+  if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  if (event.key === 'Home') setSheetState('collapsed');
+  else if (event.key === 'End') setSheetState('fullscreen');
+  else moveSheet(event.key === 'ArrowUp' ? 1 : -1);
 });
-toggle.addEventListener('click', event => { event.stopPropagation(); setExpanded(!expanded); });
+sheet.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && sheetState === 'fullscreen' && !event.defaultPrevented) {
+    setSheetState('normal');
+    fullScreenToggle.focus();
+  }
+});
 input.addEventListener('focus', () => setExpanded(true));
 document.querySelector('#search-bar-wrapper').addEventListener('click', () => input.focus());
-// Match the drawer's touch affordance without interfering with map gestures.
-let touchStart;
-document.querySelector('#sheet-toggle').addEventListener('pointerdown', event => { touchStart = event.clientY; suppressHandleClick = false; });
-document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
-  if (touchStart !== undefined && Math.abs(event.clientY - touchStart) > 30) { suppressHandleClick = true; setExpanded(event.clientY < touchStart); }
-  touchStart = undefined;
+// Capture the handle gesture so releasing outside the header still snaps once.
+const handleBar = document.querySelector('#sheet-toggle');
+let sheetPointer;
+let suppressHandleClick = false;
+handleBar.addEventListener('pointerdown', event => {
+  if (event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
+  sheetPointer = { id: event.pointerId, y: event.clientY };
+  suppressHandleClick = false;
+  event.target.setPointerCapture(event.pointerId);
 });
+handleBar.addEventListener('pointerup', event => {
+  if (!sheetPointer || sheetPointer.id !== event.pointerId) return;
+  const delta = event.clientY - sheetPointer.y;
+  sheetPointer = undefined;
+  if (Math.abs(delta) > 30) { suppressHandleClick = true; moveSheet(delta < 0 ? 1 : -1); }
+});
+handleBar.addEventListener('pointercancel', () => { sheetPointer = undefined; });
+handleBar.addEventListener('lostpointercapture', () => { sheetPointer = undefined; });
+// Suppress only the synthetic click from a completed swipe, before its button handler.
+handleBar.addEventListener('click', event => {
+  if (suppressHandleClick && event.detail !== 0) { event.preventDefault(); event.stopPropagation(); }
+  suppressHandleClick = false;
+}, true);
 
 const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
 // Keep the map's usable area (markers, fitting, attribution) above the bottom sheet.
 new ResizeObserver(() => {
-  const obstruction = document.querySelector('#ai-sheet').offsetHeight + 4;
+  const obstruction = Math.min(sheet.offsetHeight + 4, appShell.clientHeight - 1);
   appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
 }).observe(document.querySelector('#ai-sheet'));
 let mapWasReplaced = false;
