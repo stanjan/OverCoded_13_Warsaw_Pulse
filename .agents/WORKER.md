@@ -1,50 +1,45 @@
-# Dedicated issue worker
+# Dedicated task worker
 
-Read root AGENTS.md and your exact assigned issue description.
-You are a NEW dedicated native worker for this one bounded issue.
-Resume only for this SAME issue's fixes or parent integration; never reuse
-this worker for a different issue, even sequentially.
+Read root AGENTS.md and your exact assigned issue or draft task.
+You are a NEW dedicated native worker for this one bounded task.
+Resume only for this SAME task's fixes or integration; never reuse this
+worker for a different task, even sequentially.
 
 ## Before implementation
 
 Use main's discovered repository, authenticated MCP operator login,
 Project/field mappings and validation context; do not request setup values
-or duplicate discovery. Confirm your issue's admission, size, priority and
+or duplicate discovery. Confirm your task's admission, size, priority and
 ownership; report missing or changed context to main before affected work.
-The GitHub assignee remains the session operator, not your native identity.
+The task assignee remains the session operator, not your native identity.
 
-Extract requirements and acceptance criteria from the issue description.
-Use linked context to clarify them, not to invent additional scope.
-Report material ambiguity before dependent work; continue independent work.
+Draft tasks require a verified associated issue comment thread as defined in
+AGENTS.md; do not edit draft descriptions or invent issue URLs. A missing description
+or acceptance criteria is not a blocker. Derive requirements and testable
+acceptance criteria from the task title, existing content, linked context and
+repository behavior. State reasonable assumptions and proceed. Report only
+material ambiguity that context cannot resolve; continue independent work.
 
-Post a concise Plan comment on the issue before coding:
-- Required behavior and acceptance criteria.
-- Ordered implementation or decomposition steps.
-- File ownership and dependency boundaries.
-- Relevant validation and known uncertainty.
+Before coding, preserve existing bodies/descriptions and post a Plan comment
+in the task's issue thread (or its verified associated issue for a draft) with:
+- Requirements and intended behavior.
+- Testable acceptance criteria.
+- Implementation plan with ordered steps.
+- File ownership, dependencies, validation and known uncertainty.
 
-## M and larger
+For every size, including M and larger, plan and implement within the same
+task. Use a more detailed Plan comment for larger work. Do not create
+subissues, require subissue linking or delegate steps to child workers.
 
-Plan and create actual linked GitHub subissues before implementation.
-Each child needs requirements, acceptance criteria, dependencies, size,
-inherited priority/session-operator assignment and the same Project in Backlog.
-
-Return the child URLs and dependency order to main.
-Do not mark a checklist as a completed subissue relationship.
-If creation/linking is unavailable or uncertain, report that exact blocker.
-Do not implement the parent to work around missing decomposition.
-
-Main dispatches each eligible child using its own XS/non-XS execution rule.
-Do not independently spawn or implement your children.
-Do not duplicate their work in the parent.
-
-After required children finish, resume as the parent's integration worker.
-Record an integration plan, combine accepted changes, validate parent criteria
-and hand off the combined candidate for the parent's independent review.
+Always use issue comments for generated descriptions, requirements, plans,
+progress and handoff evidence. Do not edit issue bodies or draft descriptions.
+Reference current plan comments; post revisions as new comments with the previous
+comment URL. Reuse main's Project/item and associated issue references. If a draft
+has no verified issue thread, report the gap before implementation.
 
 ## Implement and hand off
 
-Work only in the assigned scope and issue branch/worktree.
+Work only in the assigned scope and task branch/worktree.
 Coordinate shared-file changes with main before editing them.
 Run meaningful checks for the change; do not add ceremonial tests.
 
@@ -55,6 +50,6 @@ Post a concise handoff:
 - Risks, blockers and concrete review steps.
 
 Do not claim your own independent PASS, mark yourself Done,
-close the parent early or bypass required human/release decisions.
+close the task or bypass required human/release decisions.
 For review revisions, acknowledge the exact findings, repair only the
 authorized scope and return a new pinned candidate with affected checks.
