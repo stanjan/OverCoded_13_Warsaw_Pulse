@@ -29,14 +29,20 @@ let suppressHandleClick = false;
 
 // Full-screen snap state (drag the handle up from the expanded panel); it covers the weather bar.
 let sheetFull = false;
+let resumeSheetFull = false;
 function setSheetFull(value) {
   sheetFull = value;
   document.querySelector('#ai-sheet').classList.toggle('is-full', value);
   drawer.classList.toggle('is-full', value);
 }
 function setExpanded(value) {
+  if (!value && expanded) {
+    resumeSheetFull = sheetFull;
+    setSheetFull(false);
+  } else if (value && !expanded) {
+    setSheetFull(resumeSheetFull);
+  }
   expanded = value;
-  if (!value && sheetFull) setSheetFull(false);
   content.inert = !value;
   content.setAttribute('aria-hidden', String(!value));
   document.querySelector('#ai-sheet').classList.toggle('is-collapsed', !value);
@@ -83,7 +89,7 @@ const endDrag = event => {
   const { half, full } = sheetHeights();
   const target = height + (event.clientY < y ? 60 : -60); // nudged in the drag direction
   if (target > (half + full) / 2) { setExpanded(true); setSheetFull(true); }
-  else if (target > half / 2) { setSheetFull(false); setExpanded(true); }
+  else if (target > half / 2) { setExpanded(true); setSheetFull(false); }
   else setExpanded(false);
 };
 handle.addEventListener('pointerup', endDrag);
@@ -101,8 +107,9 @@ window.openEventInConversation = (details, { title, fromRect } = {}) => {
   back.append(backIcon, backText);
   back.addEventListener('click', () => closeEventInConversation(true));
   view.append(back, details);
-  eventReturn = { wasExpanded: expanded, scrollTop: content.scrollTop };
+  eventReturn = { wasFull: expanded ? sheetFull : resumeSheetFull, scrollTop: content.scrollTop };
   setExpanded(true);
+  setSheetFull(true);
   sheet.classList.add('is-event-open');
   drawer.classList.add('is-event-open');
   content.prepend(view);
@@ -123,34 +130,25 @@ window.openEventInConversation = (details, { title, fromRect } = {}) => {
 let eventReturn = null;
 function closeEventInConversation(restore) {
   const view = content.querySelector('.conversation-event');
-  if (!view || view.dataset.closing) return;
-  const reduce = !restore || !view.animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const finish = () => {
-    // Shrink the panel smoothly from full height back to where the conversation was (FLIP on its height).
-    const from = content.getBoundingClientRect().height;
-    content.style.transition = 'none';
-    view.remove();
-    document.querySelector('#ai-sheet').classList.remove('is-event-open');
-    drawer.classList.remove('is-event-open');
-    const back = eventReturn; eventReturn = null;
-    if (restore) setExpanded(true); // "Wróć do rozmowy" always lands on the open conversation
-    const to = content.getBoundingClientRect().height;
-    if (restore && back) content.scrollTop = back.scrollTop;
-    if (reduce) { content.style.transition = ''; return; }
-    Object.assign(content.style, { maxHeight: from + 'px', minHeight: from + 'px' });
-    content.getBoundingClientRect(); // apply the start height before animating
-    content.style.transition = 'max-height .38s cubic-bezier(.2,.8,.2,1), min-height .38s cubic-bezier(.2,.8,.2,1)';
-    Object.assign(content.style, { maxHeight: to + 'px', minHeight: to + 'px' });
-    setTimeout(() => Object.assign(content.style, { transition: '', maxHeight: '', minHeight: '' }), 420);
-  };
-  if (reduce) return finish();
-  // First the event card folds away, then the panel shrinks.
-  view.dataset.closing = 'true';
-  view.animate([
-    { opacity: 1, transform: 'none' },
-    { opacity: 0, transform: 'translateY(28px) scale(.96)' },
-  ], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }).finished.then(finish, finish);
+  if (!view) return;
+  const back = eventReturn; eventReturn = null;
+  // Restore state synchronously. A late animation callback must never reopen a
+  // collapsed panel or overwrite the height of a new drag, query or event.
+  view.remove();
+  document.querySelector('#ai-sheet').classList.remove('is-event-open');
+  drawer.classList.remove('is-event-open');
+  if (restore) setExpanded(true); // "Wróć do rozmowy" always opens the conversation.
+  setSheetFull(Boolean(back?.wasFull) && expanded);
+  resumeSheetFull = Boolean(back?.wasFull);
+  if (back) content.scrollTop = back.scrollTop;
+  if (restore && content.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    content.animate([
+      { opacity: 0.6, transform: 'translateY(12px)' },
+      { opacity: 1, transform: 'none' },
+    ], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
 }
+
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeEventInConversation(true); });
 window.addEventListener('city:transit', () => closeEventInConversation(false));
 window.addEventListener('city:query', () => closeEventInConversation(false));
@@ -325,17 +323,6 @@ function showResults(action) {
   lastDisplayedAction = action;
   resultPanel.replaceChildren();
   cityMap?.clearMarkers();
-  const title = document.createElement('h2'); title.textContent = action.title;
-  const note = document.createElement('p'); note.className = 'results-note';
-  note.textContent = action.complete === false ? 'Niepełne wyniki · część źródeł jest niedostępna' : 'Dane miejskie · sprawdź termin i czas aktualizacji';
-  if (action.narrowing?.preview) {
-    note.textContent += ' · Podgląd: ' + action.results.length + ' z ' + action.narrowing.originalTotal + ' dopasowań.';
-    if (action.narrowing.selection === 'nearest_known_locations_first') note.textContent += ' Najpierw najbliższe miejsca z potwierdzonym położeniem.';
-  } else if (action.narrowing) note.textContent += ' · Automatycznie zawężony zakres: ' + action.results.length + ' wybranych z ' + action.narrowing.originalTotal + ' pierwotnych dopasowań.';
-  if (action.displayProjection) note.textContent += ' · Skrócony podgląd szczegółów.';
-  if (action.results.some(place => !Number.isFinite(place.lat) || !Number.isFinite(place.lng) || Math.abs(place.lat) > 90 || Math.abs(place.lng) > 180)) note.textContent += ' · Wyniki bez punktu na mapie pozostają na liście; ich odległość jest nieznana.';
-  if (action.audienceFilterMapping) note.textContent += ' · Filtr rodzinny uwzględnia oznaczenie „Dla dzieci”.';
-  resultPanel.append(title, note);
   if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = action.complete === false ? 'Nie można potwierdzić braku pasujących wyników.' : 'Brak pasujących wyników.'; resultPanel.append(empty); }
   const points = [], highlighted = new Set(action.highlightIds || []);
   // The conversation lists at most 3 recommended (★) results; every result with a point is still drawn on the map.
