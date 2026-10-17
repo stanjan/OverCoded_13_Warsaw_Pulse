@@ -108,6 +108,35 @@
     info.addListener('closeclick', () => { activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; });
     let markers = [];
     let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView;
+    let touristPlaces = [], touristLines = [], touristMarkers = [];
+    const touristInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
+    let touristPopupContent;
+    touristInfo.addListener('closeclick',()=>{touristPopupContent=null;});
+    touristInfo.addListener('domready',()=>{
+      const rect=(touristPopupContent?.closest?.('[role="dialog"]')||touristPopupContent)?.getBoundingClientRect?.(),view=popupViewport(element);
+      if(!rect||!view)return;
+      const x=rect.left<view.left?rect.left-view.left:rect.right>view.right?rect.right-view.right:0;
+      const y=rect.top<view.top?rect.top-view.top:rect.bottom>view.bottom?rect.bottom-view.bottom:0;
+      if(x||y)map.panBy(x,y);
+    });
+    const clearTourism = () => {
+      touristInfo.close?.(); touristPopupContent=null; touristLines.forEach(line => line.setMap(null)); touristMarkers.forEach(marker => { marker.map = null; });
+      touristLines = []; touristMarkers = []; if (routeView?.tourism) routeView = null;
+    };
+    const showTouristRoutes = (places, { selectedId } = {}) => {
+      clearTourism(); touristPlaces = places.filter(place => place.category === 'route');
+      const selected = touristPlaces.find(place => place.id === selectedId);
+      for (const place of touristPlaces) for (const segment of touristSegments(place)) {
+        touristLines.push(new google.maps.Polyline({ map, path: segment.map(([lat,lng]) => ({lat,lng})), strokeColor: '#237653', strokeWeight: place === selected ? 6 : 4, strokeOpacity: place === selected ? .95 : .35, clickable: false, zIndex: place === selected ? 5 : 0 }));
+      }
+      for (const [index, point] of touristPoints(selected).entries()) {
+        const marker = new AdvancedMarkerElement({map,position:{lat:point.lat,lng:point.lng},content:touristPointElement(index),title:point.name,gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:210});
+        marker.addEventListener('gmp-click', () => { touristPopupContent=touristPointDetails(point);touristInfo.setContent(touristPopupContent); touristInfo.open({map,anchor:marker,shouldFocus:true}); }); touristMarkers.push(marker);
+      }
+      const points = touristMapPoints(selected ? [selected] : touristPlaces);
+      if (points.length) { routeView = {tourism:true,points:points.map(([latitude,longitude])=>({latitude,longitude})),options:{}}; fitRoute(); }
+      return points.length > 0;
+    };
     const fitRoute = () => {
       if (!routeView) return;
       const padding = routePadding(element, routeView.options);
@@ -126,7 +155,9 @@
       vendor: 'google',
       ready,
       clearRoute,
+      showTouristRoutes,
       showRoute(route, { top = 65 } = {}) {
+        clearTourism();
         info.close();activeBubble?.setAttribute('aria-expanded','false');
         clearRoute();
         for (const step of route?.steps || []) {
@@ -161,12 +192,14 @@
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
-      clearMarkers() { info.close(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
+      clearMarkers() { clearTourism(); touristPlaces = []; info.close?.(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const marker = new AdvancedMarkerElement({ map, position: { lat: place.lat, lng: place.lng }, title: place.name, content: bubble, gmpClickable: true, zIndex: recommended ? 200 : 100, collisionBehavior: optionalCollision });
         const open = () => {
           routeView = null;onOpen?.();
+          if (place.category === 'route') showTouristRoutes(touristPlaces, {selectedId:place.id});
+          else clearTourism();
           activeBubble?.setAttribute('aria-expanded', 'false');
           if (activeMarker) activeMarker.collisionBehavior = optionalCollision;
           activeBubble = bubble;
@@ -223,6 +256,8 @@
     const layer = L.layerGroup().addTo(map);
     const transitLayer = L.layerGroup().addTo(map);
     const vehicleLayer = L.layerGroup().addTo(map);
+    const touristLayer = L.layerGroup().addTo(map);
+    let touristPlaces = [];
     const results = [];
     let activeMarker;
     // Every result pin stays visible (no hiding of overlapping pins); only the zoom mode is synced.
@@ -240,11 +275,25 @@
       if (canFitRoute(element, padding)) map.fitBounds(routeView.points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom],animate:false});
     };
     observeRouteViewport(element, fitRoute);
+    const clearTourism = () => { touristLayer.clearLayers(); if (routeView?.tourism) routeView = null; };
+    const showTouristRoutes = (places, { selectedId } = {}) => {
+      clearTourism(); touristPlaces = places.filter(place => place.category === 'route');
+      const selected = touristPlaces.find(place => place.id === selectedId);
+      for (const place of touristPlaces) for (const segment of touristSegments(place)) L.polyline(segment,{color:'#237653',weight:place===selected?6:4,opacity:place === selected ? .95 : .35,interactive:false}).addTo(touristLayer);
+      for (const [index, point] of touristPoints(selected).entries()) {
+        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point),{className:'tourist-point-popup',maxWidth:230,...vehiclePopupPadding(element)});
+        marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(touristLayer);
+      }
+      const points=touristMapPoints(selected?[selected]:touristPlaces);
+      if(points.length){routeView={tourism:true,points,options:{}};fitRoute();}return points.length>0;
+    };
     return {
       vendor: 'leaflet',
       ready,
+      showTouristRoutes,
       clearRoute() { map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
+        clearTourism();
         routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
         const points=(route?.steps || []).flatMap(step=>validTransitPath(step.path)).map(point=>[point.latitude,point.longitude]);
         let lineCount=0;
@@ -282,13 +331,13 @@
       },
 
       setView({ lat, lng }, zoom) { routeView = null;map.setView([lat, lng], zoom); },
-      clearMarkers() { layer.clearLayers(); results.length = 0; activeMarker = undefined; },
+      clearMarkers() { clearTourism(); touristPlaces = []; map.closePopup?.(); layer.clearLayers(); results.length = 0; activeMarker = undefined; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const icon = L.divIcon({ className: 'result-marker', html: bubble, iconSize: [174, 76], iconAnchor: [87, 76], popupAnchor: [0, -70] });
         const marker = L.marker([place.lat, place.lng], { icon, keyboard: false, zIndexOffset: recommended ? 200 : 100 })
           .bindPopup(resultDetails(place, recommended), { className: 'result-info-popup', minWidth: 230, maxWidth: 290, autoPanPaddingTopLeft: [12, 70], autoPanPaddingBottomRight: [12, 150] })
-          .on('popupopen', () => { routeView = null;activeMarker = marker; bubble.setAttribute('aria-expanded', 'true'); arrangeBubbles(); onOpen?.(); })
+          .on('popupopen', () => { routeView = null;activeMarker = marker; bubble.setAttribute('aria-expanded', 'true'); arrangeBubbles(); onOpen?.(); if(place.category==='route')showTouristRoutes(touristPlaces,{selectedId:place.id}); else clearTourism(); })
           .on('popupclose', () => { bubble.setAttribute('aria-expanded', 'false'); if (activeMarker === marker) activeMarker = undefined; arrangeBubbles(); })
           .addTo(layer);
         const open = () => { routeView = null;marker.openPopup(); };
@@ -314,6 +363,13 @@
     };
   }
 
+  function touristSegments(place) {
+    return place?.category === 'route' && Array.isArray(place.traceSegments) ? place.traceSegments.filter(segment => Array.isArray(segment) && segment.length > 1 && segment.every(point => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Math.abs(point[0]) <= 90 && Number.isFinite(point[1]) && Math.abs(point[1]) <= 180)) : [];
+  }
+  function touristPoints(place) { return Array.isArray(place?.touristPoints) ? place.touristPoints.filter(point => typeof point?.name === 'string' && Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 && Number.isFinite(point.lng) && Math.abs(point.lng) <= 180) : []; }
+  function touristMapPoints(places) { return places.flatMap(place => [...touristSegments(place).flat(), ...touristPoints(place).map(point => [point.lat,point.lng]), ...(Number.isFinite(place.lat)&&Number.isFinite(place.lng)?[[place.lat,place.lng]]:[])]); }
+  function touristPointElement(index) { const dot=document.createElement('span');dot.className='tourist-point';dot.textContent=String(index+1);return dot; }
+  function touristPointDetails(point) { const details=document.createElement('strong');details.className='tourist-point-detail';details.textContent=point.name;return details; }
   function validTransitPath(points) { return Array.isArray(points) ? points.filter(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180) : []; }
   function transitContextPath(step) { const path=validTransitPath(step.fullPath);return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&step.fullPathGeometry==='gtfs_shape'&&path.length===step.fullPath?.length?path:[]; }
   function destinationElement() {
@@ -552,6 +608,10 @@
     if (place.description) {
       const paragraph = document.createElement('p'); paragraph.className = 'result-detail__description'; paragraph.textContent = place.description; body.append(paragraph);
     }
+    if (place.category === 'route') {
+      const note=document.createElement('p');note.className='result-detail__meta';
+      note.textContent=[Number.isFinite(place.lengthKm) ? place.lengthKm+' km' : '', place.geometryStatus === 'partial' ? 'Ślad źródłowy ma przerwy.' : place.geometryStatus !== 'published' ? 'Brak pełnego śladu trasy na mapie.' : 'Przebieg trasy według danych miejskich.'].filter(Boolean).join(' · ');body.append(note);
+    }
     if (place.provenance?.observedAt?.length) {
       const note = document.createElement('p'); note.className = 'result-detail__meta';
       note.textContent = 'Pomiar: ' + place.provenance.observedAt.join(', ') + ' (Europe/Warsaw). Aktualność niepotwierdzona.'; body.append(note);
@@ -641,6 +701,7 @@
         const fallBack = async () => {
           if (replaced) return;
           google.clearRoute();
+          google.clearMarkers();
           replaced = true;
           authFailureHandlers.delete(fallBack);
           console.warn('[map] Google Maps rejected the API key, switching to OpenStreetMap.');

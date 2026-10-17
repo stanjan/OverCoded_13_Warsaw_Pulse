@@ -52,6 +52,19 @@ Verified 2026-10-17 against the public [catalogue API](https://dane.um.warszawa.
 | toilet | get_m_toalety | [parameters](https://dane.um.warszawa.pl/files/m_toalety_pa.json), [examples](https://dane.um.warszawa.pl/files/m_toalety_pw.json) |
 | air_quality | get_bopipk_monitoring_jakosci_powietrza | [parameters](https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_pa.json), [examples](https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_pw.json) |
 
+Tourist routes preserve the city's ordered `[latitude, longitude]` traces as
+`traceSegments`, with `geometryStatus` and `traceVertexCount`. Invalid vertices
+split segments instead of connecting across a gap; missing geometry remains a
+marker/list result. Traces above 10,000 source vertices explicitly report
+`too_large` rather than drawing a truncated path. Google and Leaflet display
+muted returned traces, highlight the selected route, frame its whole geometry
+around the weather/sheet overlays, and show numbered, named published tourist
+points. A new question clears these layers. Selection survives map fallback.
+Model-facing app responses omit trace vertices while retained server records and
+browser display actions keep them; external MCP results remain complete. Under
+exceptional browser payload pressure, geometry is explicitly unavailable with
+`browser_capacity`, never silently simplified or replaced by a straight line.
+
 Observed response details take precedence over typos in parameter prose: events use `occurrence`; air uses `address` and `data`; weather uses lowercase `lokalizacja`. Routes wrap the complete array in `{result:[...]}`; the other six return bare arrays. Pitches have addresses/districts/schedules but no coordinates. Sports often supply recurring weekdays without dates or map points.
 
 Live adapter smoke on 2026-10-17: 649 events, 592 sports records, 16 weather stations, 1,227 pitches, 9 routes and 141 air stations; **2,634 normalized records, complete=true, no errors**, 1,697 without spatial coordinates. Counts are observations, not fixed assertions about future data.

@@ -364,3 +364,6 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
+.tourist-point{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border:2px solid #fff;border-radius:50%;background:#237653;color:#fff;font-size:11px;font-weight:700;box-shadow:0 1px 4px #0004;box-sizing:border-box}
+.tourist-point-detail{display:block;color:#234f3c;padding:4px;font-size:14px}
+.tourist-card-note{display:block;color:#617565;font-size:13px;margin-top:4px}

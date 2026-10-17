@@ -197,3 +197,25 @@ test('stop bubbles show safe official names and platform codes, remain through l
  const leafDots=groups[1].items.filter(item=>item.options?.icon?.html?.className==='transit-stop');assert.equal(leafDots.length,2);assert.ok(leafDots.every(dot=>dot.options.keyboard&&dot.options.interactive));assert.equal(leafDots[0].popup.children[0].textContent,'Okopowa <img>');assert.equal(leafDots[0].popup.children[1].textContent,'Stanowisko 02');assert.equal(leafDots[1].popup.children.length,1);assert.equal(leafDots[0].popupOptions.autoPanPaddingTopLeft.join(','),'12,128');
  barBottom=160;sheetTop=450;leafDots[0].listeners.popupopen();assert.equal(leafDots[0].popupOptions.autoPanPaddingTopLeft.join(','),'12,168');assert.equal(leafDots[0].popupOptions.autoPanPaddingBottomRight.join(','),'12,262');leaflet.clearRoute();assert.equal(groups[1].items.length,0);
 });
+
+test('tourist overlays preserve the whole published trace and selected named points on Google and Leaflet, and clear independently of GPS',async()=>{
+ const{context,markers,lines,groups,infos,calls,resize,flushResize}=setup();let leaflet;
+ const canvas=element('div');const google=await context.window.createCityMap(canvas,{onReplace:adapter=>leaflet=adapter});
+ const first={id:'first',category:'route',name:'Spacer',lat:52.2,lng:21,traceSegments:[[[52.2,21],[52.3,21.1],[52.25,21.2]]],touristPoints:[{name:'Pomnik <img>',lat:52.28,lng:21.15}]};
+ const second={id:'second',category:'route',traceSegments:[[[52.21,21.01],[52.24,21.03]]],touristPoints:[]};
+ google.showUser({lat:52.22,lng:21.01,accuracy:20});const gps=markers[0];google.showTouristRoutes([first,second]);assert.equal(lines.length,2);assert.ok(lines.every(line=>line.strokeOpacity===.35));assert.equal(calls.filter(call=>call[0]==='bounds').at(-1)[1].points.some(point=>point.lat===52.3&&point.lng===21.1),true);
+ google.showTouristRoutes([first,second],{selectedId:'first'});assert.ok(lines.slice(0,2).every(line=>line.map===null));const active=lines.slice(-2);assert.equal(active[0].strokeOpacity,.95);assert.equal(active[1].strokeOpacity,.35);assert.equal(JSON.stringify(active[0].path),JSON.stringify(first.traceSegments[0].map(([lat,lng])=>({lat,lng}))));
+ const point=markers.find(marker=>marker.content.className==='tourist-point');assert.equal(point.title,'Pomnik <img>');assert.equal(point.gmpClickable,true);point.listeners['gmp-click']();assert.equal(infos[3].content.textContent,'Pomnik <img>');assert.equal(infos[3].content.children.length,0);
+ const fit=calls.filter(call=>call[0]==='bounds').at(-1)[1].points;assert.ok(fit.some(point=>point.lat===52.3&&point.lng===21.1));assert.ok(fit.every(point=>!(point.lat===52.24&&point.lng===21.03)),'selected framing excludes other traces');
+ const before=calls.filter(call=>call[0]==='bounds').length;google.showVehicles([]);assert.equal(calls.filter(call=>call[0]==='bounds').length,before);resize(canvas);flushResize();assert.equal(calls.filter(call=>call[0]==='bounds').length,before+1);
+ google.clearMarkers();assert.ok(lines.every(line=>line.map===null));assert.equal(point.map,null);assert.ok(gps.map,'tourism clearing retains GPS');
+ google.showTouristRoutes([first],{selectedId:'first'});context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));assert.ok(lines.every(line=>line.map===null),'provider replacement detaches all Google tourism lines');
+ leaflet.showTouristRoutes([first,second],{selectedId:'first'});const tourism=groups[3];assert.equal(tourism.items.filter(item=>item.kind==='line').length,2);assert.equal(JSON.stringify(tourism.items[0].path),JSON.stringify(first.traceSegments[0]));const named=tourism.items.find(item=>item.kind==='marker');assert.equal(named.popup.textContent,'Pomnik <img>');assert.equal(named.options.keyboard,true);assert.equal(named.options.title,'Pomnik <img>');assert.ok(calls.filter(call=>call[0]==='leaflet-bounds').at(-1)[1].some(point=>point[0]===52.3&&point[1]===21.1));
+ leaflet.showTouristRoutes([second],{selectedId:'second'});assert.equal(tourism.items.length,1);leaflet.clearMarkers();assert.equal(tourism.items.length,0);
+});
+
+test('tourist map adapters never bridge malformed segments and transit selection removes tourism overlays',async()=>{
+ const{context,lines,groups}=setup();let leaflet;const google=await context.window.createCityMap(element('div'),{onReplace:adapter=>leaflet=adapter});
+ const place={category:'route',traceSegments:[[[52.2,21],null,[52.3,21.1]],[[52.4,21],[52.41,21.1]]],touristPoints:[]};google.showTouristRoutes([place]);assert.equal(lines.length,1);assert.equal(lines[0].path.length,2);assert.equal(lines[0].path[0].lat,52.4);google.showRoute(route);assert.equal(lines[0].map,null);
+ context.window.gm_authFailure();await new Promise(resolve=>setImmediate(resolve));leaflet.showTouristRoutes([place]);assert.equal(groups[3].items.length,1);leaflet.showRoute(route);assert.equal(groups[3].items.length,0);
+});
