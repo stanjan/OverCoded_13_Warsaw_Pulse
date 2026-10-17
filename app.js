@@ -164,6 +164,7 @@ function showResults(action) {
   const title = document.createElement('h2'); title.textContent = action.title;
   const note = document.createElement('p'); note.className = 'results-note';
   note.textContent = action.complete === false ? 'Niepełne wyniki · część źródeł jest niedostępna' : 'Dane miejskie · sprawdź termin i czas aktualizacji';
+  if (action.results.some(place => !Number.isFinite(place.lat) || !Number.isFinite(place.lng) || Math.abs(place.lat) > 90 || Math.abs(place.lng) > 180)) note.textContent += ' · Wyniki bez punktu na mapie pozostają na liście; ich odległość jest nieznana.';
   resultPanel.append(title, note);
   if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = action.complete === false ? 'Nie można potwierdzić braku pasujących wyników.' : 'Brak pasujących wyników.'; resultPanel.append(empty); }
   const points = [], highlighted = new Set(action.highlightIds || []);
@@ -187,6 +188,11 @@ function showResults(action) {
       const name = document.createElement('strong'); name.className = 'place-card__title'; name.textContent = label;
       card.append(name);
       resultPanel.append(card);
+    }
+    if (!spatial && listed.has(place) && (place.address || place.addresses?.length)) {
+      const address = document.createElement('span'); address.className = 'place-card__address';
+      address.textContent = [place.address || place.addresses.join(', '), place.district].filter(Boolean).join(' · ');
+      card.append(address);
     }
     if (spatial) {
       const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';

@@ -38,6 +38,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 button.place-card__title { cursor: pointer; }
 button.place-card__title:hover { background: #f2f4f6; }
 .place-card span { font-size: 12px; line-height: 1.5; color: #45474c; }
+.place-card .place-card__address { padding: 0 14px 12px; }
 @media (max-height: 550px) { #sheet-content { max-height: 40dvh; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 .user-loc { position: relative; width: 22px; height: 22px; pointer-events: none; }
