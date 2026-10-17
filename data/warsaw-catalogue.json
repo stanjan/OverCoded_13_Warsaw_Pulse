@@ -1,0 +1,780 @@
+{
+  "retrieved_on": "2026-10-17",
+  "source": "https://dane.um.warszawa.pl/pl/catalogue",
+  "api": "https://dane.um.warszawa.pl/api/datasets?lang=pl&page=1&size=1000",
+  "declared_count": 23,
+  "datasets": [
+    {
+      "id": "6a7e64d6-b451-4aa5-99d1-2dacece4323b",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/6a7e64d6-b451-4aa5-99d1-2dacece4323b",
+      "title": "Monitoring jakości powietrza",
+      "name": "monitoring-jakosci-powietrza",
+      "notes": "Poziom jakości powietrza na terenie Warszawy i gmin ościennych.",
+      "tags": [],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2025-07-09T11:51:13.733999",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:42:14.214028",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Ochrony Powietrza i Polityki Klimatycznej",
+      "map_visualization_url": "https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_vma.json",
+      "table_visualization_url": "https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_vta.json",
+      "chart_visualization_url": "https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_vch.json",
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bopipk_monitoring_jakosci_powietrza_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "10 minut"
+    },
+    {
+      "id": "20ec668b-e5f3-4cbf-aeeb-eb825f3c8731",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/20ec668b-e5f3-4cbf-aeeb-eb825f3c8731",
+      "title": "Wolne miejsca parkingowe",
+      "name": "wolne-miejsca-parkingowe",
+      "notes": "Wolne miejsca na parkingach zarządzanych przez Zarząd Terenów Publicznych, Zarząd Dróg Miejskich, Zarząd Pałacu Kultury i Nauki.",
+      "tags": [
+        {
+          "name": "parking"
+        }
+      ],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2026-05-19T09:09:39.845239",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:42:30.283993",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Urząd m.st. Warszawy",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/m_parkingi_wolne_miejsca_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/m_parkingi_wolne_miejsca_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "1 minuta"
+    },
+    {
+      "id": "f49d088a-00d3-4d5e-8aaf-1bc7092c706c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/f49d088a-00d3-4d5e-8aaf-1bc7092c706c",
+      "title": "Utrudnienia w ruchu drogowym",
+      "name": "utrudnienia-w-ruchu-drogowym",
+      "notes": "Utrudnienia w ruchu drogowym.",
+      "tags": [],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2026-04-20T08:41:13.205387",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:43:54.555562",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Infrastruktury",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bin_utrudnienia_drogowe_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bin_utrudnienia_drogowe_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "1 minuta"
+    },
+    {
+      "id": "911aa2e8-d021-4dab-b5ff-751079cf902c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/911aa2e8-d021-4dab-b5ff-751079cf902c",
+      "title": "Zajęcia sportowe",
+      "name": "zajecia-sportowe",
+      "notes": "Zajęcia sportowe pochodzą z kalenarza zajęć sportowych umieszczonych na stronie internetowej miasta https://sport.um.warszawa.pl.",
+      "tags": [],
+      "category": "Sport",
+      "category_icon": "category_icons/Football_M201mqb.svg",
+      "metadata_created": "2025-10-10T08:24:10.107698",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:50:19.757968",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Marketingu Miasta",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bmm_zajecia_sportowe_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bmm_zajecia_sportowe_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "2 godziny"
+    },
+    {
+      "id": "f319f602-7292-4e8c-b3d1-f5898aa9a638",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/f319f602-7292-4e8c-b3d1-f5898aa9a638",
+      "title": "Lokalizacja pojazdów komunikacji miejskiej",
+      "name": "lokalizacja-pojazdow-komunikacji-miejskiej",
+      "notes": "Lokalizacja pojazdów komunikacji miejskiej.",
+      "tags": [],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2025-07-02T10:01:48.953666",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:55:59.656297",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Transportu Miejskiego",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": "https://dane.um.warszawa.pl/files/ztm_lokalizacja_pojazdow_komunikacji_miejskiej8.yaml",
+      "parameters": "https://dane.um.warszawa.pl/files/ztm_lokalizacja_pojazdow_komunikacji_miejskiej_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/ztm_lokalizacja_pojazdow_komunikacji_miejskiej_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "10 sekund"
+    },
+    {
+      "id": "2db4f9f9-a64a-41a8-9215-c6709b7d3c5c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/2db4f9f9-a64a-41a8-9215-c6709b7d3c5c",
+      "title": "Rejestr Cen Nieruchomości",
+      "name": "rejestr-cen-nieruchomosci",
+      "notes": "Zbiór zawiera dane transakcyjne z Rejestru Cen Nieruchomości prowadzonego przez Biuro Geodezji i Katastru m.st. Warszawy, oparte na aktach notarialnych. Dla każdej transakcji dostępne są: cena, data zawarcia umowy, rodzaj nieruchomości, lokalizacja oraz podstawowe parametry techniczne. Warunki wykorzystania: https://mapa.um.warszawa.pl/warunki.html.",
+      "tags": [
+        {
+          "name": "ceny"
+        },
+        {
+          "name": "nieruchomości"
+        }
+      ],
+      "category": "Nieruchomości",
+      "category_icon": "category_icons/nieruchomości.svg",
+      "metadata_created": "2026-05-11T08:44:56.284686",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T10:00:59.166130",
+      "license_title": "",
+      "organization_name": "Biuro Geodezji i Katastru",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bgk_rcn_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bgk_rcn_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "8eb065b6-f3a0-41d4-a842-732c6c1c3063",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/8eb065b6-f3a0-41d4-a842-732c6c1c3063",
+      "title": "Linie dostepne na przystanku",
+      "name": "linie-dostepne-na-przystanku",
+      "notes": "Lista linii dostępnych na przystanku. Dane powiązane ze zbiorami \"Lokalizacja przystanków komunikacji miejskiej\" oraz \"Odjazdy linii z przystanku\".",
+      "tags": [],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2025-07-02T08:44:43.404183",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:59:46.738660",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Transportu Miejskiego",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/ztm_linie_dostepne_na_przystanku_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/ztm_linie_dostepne_na_przystanku_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "a8295279-8bd5-4fec-8352-d7a7b96dc129",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/a8295279-8bd5-4fec-8352-d7a7b96dc129",
+      "title": "Pojazdy transportu publicznego",
+      "name": "pojazdy-transportu-publicznego",
+      "notes": "Informacje o pojazdach transportu publicznego w Warszawie.",
+      "tags": [
+        {
+          "name": "autobus"
+        },
+        {
+          "name": "tramwaj"
+        },
+        {
+          "name": "transport publiczny"
+        }
+      ],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2026-05-25T12:56:17.444471",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T09:59:33.096889",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Transportu Miejskiego",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/ztm_pojazdy_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/ztm_pojazdy_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "7bc32ffc-c2ac-4d32-83c9-b6f7a0b38de8",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/7bc32ffc-c2ac-4d32-83c9-b6f7a0b38de8",
+      "title": "Lokalizacja defibrylatorów (AED)",
+      "name": "lokalizacja-defibryzatorow-aed",
+      "notes": "Aktywne urządzenia AED na terenie Warszawy.",
+      "tags": [
+        {
+          "name": "aed"
+        },
+        {
+          "name": "defibrylator"
+        }
+      ],
+      "category": "Zdrowie",
+      "category_icon": "category_icons/zdrowie.svg",
+      "metadata_created": "2025-10-10T07:57:31.588734",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T10:00:08.811310",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Stołeczne Centrum Bezpieczeństwa",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/scb_lokalizacja_defibrylatorow_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/scb_lokalizacja_defibrylatorow_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "dedad7b7-85f4-4be9-b73e-8395cefb434c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/dedad7b7-85f4-4be9-b73e-8395cefb434c",
+      "title": "Odjazdy linii z przystanku",
+      "name": "odjazdy-dla-linii-z-przystanku",
+      "notes": "Lista linii dostępnych na przystanku. Dane powiązane ze zbiorami \"Lokalizacja przystanków komunikacji miejskiej\" oraz \"Linie dostępne na przystanku\".",
+      "tags": [],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2025-07-02T09:56:26.714171",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T10:01:20.715216",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Transportu Miejskiego",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/ztm_odjazdy_linii_z_przystanku_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/ztm_odjazdy_linii_z_przystanku_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "db8077a8-d0e0-480a-af5d-040fb0ea176f",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/db8077a8-d0e0-480a-af5d-040fb0ea176f",
+      "title": "Pogoda",
+      "name": "pogoda",
+      "notes": "Dane meteo pochodzące ze stacji meterologocznych Zarządu Oczyszczania Miasta.",
+      "tags": [],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2025-07-11T09:55:17.542902",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-06-01T13:22:18.003105",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Oczyszczania Miasta",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/zom_pogoda_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/zom_pogoda_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "10 minut"
+    },
+    {
+      "id": "80ce2007-2c18-4c46-92e8-a54c4a97d9a0",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/80ce2007-2c18-4c46-92e8-a54c4a97d9a0",
+      "title": "Konsultacje społeczne",
+      "name": "konsultacje-spoleczne",
+      "notes": "Zbiór zawiera informacje o konsultacjach społecznych prowadzonych przez Urząd m.st. Warszawy. Dane pochodzą z serwisu konsultacje.um.warszawa.pl. Zbiór obejmuje m.in. opisy inicjatyw, terminy, kategorie, grupy odbiorców oraz lokalizację spotkań.",
+      "tags": [
+        {
+          "name": "konsultacje"
+        },
+        {
+          "name": "mieszkańcy"
+        },
+        {
+          "name": "partycypacja"
+        }
+      ],
+      "category": "Aktywni mieszkańcy",
+      "category_icon": "category_icons/users.svg",
+      "metadata_created": "2025-10-10T09:14:51.508544",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-02T07:33:42.439945",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Centrum Komunikacji Społecznej",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "2 godziny"
+    },
+    {
+      "id": "009fce84-0024-431a-aa5e-9515c539899e",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/009fce84-0024-431a-aa5e-9515c539899e",
+      "title": "Lokalizacja przystanków komunikacji miejskiej",
+      "name": "lokalizacja-przystanow-komunikacji-miejskiej",
+      "notes": "Lokalizacja przystanków komunikacji miejskiej. Dane powiązane ze zbiorem \"Linie dostępne na przystanku\".",
+      "tags": [],
+      "category": "Transport",
+      "category_icon": "category_icons/transport.svg",
+      "metadata_created": "2025-05-13T09:49:32.149355",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-07-09T08:46:41.687765",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Zarząd Transportu Miejskiego",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/ztm_lokalizacja_przystankow_komunikacji_miejskiej_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/ztm_lokalizacja_przystankow_komunikacji_miejskiej_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "32a0ad2d-06d7-4e9c-acef-17a35c083d8c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/32a0ad2d-06d7-4e9c-acef-17a35c083d8c",
+      "title": "Otwarte boiska",
+      "name": "otwarte-boiska",
+      "notes": "Baza oświatowych terenów sportowych, w tym między innymi: boisk, bieżni, kortów tenisowych, siłowni zewnętrznych udostępnianych mieszkańcom bezpłatnie w określonych godzinach.",
+      "tags": [
+        {
+          "name": "sport"
+        }
+      ],
+      "category": "Sport",
+      "category_icon": "category_icons/Football_M201mqb.svg",
+      "metadata_created": "2026-09-18T11:24:39.412838",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-09-18T11:29:07.192976",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Edukacji",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/be_otwarte_boiska_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/be_otwarte_boiska_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "Tygodniowo"
+    },
+    {
+      "id": "152838ce-0f39-4814-a6db-93aa3caf2e0c",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/152838ce-0f39-4814-a6db-93aa3caf2e0c",
+      "title": "Segregacja odpadów",
+      "name": "segregacja-odpadow",
+      "notes": "Zasady segregacji odpadów w Warszawie. Dane pochodzą z serwisu https://segregujna5.um.warszawa.pl/.",
+      "tags": [
+        {
+          "name": "odpady"
+        }
+      ],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2026-07-10T13:52:16.832380",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-07-13T12:56:23.131433",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Marketingu Miasta",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bmm_segregacja_odpadow_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bmm_segregacja_odpadow_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "92942779-493f-4737-9c97-6de471f66f0a",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/92942779-493f-4737-9c97-6de471f66f0a",
+      "title": "Typy odpadów",
+      "name": "typy-odpadow",
+      "notes": "Zasady segregacji typów odpadów w Warszawie. Dane pochodzą z serwisu https://segregujna5.um.warszawa.pl/.",
+      "tags": [
+        {
+          "name": "odpady"
+        }
+      ],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2026-07-10T14:39:50.471878",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-07-13T12:55:56.136222",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Marketingu Miasta",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bmm_typy_odpadow_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bmm_typy_odpadow_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "codziennie"
+    },
+    {
+      "id": "00394370-1299-4d98-9910-0983fa7e7612",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/00394370-1299-4d98-9910-0983fa7e7612",
+      "title": "Trasy turystyczne",
+      "name": "trasy-turystyczne",
+      "notes": "Zbiór zawiera dane na temat wybranych tras turystycznych w Warszawie.",
+      "tags": [
+        {
+          "name": "turystyka"
+        }
+      ],
+      "category": "Aktywni mieszkańcy",
+      "category_icon": "category_icons/users.svg",
+      "metadata_created": "2026-10-02T09:02:50.847033",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-02T09:12:00.083447",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Stołecznie Biuro Turystyki",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/sbt_trasy_turystyczne_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/sbt_trasy_turystyczne_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": null
+    },
+    {
+      "id": "8129064a-9e5a-4e73-936e-53fa874045ed",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/8129064a-9e5a-4e73-936e-53fa874045ed",
+      "title": "Eko punkty",
+      "name": "eko-punkty",
+      "notes": "Miejsca gdzie można oddać przeterminowane leki oraz zbędny sprzęt AGD",
+      "tags": [],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2026-09-29T13:42:05.928016",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-09-29T13:57:28.011430",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Ochrony Środowiska",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bos_ekopunkty_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bos_ekopunkty_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "Tygodniowo"
+    },
+    {
+      "id": "59485767-5566-4cb6-9545-a9053efca4ff",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/59485767-5566-4cb6-9545-a9053efca4ff",
+      "title": "Toalety",
+      "name": "toalety",
+      "notes": "Aktualne informacje o dostępności i rozmieszczeniu toalet w Warszawie.",
+      "tags": [],
+      "category": "Środowisko",
+      "category_icon": "category_icons/środowisko.svg",
+      "metadata_created": "2026-09-29T12:41:10.479520",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-09-29T13:01:13.546882",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Centrum Komunikacji Społecznej",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/m_toalety_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/m_toalety_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "Tygodniowo"
+    },
+    {
+      "id": "eaaedf3e-8aee-42d0-9af4-a1bc2fba57e6",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/eaaedf3e-8aee-42d0-9af4-a1bc2fba57e6",
+      "title": "Konsultacje społeczne kategorie",
+      "name": "konsultacje-spoleczne-kategorie",
+      "notes": "Zbiór stanowi słownik kategorii tematycznych wykorzystywanych w systemie konsultacje.um.warszawa.pl. Jest to zbiór uzupełniający dane ze zbioru głównego dotyczącego konsultacji społecznych. Zawiera identyfikatory oraz nazwy poszczególnych kategorii.",
+      "tags": [
+        {
+          "name": "konsultacje"
+        },
+        {
+          "name": "słownik"
+        }
+      ],
+      "category": "Aktywni mieszkańcy",
+      "category_icon": "category_icons/users.svg",
+      "metadata_created": "2025-10-27T14:02:33.392578",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-12T13:49:25.205229",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Centrum Komunikacji Społecznej",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_kategorie_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_kategorie_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "2 godziny"
+    },
+    {
+      "id": "7bc4bcd2-d416-4fba-903e-5538d6d14cf4",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/7bc4bcd2-d416-4fba-903e-5538d6d14cf4",
+      "title": "Konsultacje społeczne dzielnice",
+      "name": "konsultacje-spoleczne-dzielnice",
+      "notes": "Zbiór stanowi słownik dzielnic Warszawy wykorzystywany w systemie konsultacji społecznych. Jest to zbiór uzupełniający dane ze zbioru głównego dotyczącego serwisu konsultacje.um.warszawa.pl. Zawiera identyfikatory, nazwy oraz adresy urzędów poszczególnych dzielnic.",
+      "tags": [
+        {
+          "name": "konsultacje"
+        },
+        {
+          "name": "słownik"
+        }
+      ],
+      "category": "Aktywni mieszkańcy",
+      "category_icon": "category_icons/users.svg",
+      "metadata_created": "2025-10-27T14:00:32.259848",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-12T13:49:52.363230",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Centrum Komunikacji Społecznej",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_dzielnice_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/cks_konsultacje_spoleczne_dzielnice_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "2 godziny"
+    },
+    {
+      "id": "fb4a355f-cc99-4a86-af27-e271b9c77d38",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/fb4a355f-cc99-4a86-af27-e271b9c77d38",
+      "title": "Budżet obywatelski",
+      "name": "budzet-obywatelski",
+      "notes": "Zbiór zawiera dane dotyczące projektów Budżetu Obywatelskiego w Warszawie. Obejmuje projekty będące w trakcie realizacji, jak i zrealizowane. Zbiór zawiera m.in. opisy projektów, ich lokalizację, wstępne kosztorysy, statusy oraz wyniki głosowania.",
+      "tags": [
+        {
+          "name": "budżet obywatelski"
+        },
+        {
+          "name": "projekty"
+        }
+      ],
+      "category": "Aktywni mieszkańcy",
+      "category_icon": "category_icons/users.svg",
+      "metadata_created": "2026-09-30T11:48:23.741200",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-12T13:51:40.516530",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Centrum Komunikacji Społecznej",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/cks_budzet_obywatelski_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/cks_budzet_obywatelski_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "Tygodniowo"
+    },
+    {
+      "id": "ba202e4b-dfa9-440c-83c0-0b3517520cb8",
+      "catalogue_url": "https://dane.um.warszawa.pl/pl/catalogue/ba202e4b-dfa9-440c-83c0-0b3517520cb8",
+      "title": "Kalendarz wydarzeń",
+      "name": "kalendarz-wydarzen",
+      "notes": "Zbiór zawiera dane o wydarzeniach miejskich opublikowanych w kalendarzu w oficjalnym portalu m.st. Warszawy (https://um.warszawa.pl). Obejmuje m.in. tytuły, opisy, terminy wydarzeń oraz ich lokalizację.",
+      "tags": [
+        {
+          "name": "kalendarz"
+        },
+        {
+          "name": "wydarzenia"
+        }
+      ],
+      "category": "Wydarzenia",
+      "category_icon": "category_icons/kultura.svg",
+      "metadata_created": "2025-10-10T08:38:13.225499",
+      "formats": [
+        "JSON"
+      ],
+      "refresh_rate": null,
+      "metadata_modified": "2026-10-12T13:53:39.918569",
+      "license_title": "Creative Commons Attribution",
+      "organization_name": "Biuro Marketingu Miasta",
+      "map_visualization_url": null,
+      "table_visualization_url": null,
+      "chart_visualization_url": null,
+      "swagger_url": null,
+      "parameters": "https://dane.um.warszawa.pl/files/bmm_kalendarz_wydarzen_pa.json",
+      "call_examples": "https://dane.um.warszawa.pl/files/bmm_kalendarz_wydarzen_pw.json",
+      "resources": null,
+      "sort": null,
+      "logos": [
+        ""
+      ],
+      "refresh_info": "2 godziny"
+    }
+  ]
+}

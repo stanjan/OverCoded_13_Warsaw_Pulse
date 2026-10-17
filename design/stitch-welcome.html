@@ -1,0 +1,237 @@
+<!DOCTYPE html><html class="h-full" lang="pl" style="width: 390px; height: 100%; overflow: hidden; position: relative;"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Manrope:wght@400;500;600&amp;family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { 'colors': { 'surface-variant': '#e0e3e5', 'on-tertiary-container': '#dd7230', 'inverse-surface': '#2d3133', 'surface-container-low': '#f2f4f6', 'tertiary-container': '#481b00', 'error': '#ba1a1a', 'outline': '#75777d', 'on-surface': '#191c1e', 'secondary': '#0051d5', 'error-container': '#ffdad6', 'surface': '#f7f9fb', 'surface-bright': '#f7f9fb', 'on-tertiary-fixed': '#331100', 'tertiary-fixed-dim': '#ffb690', 'on-error': '#ffffff', 'surface-container': '#eceef0', 'on-secondary-fixed-variant': '#003ea8', 'on-tertiary-fixed-variant': '#783200', 'primary': '#091426', 'tertiary-fixed': '#ffdbca', 'secondary-fixed-dim': '#b4c5ff', 'primary-fixed': '#d8e3fb', 'outline-variant': '#c5c6cd', 'on-primary': '#ffffff', 'secondary-fixed': '#dbe1ff', 'inverse-primary': '#bcc7de', 'background': '#f7f9fb', 'surface-tint': '#545f73', 'on-secondary-container': '#fefcff', 'on-surface-variant': '#45474c', 'on-secondary': '#ffffff', 'secondary-container': '#316bf3', 'on-primary-fixed-variant': '#3c475a', 'on-background': '#191c1e', 'on-primary-fixed': '#111c2d', 'primary-container': '#1e293b', 'tertiary': '#280c00', 'surface-container-high': '#e6e8ea', 'surface-dim': '#d8dadc', 'inverse-on-surface': '#eff1f3', 'on-error-container': '#93000a', 'surface-container-highest': '#e0e3e5', 'primary-fixed-dim': '#bcc7de', 'on-tertiary': '#ffffff', 'surface-container-lowest': '#ffffff', 'on-secondary-fixed': '#00174b', 'on-primary-container': '#8590a6' }, 'borderRadius': { 'DEFAULT': '1rem', 'lg': '2rem', 'xl': '3rem', 'full': '9999px' }, 'spacing': { 'gutter': '0.75rem', 'space-md': '0.75rem', 'gutter-tablet': '1rem', 'margin-tablet': '1.5rem', 'space-xl': '2rem', 'margin': '1rem', 'space-sm': '0.5rem', 'space-lg': '1.25rem', 'space-xs': '0.25rem' }, 'fontFamily': { 'label-lg': ['Geist', 'sans-serif'], 'body-md': ['Manrope', 'sans-serif'], 'headline-sm': ['Space Grotesk', 'sans-serif'], 'headline-md': ['Space Grotesk', 'sans-serif'], 'label-md': ['Geist', 'sans-serif'], 'display-lg': ['Space Grotesk', 'sans-serif'], 'body-sm': ['Manrope', 'sans-serif'], 'headline-lg': ['Space Grotesk', 'sans-serif'], 'label-tabular': ['Geist', 'sans-serif'], 'body-lg': ['Manrope', 'sans-serif'] }, 'fontSize': { 'label-lg': ['14px', { 'lineHeight': '18px', 'letterSpacing': '0.01em', 'fontWeight': '600' }], 'body-md': ['15px', { 'lineHeight': '22px', 'letterSpacing': '0em', 'fontWeight': '400' }], 'headline-sm': ['18px', { 'lineHeight': '24px', 'letterSpacing': '-0.01em', 'fontWeight': '500' }], 'headline-md': ['22px', { 'lineHeight': '28px', 'letterSpacing': '-0.015em', 'fontWeight': '600' }], 'label-md': ['12px', { 'lineHeight': '16px', 'letterSpacing': '0.02em', 'fontWeight': '500' }], 'display-lg': ['40px', { 'lineHeight': '48px', 'letterSpacing': '-0.03em', 'fontWeight': '600' }], 'body-sm': ['13px', { 'lineHeight': '18px', 'letterSpacing': '0em', 'fontWeight': '400' }], 'headline-lg': ['30px', { 'lineHeight': '36px', 'letterSpacing': '-0.02em', 'fontWeight': '600' }], 'label-tabular': ['13px', { 'lineHeight': '16px', 'letterSpacing': '0.04em', 'fontWeight': '600' }], 'body-lg': ['17px', { 'lineHeight': '26px', 'letterSpacing': '-0.01em', 'fontWeight': '400' }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}}::-webkit-scrollbar{display:none;}</style></head><body class="bg-surface font-body-md text-on-surface antialiased min-h-screen flex flex-col selection:bg-secondary/15"><main class="flex-1 flex flex-col relative w-full pb-28 bg-surface"><div class="flex flex-col w-full relative select-none">
+<!-- TOP EXPANDABLE CONTAINER: Warsaw Live Map View -->
+<section class="w-full transition-all duration-500 ease-out flex flex-col relative overflow-hidden bg-surface-container-low shadow-md rounded-b-[2.5rem] z-20" id="map-section" style="height: 310px;">
+<!-- Map Canvas with Rich Cartographic Overlay -->
+<div class="relative w-full flex-1 overflow-hidden">
+<!-- Minimalist Central Warsaw Map Underlay -->
+<div class="w-full h-full bg-cover bg-center" data-location="Śródmieście, Warszawa, Poland" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuC69peGkgOWxALAvFqsoezFAP2tfGTyNeu80yLkWqVJ1Haj1anp8qfxKSfEIX1PUsZyvebn0y7eJZl7lHmtnmQoMJCaYBkSN2oGkS0kRghLt6mCikAJbw6biarMJg9WsdpiiccW6VWn2rgFjWXLMHDzf2_hcZk1MUfSDbzi9OPVTfRlmqT5HlBZP5k9pNqYhZ6ABo479wGr7RVx29VO_-m0BE368hHxIgrw-z3RhanKCMWL6CbHEh4h&quot;);"></div>
+<!-- Stylized Vector Waterway & District Grids -->
+<div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-primary/20 via-transparent to-primary/10"></div>
+<!-- Floating Map Top Control Telemetry Badge -->
+<div class="absolute top-3 inset-x-margin flex flex-col gap-2 pointer-events-auto">
+<div class="self-start flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/90 backdrop-blur-xl shadow-sm text-on-surface border border-white/60">
+<span class="material-symbols-outlined text-amber-500 text-[18px]">wb_sunny</span>
+<span class="font-label-tabular text-label-tabular font-bold">19°C</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-md text-label-md text-emerald-600 font-semibold">AQI 24 (Good)</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Sunset 19:42</span>
+</div>
+</div>
+<!-- Map Floating Controls (GPS Target Button) -->
+<div class="absolute right-3 bottom-4 flex flex-col gap-1.5 pointer-events-auto">
+<button class="w-9 h-9 rounded-full bg-surface/95 backdrop-blur-md text-primary flex items-center justify-center shadow-md border border-white/60 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+</button>
+</div>
+</div>
+</section>
+<!-- BOTTOM EXPANDABLE CONTAINER: AI Companion (Clean Welcome State) -->
+<section class="w-full flex-1 flex flex-col pt-space-sm px-margin transition-all duration-500 ease-out z-10" id="chat-section">
+<!-- Sheet Drag Handle & Status Header -->
+<div class="w-full flex flex-col items-center pb-2 cursor-pointer" id="chat-handle">
+<div class="w-12 h-1 rounded-full bg-outline-variant/70 mb-2 active:scale-95 transition-transform"></div>
+<div class="w-full flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-on-secondary shadow-sm">
+<span class="material-symbols-outlined text-[17px]">auto_awesome</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-primary font-bold leading-tight">Warsaw AI Assistant</h2>
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+<span class="font-label-md text-label-md text-on-surface-variant">ZTM, pogoda i wydarzenia miejskie online</span>
+</div>
+</div>
+</div>
+<button class="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-container-high text-on-surface font-label-md text-label-md hover:bg-surface-variant active:scale-95 transition-all" id="chat-expand-btn">
+<span class="material-symbols-outlined text-[16px]">unfold_more</span>
+<span id="chat-expand-text">Full Chat</span>
+</button>
+</div>
+</div>
+<!-- Welcome Message & Suggested Prompts Stream -->
+<div class="flex flex-col gap-4 pt-3 pb-28 overflow-y-auto" id="chat-messages">
+<!-- Warm Warsaw AI Greeting -->
+<div class="flex items-start gap-2.5 max-w-[94%]">
+<div class="w-7 h-7 rounded-full bg-secondary/15 flex items-center justify-center text-secondary shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[16px]">spark</span>
+</div>
+<div class="p-3.5 rounded-2xl rounded-tl-sm bg-surface-container text-on-surface shadow-xs">
+<p class="font-body-md text-body-md font-medium text-primary">
+Cześć! Jestem Twoim przewodnikiem po Warszawie. W czym mogę pomóc w ten wieczór?
+</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1.5 leading-relaxed">
+Mogę sprawdzić rozkłady tramwajów i metra, polecić najciekawsze miejsca nad Wisłą lub znaleźć kameralne kawiarnie w Twojej okolicy.
+</p>
+</div>
+</div>
+<!-- Suggested Prompts Section -->
+<div class="flex flex-col gap-2.5 pl-9 pr-1">
+<span class="font-label-md text-label-md text-outline uppercase tracking-wider font-semibold">Sugerowane pytania</span>
+<div class="flex flex-col gap-2">
+<!-- Prompt 1: Wisła -->
+<button class="prompt-chip group flex items-center justify-between p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 hover:border-secondary/40 hover:bg-surface-container-low transition-all text-left shadow-xs active:scale-[0.99]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-secondary-fixed flex items-center justify-center text-secondary shrink-0 group-hover:scale-105 transition-transform">
+<span class="text-base">🎵</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-[14px] font-semibold text-on-surface group-hover:text-secondary transition-colors">Co dzieje się dziś nad Wisłą?</span>
+<span class="font-body-sm text-[12px] text-on-surface-variant">Koncerty plenerowe, bary i strefy chilloutu</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-secondary group-hover:translate-x-0.5 transition-all text-[20px]">north_east</span>
+</button>
+<!-- Prompt 2: Transit -->
+<button class="prompt-chip group flex items-center justify-between p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 hover:border-secondary/40 hover:bg-surface-container-low transition-all text-left shadow-xs active:scale-[0.99]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 group-hover:scale-105 transition-transform">
+<span class="text-base">🚋</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-[14px] font-semibold text-on-surface group-hover:text-secondary transition-colors">Jak dojadę do Śródmieścia?</span>
+<span class="font-body-sm text-[12px] text-on-surface-variant">Najszybsza trasa z uwzględnieniem opóźnień ZTM</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-secondary group-hover:translate-x-0.5 transition-all text-[20px]">north_east</span>
+</button>
+<!-- Prompt 3: Cafes -->
+<button class="prompt-chip group flex items-center justify-between p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 hover:border-secondary/40 hover:bg-surface-container-low transition-all text-left shadow-xs active:scale-[0.99]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center text-orange-700 shrink-0 group-hover:scale-105 transition-transform">
+<span class="text-base">☕</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-[14px] font-semibold text-on-surface group-hover:text-secondary transition-colors">Klimatyczne kawiarnie w okolicy</span>
+<span class="font-body-sm text-[12px] text-on-surface-variant">Ciche miejsca z dobrą kawą i klimatem do rozmów</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-secondary group-hover:translate-x-0.5 transition-all text-[20px]">north_east</span>
+</button>
+<!-- Prompt 4: Exhibitions & Pop-ups -->
+<button class="prompt-chip group flex items-center justify-between p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 hover:border-secondary/40 hover:bg-surface-container-low transition-all text-left shadow-xs active:scale-[0.99]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shrink-0 group-hover:scale-105 transition-transform">
+<span class="text-base">🏛️</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-[14px] font-semibold text-on-surface group-hover:text-secondary transition-colors">Wystawy i pop-upy otwarte po 18:00</span>
+<span class="font-body-sm text-[12px] text-on-surface-variant">Sztuka współczesna, galerie i wieczorne wejścia</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-secondary group-hover:translate-x-0.5 transition-all text-[20px]">north_east</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- FLOATING CONVERSATIONAL AI INPUT BAR -->
+<div class="fixed bottom-20 inset-x-margin z-40 max-w-lg mx-auto">
+<div class="relative flex items-center justify-between gap-2 p-1.5 pl-3 rounded-full bg-surface-container-lowest/95 backdrop-blur-2xl shadow-xl border border-white/70">
+<!-- Voice / Mic Trigger -->
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-secondary active:scale-90 transition-transform shrink-0" title="Głosowe wyszukiwanie">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+<!-- Context Tag & Text Input Field -->
+<div class="flex-1 flex items-center min-w-0">
+<input class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none truncate" id="ai-chat-input" placeholder="Zapytaj o wydarzenia, transport, miejsca..." type="text">
+</div>
+<!-- District Context Pin Chip -->
+<div class="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-md text-[11px] shrink-0 font-medium">
+<span class="material-symbols-outlined text-[12px] text-secondary">location_on</span>
+<span>Powiśle</span>
+</div>
+<!-- Submit / Spark AI Action Button -->
+<button class="w-9 h-9 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md active:scale-90 transition-all shrink-0" id="ai-submit-btn">
+<span class="material-symbols-outlined text-[18px]">arrow_upward</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  (function initWarsawPulseSheets() {
+    const mapSection = document.getElementById('map-section');
+    const chatSection = document.getElementById('chat-section');
+    const chatExpandBtn = document.getElementById('chat-expand-btn');
+    const chatExpandText = document.getElementById('chat-expand-text');
+    const chatHandle = document.getElementById('chat-handle');
+    const chatInput = document.getElementById('ai-chat-input');
+    const submitBtn = document.getElementById('ai-submit-btn');
+    const messagesContainer = document.getElementById('chat-messages');
+
+    // States: 'balanced' (default), 'chat-expanded'
+    let currentMode = 'balanced';
+
+    function setMode(mode) {
+      currentMode = mode;
+      if (mode === 'chat-expanded') {
+        mapSection.style.height = '140px';
+        chatExpandText.textContent = 'Half View';
+      } else {
+        mapSection.style.height = '310px';
+        chatExpandText.textContent = 'Full Chat';
+      }
+    }
+
+    chatExpandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMode(currentMode === 'chat-expanded' ? 'balanced' : 'chat-expanded');
+    });
+
+    chatHandle.addEventListener('click', () => {
+      setMode(currentMode === 'chat-expanded' ? 'balanced' : 'chat-expanded');
+    });
+
+    // Quick Prompt Chips
+    document.querySelectorAll('.prompt-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const textSpan = btn.querySelector('.font-headline-sm');
+        const text = textSpan ? textSpan.innerText.trim() : btn.innerText.trim();
+        chatInput.value = text;
+        chatInput.focus();
+      });
+    });
+
+    // Interaction on submit
+    function sendQuery() {
+      const val = chatInput.value.trim();
+      if (!val) return;
+
+      const userBubble = document.createElement('div');
+      userBubble.className = 'self-end max-w-[85%]';
+      userBubble.innerHTML = `
+        <div class="p-3.5 rounded-2xl rounded-tr-sm bg-primary text-on-primary shadow-sm animate-fade-in">
+          <p class="font-body-md text-body-md">${val}</p>
+        </div>
+      `;
+      messagesContainer.appendChild(userBubble);
+      chatInput.value = '';
+
+      // AI feedback simulator
+      setTimeout(() => {
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'flex items-start gap-2.5 max-w-[92%]';
+        aiBubble.innerHTML = `
+          <div class="w-6 h-6 rounded-full bg-secondary/15 flex items-center justify-center text-secondary shrink-0 mt-0.5">
+            <span class="material-symbols-outlined text-[15px]">spark</span>
+          </div>
+          <div class="p-3.5 rounded-2xl rounded-tl-sm bg-surface-container text-on-surface shadow-sm">
+            <p class="font-body-md text-body-md">Sprawdzam dane w czasie rzeczywistym dla: "${val}"...</p>
+          </div>
+        `;
+        messagesContainer.appendChild(aiBubble);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 500);
+
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    submitBtn.addEventListener('click', sendQuery);
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendQuery();
+    });
+  })();
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(9,20,38,0.05)] border-t border-outline-variant/30" data-active-classes="text-secondary"><div class="h-16 px-margin flex items-center justify-around"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[48px] h-12 transition-colors text-secondary" data-path="city-pulse" href="#"><span class="material-symbols-outlined text-[24px]">explore</span><span class="font-label-md text-label-md mt-0.5">Pulse</span></a><a class="flex flex-col items-center justify-center min-w-[48px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="transit-live" href="#"><span class="material-symbols-outlined text-[24px]">subway</span><span class="font-label-md text-label-md mt-0.5">Transit</span></a><a class="flex flex-col items-center justify-center min-w-[48px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="curated-guide" href="#"><span class="material-symbols-outlined text-[24px]">local_activity</span><span class="font-label-md text-label-md mt-0.5">Guide</span></a><a class="flex flex-col items-center justify-center min-w-[48px] h-12 text-on-surface-variant hover:text-on-surface transition-colors" data-path="saved-routes" href="#"><span class="material-symbols-outlined text-[24px]">bookmark</span><span class="font-label-md text-label-md mt-0.5">Saved</span></a></div></nav>
+</body></html>
