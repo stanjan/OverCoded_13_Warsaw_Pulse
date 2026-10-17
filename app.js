@@ -1,3 +1,14 @@
+// ?safeTop= / ?safeBottom= (0–100) override safe-area insets, e.g. inside an iframe where env() is always 0.
+{
+  const params = new URLSearchParams(location.search);
+  for (const [param, prop] of [['safeTop', '--safe-top'], ['safeBottom', '--safe-bottom']]) {
+    const raw = params.get(param);
+    if (raw === null || !/^\d+(\.\d+)?$/.test(raw)) continue;
+    const value = Number(raw);
+    if (value <= 100) document.documentElement.style.setProperty(prop, `${value}px`);
+  }
+}
+
 const input = document.querySelector('#search-bar-input');
 const messages = document.querySelector('#chat-messages');
 const resultPanel = document.querySelector('#place-results');

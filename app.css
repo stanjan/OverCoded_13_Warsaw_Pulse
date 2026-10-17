@@ -243,7 +243,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-info-popup .result-detail__expand { top: 8px; left: 8px; }
 .event-full { position: absolute; inset: 0; z-index: 60; overflow-y: auto; overscroll-behavior: contain; background: #fffdf9; animation: eventFullIn .25s cubic-bezier(.16,1,.3,1); }
 @keyframes eventFullIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-.event-full__back { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; z-index: 2; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #fffdf9e6; color: #342b26; box-shadow: 0 2px 8px #0000002e; cursor: pointer; }
+.event-full__back { position: absolute; top: calc(12px + var(--safe-top, env(safe-area-inset-top, 0px))); right: 12px; z-index: 2; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #fffdf9e6; color: #342b26; box-shadow: 0 2px 8px #0000002e; cursor: pointer; }
 .result-detail--full { width: 100%; max-width: none; }
 .result-detail--full .result-image--large { height: 260px; }
 .result-detail--full .result-image--large .result-image__fallback { font-size: 72px; }
@@ -310,7 +310,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-pin__star svg { fill: currentColor; stroke-width: 1; }
 
 /* Event opened in the conversation: the panel grows to full height and shows only the event. */
-#ai-sheet.is-event-open #sheet-content { --event-full: calc(100dvh - 128px - var(--safe-bottom) - env(safe-area-inset-top, 0px)); max-height: var(--event-full); min-height: var(--event-full); transition: none; }
+#ai-sheet.is-event-open #sheet-content { --event-full: calc(100dvh - 128px - var(--safe-bottom) - var(--safe-top, env(safe-area-inset-top, 0px))); max-height: var(--event-full); min-height: var(--event-full); transition: none; }
 #sheet-content:has(> .conversation-event) > :not(.conversation-event) { display: none; }
 .drawer-container.is-event-open > div:first-child { display: none; }
 .conversation-event { position: relative; margin: 0 -16px; background: #fffdf9; will-change: transform; overflow: hidden; }
