@@ -298,7 +298,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .weather-bar[data-route='true'] #environment-icon { font-size: 16px; }
 #environment-eta { display: flex; align-items: center; font-variant-numeric: tabular-nums; }
 #environment-eta strong { font-size: 15px; color: #263442; }
-#environment-route-refresh { position: absolute; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 51px); display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #536b60; background: transparent; cursor: pointer; }
+#environment-route-refresh { position: absolute; right: 12px; top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 51px); display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #536b60; background: transparent; cursor: pointer; }
 #environment-route-refresh:hover { background: #e4ece780; }
 #environment-route-refresh:focus-visible { outline: 3px solid #0051d5; outline-offset: -3px; }
 #environment-route-refresh:disabled { opacity: .5; cursor: wait; }
@@ -357,7 +357,7 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .rec-card .rec-card__when { font-size: 12px; color: #342b26; }
 
 /* Full-screen conversation (drag the handle up): the panel reaches the top and covers the weather bar. */
-#ai-sheet.is-full #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - env(safe-area-inset-top, 0px)); max-height: var(--sheet-full); min-height: var(--sheet-full); }
+#ai-sheet.is-full #sheet-content { --sheet-full: calc(100dvh - 128px - var(--safe-bottom) - var(--safe-top, env(safe-area-inset-top, 0px))); max-height: var(--sheet-full); min-height: var(--sheet-full); }
 .drawer-container.is-full > div:first-child { display: none; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
