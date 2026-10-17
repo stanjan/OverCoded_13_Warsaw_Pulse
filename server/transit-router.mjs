@@ -11,7 +11,7 @@ export function validateGraph(graph) {
  if(!graph.stops.length||!graph.source.validFrom||!graph.source.validTo)throw new TransitError('GRAPH_INVALID','Brak kalendarza rozkładu.');
  return graph;
 }
-export function planGraph(graph,{origin,destination,departureTime,signal,maxBoardings=3,horizonMs=4*3600000,firstBoardingDeadline=Infinity,deltas=new Map(),now=Date.now(),walkingEdges=new Map()}={}) {
+export function planGraph(graph,{origin,destination,departureTime,signal,maxBoardings=3,horizonMs=4*3600000,firstBoardingStart=departureTime,firstBoardingDeadline=Infinity,deltas=new Map(),now=Date.now(),walkingEdges=new Map()}={}) {
  validateGraph(graph);const day=dateInWarsaw(departureTime);
  if(day<graph.source.validFrom||day>graph.source.validTo)throw new TransitError('DATE_OUTSIDE_FEED','Rozkład ZTM nie obejmuje wybranego dnia.');
  const byId=new Map(graph.stops.map(stop=>[stop.id,stop]));
@@ -41,7 +41,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
      }
     }
     const label=previous.get(stop.id),buffer=round>1&&label?.path.some(segment=>segment.mode==='TRANSIT')?TRANSFER_BUFFER:0;
-    if(event.pickup===0&&label&&label.time+buffer<=event.departure&&event.departure>=departureTime&&event.departure<=departureTime+horizonMs&&(label.path.some(step=>step.mode==='TRANSIT')||event.departure<=firstBoardingDeadline)){
+    if(event.pickup===0&&label&&label.time+buffer<=event.departure&&event.departure>=departureTime&&event.departure<=departureTime+horizonMs&&(label.path.some(step=>step.mode==='TRANSIT')||event.departure>=firstBoardingStart&&event.departure<=firstBoardingDeadline)){
      if(!boarding||label.time<boarding.label.time)boarding={event,index,label};
     }
    }

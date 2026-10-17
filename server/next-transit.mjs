@@ -16,7 +16,9 @@ export async function nextAvailableTransit(initial,options,{graphProvider,walkin
   // The following day's services are available for transfers, but the
   // first boarding belongs to this calendar day. This avoids skipping an
   // earlier slow connection in favour of tomorrow's faster one.
-  const params={...options,departureTime:start,horizonMs:serviceInstant(nextDay(day,2),'00:00:00')-start,firstBoardingDeadline:end-1};
+  // Access walking may start before this day's midnight. Only the first
+  // boarding belongs to this day's window; never move the requested start.
+  const params={...options,departureTime:requested,horizonMs:serviceInstant(nextDay(day,2),'00:00:00')-requested,firstBoardingStart:start,firstBoardingDeadline:end-1};
   search.through=day;search.daysChecked++;
   let routes=await planPedestrianGraph(graph,params,walking);
   if(!routes.length)continue;
