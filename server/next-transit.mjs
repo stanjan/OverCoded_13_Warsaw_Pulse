@@ -1,4 +1,4 @@
-import {dateInWarsaw,distanceMeters,serviceInstant,TransitError} from '../transit-core.mjs';
+import {dateInWarsaw,distanceMeters,serviceInstant} from '../transit-core.mjs';
 import {nextDay} from './transit-gtfs.mjs';
 import {validateGraph} from './transit-router.mjs';
 import {planPedestrianGraph} from './walking-router.mjs';
@@ -7,7 +7,9 @@ import {planPedestrianGraph} from './walking-router.mjs';
 // it never attaches future schedules to the live fleet model.
 export async function nextAvailableTransit(initial,options,{graphProvider,walking}={}){
  const requested=options.departureTime,firstDay=dateInWarsaw(requested),lastDay=initial.source.validTo;
- const check=()=>{options.signal?.throwIfAborted();walking.verification.signal.throwIfAborted();if(Date.now()>=walking.verification.deadlineAt)throw new TransitError('LOOKAHEAD_LIMIT','Nie zakończono sprawdzania późniejszych połączeń w dostępnym czasie.');};
+ // The short walking budget bounds new network checks only. Calendar/cutoff
+ // searches can continue using verified edges until the outer request aborts.
+ const check=()=>options.signal?.throwIfAborted();
  const search={attempted:true,from:firstDay,through:firstDay,feedValidTo:lastDay,daysChecked:0,exhausted:false};
  for(let day=firstDay;day<=lastDay;day=nextDay(day)){
   check();
@@ -29,14 +31,17 @@ export async function nextAvailableTransit(initial,options,{graphProvider,walkin
   const clocks=[...times].sort((a,b)=>a-b);
   // Feasibility is monotonic in this cutoff. Binary search the first possible
   // boarding, reusing verified walks; no artificial 4-hour departure buckets.
-  let low=0,high=clocks.length-1;
-  while(low<high){check();const mid=Math.floor((low+high)/2),earlier=await planPedestrianGraph(graph,{...params,firstBoardingDeadline:clocks[mid]},walking);if(earlier.length){routes=earlier;high=mid;}else low=mid+1;}
-  const cutoff=clocks[low];
-  if(Number.isFinite(cutoff)&&highTime!==cutoff)routes=await planPedestrianGraph(graph,{...params,firstBoardingDeadline:cutoff},walking);
+  let low=0,high=clocks.length-1,firstBoardingComplete=true;
+  try{
+   while(low<high){check();const mid=Math.floor((low+high)/2),earlier=await planPedestrianGraph(graph,{...params,firstBoardingDeadline:clocks[mid]},walking);if(earlier.length){routes=earlier;high=mid;}else low=mid+1;}
+   const cutoff=clocks[low];
+   if(Number.isFinite(cutoff)&&highTime!==cutoff)routes=await planPedestrianGraph(graph,{...params,firstBoardingDeadline:cutoff},walking);
+  }catch(error){check();if(error?.code!=='WALK_VERIFICATION_LIMIT')throw error;firstBoardingComplete=false;}
+  search.firstBoardingComplete=firstBoardingComplete;
   routes=routes.sort((a,b)=>firstBoard(a)-firstBoard(b)||a.arrival-b.arrival).map(route=>{
    const index=route.steps.findIndex(step=>step.mode==='TRANSIT'),ride=route.steps[index],access=route.steps.slice(0,index),duration=access.reduce((sum,step)=>sum+step.end-step.start,0),leave=ride.start-duration;
    let clock=leave;const steps=route.steps.map((step,i)=>{if(i>=index)return step;const span=step.end-step.start,shifted={...step,start:clock,end:clock+span};clock+=span;return shifted;});
-   return{...route,steps,departure:leave,durationMillis:route.arrival-leave,nextAvailable:true,requestedDeparture:requested,waitingMillis:Math.max(0,leave-requested),firstBoarding:ride.start};
+   return{...route,steps,departure:leave,durationMillis:route.arrival-leave,nextAvailable:true,requestedDeparture:requested,waitingMillis:Math.max(0,leave-requested),firstBoarding:ride.start,...(!firstBoardingComplete?{walkingCoverage:{...route.walkingCoverage,bounded:true},warnings:[...route.warnings,'Pokazano najbliższe potwierdzone połączenie. Limit sprawdzania przejść pieszych nie pozwolił potwierdzić wszystkich wcześniejszych odjazdów.']}: {})};
   });
   return{routes,search};
  }
