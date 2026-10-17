@@ -45,21 +45,32 @@ new ResizeObserver(() => {
   const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
   appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
 }).observe(document.querySelector('#ai-sheet'));
-const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas) : Promise.reject(new Error('map.js missing')))
-  .then(map => {
-    cityMap = map;
-    document.querySelector('#map-canvas-container').classList.add('map-ready', `map-${map.vendor}`);
-    return map;
-  })
-  .catch(error => {
-    console.warn('[map]', error.message);
-    document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
-  });
+const mapContainer = document.querySelector('#map-canvas-container');
+function showMapUnavailable() {
+  mapContainer.classList.remove('map-ready', 'map-google', 'map-leaflet');
+  document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+}
+function useMap(map) {
+  cityMap = map;
+  mapContainer.classList.remove('map-google', 'map-leaflet');
+  mapContainer.classList.add('map-ready', `map-${map.vendor}`);
+  return map;
+}
+// If Google rejects the key after loading, continue on OpenStreetMap with the same state.
+function onMapReplaced(map) {
+  if (!map) { cityMap = undefined; showMapUnavailable(); return; }
+  useMap(map);
+  if (lastPosition) map.showUser(lastPosition);
+  if (lastResults) drawMarkers(lastResults);
+}
+const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas, { onReplace: onMapReplaced }) : Promise.reject(new Error('map.js missing')))
+  .then(useMap)
+  .catch(error => { console.warn('[map]', error.message); showMapUnavailable(); });
 const CENTER = window.CITY_CENTER || { lat: 52.2318, lng: 21.006, zoom: 12 };
 // User location: first tap asks permission, then the blue dot follows the user.
 const gpsButton = document.querySelector('#gps-button');
 let watchId = null;
-let lastPosition = null;
+let lastPosition = null; // { lat, lng, accuracy }
 function setGpsState(state) {
   gpsButton.dataset.state = state;
   const labels = { idle: 'Pokaż moją lokalizację', locating: 'Szukam lokalizacji…', active: 'Wyśrodkuj na mojej lokalizacji', denied: 'Lokalizacja niedostępna — wyśrodkuj mapę Warszawy' };
@@ -68,7 +79,7 @@ function setGpsState(state) {
 }
 setGpsState('idle');
 function centerOnUser() {
-  if (lastPosition) cityMap?.setView(lastPosition, 15);
+  if (lastPosition) cityMap?.setView({ lat: lastPosition.lat, lng: lastPosition.lng }, 15);
 }
 gpsButton.addEventListener('click', () => {
   setExpanded(false);
@@ -78,11 +89,13 @@ gpsButton.addEventListener('click', () => {
   let first = true;
   watchId = navigator.geolocation.watchPosition(position => {
     const { latitude: lat, longitude: lng, accuracy } = position.coords;
-    lastPosition = { lat, lng };
-    cityMap?.showUser({ lat, lng, accuracy });
+    lastPosition = { lat, lng, accuracy };
+    cityMap?.showUser(lastPosition);
     setGpsState('active');
     if (first) { first = false; centerOnUser(); }
   }, error => {
+    // After a first fix, a timeout or lost signal is temporary: keep watching and keep the dot.
+    if (!first && error.code !== error.PERMISSION_DENIED) return;
     navigator.geolocation.clearWatch(watchId); watchId = null;
     setGpsState('denied');
     cityMap?.setView(CENTER, CENTER.zoom);
@@ -92,26 +105,44 @@ gpsButton.addEventListener('click', () => {
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
 });
 
+let lastResults = null;
+let resultCards = [];
+function drawMarkers(results) {
+  if (!cityMap) return;
+  cityMap.clearMarkers();
+  const points = [];
+  results.forEach((place, index) => {
+    const marker = cityMap.addMarker(place);
+    if (resultCards[index]) resultCards[index].marker = marker;
+    points.push([place.lat, place.lng]);
+  });
+  cityMap.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
+}
 function showResults(action) {
   resultPanel.replaceChildren();
   cityMap?.clearMarkers();
+  lastResults = action.results;
   const title = document.createElement('h2'); title.textContent = action.title;
   const note = document.createElement('p'); note.className = 'results-note'; note.textContent = 'Dane demonstracyjne · bez informacji na żywo';
   resultPanel.append(title, note);
   if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = 'Brak pasujących miejsc.'; resultPanel.append(empty); }
-  const points = [];
-  for (const place of action.results) {
+  resultCards = action.results.map(place => {
     const card = document.createElement('button'); card.type = 'button'; card.className = 'place-card';
     const name = document.createElement('strong'); name.textContent = place.name;
     const detail = document.createElement('span'); detail.textContent = `${place.district} · ${place.description}`;
     card.append(name, detail); resultPanel.append(card);
-    if (cityMap) {
-      const marker = cityMap.addMarker(place);
-      card.addEventListener('click', () => { setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); });
-      points.push([place.lat, place.lng]);
-    }
-  }
-  cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
+    const entry = { marker: null };
+    card.addEventListener('click', () => {
+      if (!cityMap) return;
+      setExpanded(false);
+      cityMap.setView({ lat: place.lat, lng: place.lng }, 15);
+      entry.marker?.open();
+    });
+    return entry;
+  });
+  // The map loads asynchronously: draw markers once it is ready (immediately if it already is).
+  const results = action.results;
+  mapReady.then(() => { if (lastResults === results) drawMarkers(results); });
 }
 
 const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia komunikacji ZTM?', 'Gdzie znajdę najbliższe Veturilo?'];
