@@ -91,25 +91,50 @@ function centerOnUser() {
 gpsButton.addEventListener('click', () => {
   setExpanded(false);
   if (!('geolocation' in navigator)) { setGpsState('denied'); cityMap?.setView(CENTER, CENTER.zoom); return; }
-  if (watchId !== null) { lastPosition ? centerOnUser() : cityMap?.setView(CENTER, CENTER.zoom); return; }
+  if (watchId !== null) { if (lastPosition) centerOnUser(); return; } // still searching or tracking
   setGpsState('locating');
   let first = true;
-  watchId = navigator.geolocation.watchPosition(position => {
+  let retried = false;
+  // Browsers can stay silent forever (e.g. a pending macOS location prompt): stop after 30 s.
+  const stuckTimer = setTimeout(() => {
+    if (!first) return;
+    console.warn('[location] no answer from the browser after 30 s');
+    giveUp({ code: 3, PERMISSION_DENIED: 1 });
+  }, 30000);
+  const onPosition = position => {
+    clearTimeout(stuckTimer);
     const { latitude: lat, longitude: lng, accuracy } = position.coords;
     lastPosition = { lat, lng, accuracy };
     cityMap?.showUser(lastPosition);
     setGpsState('active');
     if (first) { first = false; centerOnUser(); }
-  }, error => {
-    // After a first fix, a timeout or lost signal is temporary: keep watching and keep the dot.
-    if (!first && error.code !== error.PERMISSION_DENIED) return;
-    navigator.geolocation.clearWatch(watchId); watchId = null;
+  };
+  const giveUp = error => {
+    clearTimeout(stuckTimer);
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
     setGpsState('denied');
     cityMap?.setView(CENTER, CENTER.zoom);
     addMessage(error.code === error.PERMISSION_DENIED
       ? 'Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.'
-      : 'Nie udało się ustalić Twojej lokalizacji. Spróbuj ponownie za chwilę.');
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+      : 'Nie udało się ustalić Twojej lokalizacji. Sprawdź, czy usługi lokalizacji są włączone, i spróbuj ponownie.');
+  };
+  // Laptops have no GPS: ask for a Wi-Fi based position (fast) instead of high accuracy.
+  const options = { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 };
+  watchId = navigator.geolocation.watchPosition(onPosition, error => {
+    console.warn('[location]', error.code, error.message);
+    if (error.code === error.PERMISSION_DENIED) return giveUp(error);
+    // After a first fix, a timeout or lost signal is temporary: keep watching and keep the dot.
+    if (!first) return;
+    // Before the first fix, macOS/Chrome often report "position unavailable" once; retry once with any cached position.
+    if (!retried) {
+      retried = true;
+      navigator.geolocation.getCurrentPosition(onPosition, retryError => {
+        console.warn('[location] retry', retryError.code, retryError.message);
+        if (first) giveUp(retryError);
+      }, { enableHighAccuracy: false, timeout: 20000, maximumAge: Infinity });
+    }
+  }, options);
 });
 
 function showResults(action) {
@@ -157,6 +182,33 @@ const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia k
 document.querySelectorAll('.prompt-chip').forEach((button, index) => button.addEventListener('click', () => {
   input.value = prompts[index]; input.focus();
 }));
+
+// Quick prompts row: on a laptop, let the mouse wheel and click-drag scroll it sideways
+// (touch and trackpad swipes already scroll it natively).
+const promptRow = document.querySelector('.prompt-chip')?.parentElement;
+if (promptRow) {
+  promptRow.addEventListener('wheel', event => {
+    const canScroll = promptRow.scrollWidth > promptRow.clientWidth;
+    if (!canScroll || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    promptRow.scrollLeft += event.deltaY;
+  }, { passive: false });
+  let drag = null;
+  promptRow.addEventListener('pointerdown', event => {
+    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    drag = { x: event.clientX, left: promptRow.scrollLeft, moved: false };
+  });
+  window.addEventListener('pointermove', event => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    if (Math.abs(dx) > 5) drag.moved = true;
+    if (drag.moved) promptRow.scrollLeft = drag.left - dx;
+  });
+  window.addEventListener('pointerup', () => {
+    if (drag?.moved) promptRow.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true });
+    drag = null;
+  });
+}
 function addMessage(text, user = false) {
   setExpanded(true);
   welcome.hidden = true;
