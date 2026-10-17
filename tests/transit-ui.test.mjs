@@ -202,3 +202,13 @@ test('late GPS cannot replace a manually entered origin or revive a hidden event
   assert.equal(computes,0);assert.equal(f.ids['transit-origin'].value,action==='manual'?'Dw. Centralny':'');assert.equal(f.ids['transit-panel'].hidden,action==='new-question');
  }
 });
+
+
+for(const action of ['cancel','clear'])test('explicit '+action+' discards pending event GPS without resuming route search',async()=>{
+ let finish,computes=0,location={status:'unavailable'};const f=fixture({compute:async()=>{computes++;return result([]);}});
+ f.host.getCityLocation=()=>location;f.host.requestCityLocation=()=>new Promise(resolve=>finish=value=>{location=value;resolve(value);});
+ f.panel.open({destination:{latitude:52.2259,longitude:21.0015,label:'Wydarzenie'}});const pending=f.ids['transit-gps'].click();
+ f.ids['transit-'+action].click();const expected=action==='cancel'?'cancelled':'idle';assert.equal(f.panel.getState().status,expected);
+ finish({status:'available',latitude:52.23,longitude:21.01});await pending;
+ assert.equal(computes,0);assert.equal(f.panel.getState().status,expected);assert.equal(f.ids['transit-origin'].value,'');assert.equal(f.ids['environment-bar'].dataset.route,'false');
+});
