@@ -9,7 +9,7 @@ const drawer = document.querySelector('.drawer-container');
 let sessionId = null;
 let pending = false;
 let expanded = true;
-let cityMap, markers;
+let cityMap;
 let suppressHandleClick = false;
 
 function setExpanded(value) {
@@ -39,24 +39,62 @@ document.querySelector('#sheet-toggle').addEventListener('pointerup', event => {
 });
 
 const mapCanvas = document.querySelector('#city-map');
-if (window.L) {
-  cityMap = L.map(mapCanvas, { zoomControl: false }).setView([52.2318, 21.006], 12);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(cityMap);
-  markers = L.layerGroup().addTo(cityMap);
-  document.querySelector('#map-canvas-container').classList.add('map-ready');
-  new ResizeObserver(() => cityMap.invalidateSize()).observe(mapCanvas);
-  new ResizeObserver(() => {
-    const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
-    document.querySelector('.app-shell').style.setProperty('--map-obstruction', `${obstruction}px`);
-  }).observe(document.querySelector('#ai-sheet'));
-} else {
-  document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+const appShell = document.querySelector('.app-shell');
+// Keep the map's usable area (markers, fitting, attribution) above the bottom sheet.
+new ResizeObserver(() => {
+  const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
+  appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
+}).observe(document.querySelector('#ai-sheet'));
+const mapReady = (window.createCityMap ? window.createCityMap(mapCanvas) : Promise.reject(new Error('map.js missing')))
+  .then(map => {
+    cityMap = map;
+    document.querySelector('#map-canvas-container').classList.add('map-ready', `map-${map.vendor}`);
+    return map;
+  })
+  .catch(error => {
+    console.warn('[map]', error.message);
+    document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+  });
+const CENTER = window.CITY_CENTER || { lat: 52.2318, lng: 21.006, zoom: 12 };
+// User location: first tap asks permission, then the blue dot follows the user.
+const gpsButton = document.querySelector('#gps-button');
+let watchId = null;
+let lastPosition = null;
+function setGpsState(state) {
+  gpsButton.dataset.state = state;
+  const labels = { idle: 'Pokaż moją lokalizację', locating: 'Szukam lokalizacji…', active: 'Wyśrodkuj na mojej lokalizacji', denied: 'Lokalizacja niedostępna — wyśrodkuj mapę Warszawy' };
+  gpsButton.setAttribute('aria-label', labels[state]);
+  gpsButton.title = labels[state];
 }
-document.querySelector('#gps-button').addEventListener('click', () => { setExpanded(false); cityMap?.setView([52.2318, 21.006], 12); });
+setGpsState('idle');
+function centerOnUser() {
+  if (lastPosition) cityMap?.setView(lastPosition, 15);
+}
+gpsButton.addEventListener('click', () => {
+  setExpanded(false);
+  if (!('geolocation' in navigator)) { setGpsState('denied'); cityMap?.setView(CENTER, CENTER.zoom); return; }
+  if (watchId !== null) { lastPosition ? centerOnUser() : cityMap?.setView(CENTER, CENTER.zoom); return; }
+  setGpsState('locating');
+  let first = true;
+  watchId = navigator.geolocation.watchPosition(position => {
+    const { latitude: lat, longitude: lng, accuracy } = position.coords;
+    lastPosition = { lat, lng };
+    cityMap?.showUser({ lat, lng, accuracy });
+    setGpsState('active');
+    if (first) { first = false; centerOnUser(); }
+  }, error => {
+    navigator.geolocation.clearWatch(watchId); watchId = null;
+    setGpsState('denied');
+    cityMap?.setView(CENTER, CENTER.zoom);
+    addMessage(error.code === error.PERMISSION_DENIED
+      ? 'Brak zgody na lokalizację. Możesz ją włączyć w ustawieniach przeglądarki dla tej strony.'
+      : 'Nie udało się ustalić Twojej lokalizacji. Spróbuj ponownie za chwilę.');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+});
 
 function showResults(action) {
   resultPanel.replaceChildren();
-  markers?.clearLayers();
+  cityMap?.clearMarkers();
   const title = document.createElement('h2'); title.textContent = action.title;
   const note = document.createElement('p'); note.className = 'results-note'; note.textContent = 'Dane demonstracyjne · bez informacji na żywo';
   resultPanel.append(title, note);
@@ -68,13 +106,12 @@ function showResults(action) {
     const detail = document.createElement('span'); detail.textContent = `${place.district} · ${place.description}`;
     card.append(name, detail); resultPanel.append(card);
     if (cityMap) {
-      const popup = document.createElement('div'); popup.textContent = place.name;
-      const marker = L.circleMarker([place.lat, place.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#0051d5', fillOpacity: 1 }).bindPopup(popup).addTo(markers);
-      card.addEventListener('click', () => { setExpanded(false); cityMap.setView([place.lat, place.lng], 15); marker.openPopup(); });
+      const marker = cityMap.addMarker(place);
+      card.addEventListener('click', () => { setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); });
       points.push([place.lat, place.lng]);
     }
   }
-  if (cityMap && points.length) cityMap.fitBounds(points, { paddingTopLeft: [24, 70], paddingBottomRight: [24, Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6)], maxZoom: 15 });
+  cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
 }
 
 const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia komunikacji ZTM?', 'Gdzie znajdę najbliższe Veturilo?'];
@@ -104,7 +141,7 @@ async function send() {
     sessionId = data.sessionId; progress.textContent = data.message;
     for (const action of data.actions || []) {
       if (action.type === 'display_results') showResults(action);
-      if (action.type === 'focus_map' && cityMap) cityMap.setView([action.latitude, action.longitude], action.zoom);
+      if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
     }
     // Keep result cards immediately discoverable while the map shows their markers.
     content.scrollTop = resultPanel.childElementCount ? 0 : content.scrollHeight;

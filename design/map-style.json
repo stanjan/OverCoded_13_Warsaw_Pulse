@@ -1,0 +1,8 @@
+{
+  "variant": "light",
+  "styles": [
+    { "id": "pointOfInterest", "label": { "visible": false } },
+    { "id": "infrastructure.roadNetwork", "label": { "visible": false } },
+    { "id": "infrastructure.transitStation", "label": { "visible": false } }
+  ]
+}

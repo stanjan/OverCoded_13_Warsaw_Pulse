@@ -18,6 +18,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 #city-map { position: absolute; inset: 0; z-index: 0; }
 .map-ready > div:not(#city-map) { display: none; }
 .leaflet-control-attribution { font-size: 10px !important; }
+/* Google Maps: end the map at the sheet so the Google logo and terms stay visible. */
+.map-google { background-color: #e8eaed !important; background-image: none !important; }
+.map-google #city-map { bottom: var(--map-obstruction, calc(170px + var(--safe-bottom))); }
+.map-google .map-popup { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 600; color: #191c1e; }
 .leaflet-bottom { bottom: var(--map-obstruction, calc(170px + var(--safe-bottom))); }
 .leaflet-popup-content { font-family: 'Plus Jakarta Sans', sans-serif; }
 #chat-messages { display: flex; flex-direction: column; gap: 12px; padding-block: 8px; user-select: text; }
@@ -35,3 +39,13 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .place-card span { font-size: 12px; line-height: 1.5; color: #45474c; }
 @media (max-height: 550px) { #sheet-content { max-height: 40dvh; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+.user-loc { position: relative; width: 22px; height: 22px; pointer-events: none; }
+/* Google anchors marker content at its bottom centre; shift down so the dot's centre sits on the position. */
+.user-loc--google { transform: translateY(50%); }
+.user-loc__pulse, .user-loc__dot { position: absolute; inset: 0; border-radius: 50%; box-sizing: border-box; }
+.user-loc__pulse { background: rgba(0,81,213,.35); transform-origin: 50% 50%; animation: radarPulse 2.2s cubic-bezier(0,0,.2,1) infinite; }
+.user-loc__dot { background: #0051d5; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(9,20,38,.35); }
+#gps-button[data-state="active"] { color: #0051d5; }
+#gps-button[data-state="locating"] .material-symbols-outlined { animation: gpsBlink 1s ease-in-out infinite; }
+#gps-button[data-state="denied"] { color: #75777d; }
+@keyframes gpsBlink { 50% { opacity: .35; } }
