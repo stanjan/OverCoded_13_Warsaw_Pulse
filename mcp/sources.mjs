@@ -6,7 +6,8 @@ export const SOURCES = {
  pitch: { title: 'Otwarte boiska', id: '32a0ad2d-06d7-4e9c-acef-17a35c083d8c', action: 'get_be_otwarte_boiska', spec: 'be_otwarte_boiska' },
  route: { title: 'Trasy turystyczne', id: '00394370-1299-4d98-9910-0983fa7e7612', action: 'get_sbt_trasy_turystyczne', spec: 'sbt_trasy_turystyczne' },
  toilet: { title: 'Toalety', id: '59485767-5566-4cb6-9545-a9053efca4ff', action: 'get_m_toalety', spec: 'm_toalety' },
+ aed: { title: 'Lokalizacja defibrylatorów (AED)', id: '7bc32ffc-c2ac-4d32-83c9-b6f7a0b38de8', action: 'get_scb_lokalizacja_defibrylatorow', spec: 'scb_lokalizacja_defibrylatorow' },
  air_quality: { title: 'Monitoring jakości powietrza', id: '6a7e64d6-b451-4aa5-99d1-2dacece4323b', action: 'get_bopipk_monitoring_jakosci_powietrza', spec: 'bopipk_monitoring_jakosci_powietrza' },
 };
 // Weather/air are supplied automatically by the server's environment context.
-export const SEARCH_CATEGORIES = ['event', 'sports', 'pitch', 'route', 'toilet'];
+export const SEARCH_CATEGORIES = ['event', 'sports', 'pitch', 'route', 'toilet', 'aed'];
