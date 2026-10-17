@@ -36,9 +36,9 @@ test('expanded details contain the source data and omit unsafe links and image U
  assert.equal(body.children.some(child=>child.tag==='a'),false);
 });
 
-test('Leaflet keeps overlapping recommendations readable and can open a hidden result from its card',async()=>{
+test('Leaflet shows every overlapping result pin and opens a result from its card',async()=>{
  const markers=[];
- const map={setView(){return this;},on(){return this;},invalidateSize(){},latLngToContainerPoint(){return{x:300,y:200};}};
+ const map={setView(){return this;},on(){return this;},invalidateSize(){},getZoom(){return 16;},latLngToContainerPoint(){return{x:300,y:200};}};
  const layer={addTo(){return this;},clearLayers(){}};
  const L={map:()=>map,tileLayer:()=>({addTo(){}}),layerGroup:()=>layer,divIcon:options=>options,DomEvent:{disableClickPropagation(){}},marker:(position,options)=>{
   const marker={position,options,events:{},icon:{style:{}},getLatLng(){return this.position;},getElement(){return this.icon;},bindPopup(content){this.popup=content;return this;},on(name,callback){this.events[name]=callback;return this;},addTo(){return this;},openPopup(){this.events.popupopen();return this;}};
@@ -50,10 +50,10 @@ test('Leaflet keeps overlapping recommendations readable and can open a hidden r
  let opened=0;
  const first=adapter.addMarker({name:'Pierwszy koncert',category:'event',lat:52,lng:21},{onOpen:()=>opened++});
  adapter.addMarker({name:'Polecany koncert',category:'event',lat:52,lng:21},{recommended:true});
- assert.equal(markers[0].icon.style.visibility,'hidden');assert.equal(markers[0].options.icon.html.tabIndex,-1);
+ assert.equal(markers[0].icon.style.visibility,'');assert.equal(markers[0].options.icon.html.tabIndex,0);
  assert.equal(markers[1].icon.style.visibility,'');
  first.open();assert.equal(opened,1);assert.equal(markers[0].icon.style.visibility,'');
- assert.equal(markers[1].icon.style.visibility,'hidden');assert.equal(markers[0].options.icon.html.attributes['aria-expanded'],'true');
+ assert.equal(markers[1].icon.style.visibility,'');assert.equal(markers[0].options.icon.html.attributes['aria-expanded'],'true');
  assert.ok(markers[0].popup.children[1].children.some(child=>child.textContent==='Pierwszy koncert'));
  markers[0].events.popupclose();assert.equal(markers[0].options.icon.html.attributes['aria-expanded'],'false');
  assert.equal(markers[1].icon.style.visibility,'');

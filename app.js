@@ -163,32 +163,26 @@ function showResults(action) {
   resultPanel.append(title, note);
   if (!action.results.length) { const empty = document.createElement('p'); empty.textContent = action.complete === false ? 'Nie można potwierdzić braku pasujących wyników.' : 'Brak pasujących wyników.'; resultPanel.append(empty); }
   const points = [], highlighted = new Set(action.highlightIds || []);
+  // The conversation lists at most 3 recommended (★) results; every result with a point is still drawn on the map.
+  // Without recommendations, the first 3 results are listed instead.
+  const recommended = action.results.filter(place => highlighted.has(place.id));
+  const listed = new Set((recommended.length ? recommended : action.results).slice(0, 3));
   for (const place of action.results) {
     const spatial = Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180;
+    // Cards show only the event title; details live in the map cloud. A title with a map point is a button that focuses it.
     const card = document.createElement('article'); card.className = 'place-card';
-    const name = document.createElement('strong'); name.textContent = (highlighted.has(place.id) ? '★ Polecane: ' : '') + place.name;
-    const detail = document.createElement('span'); detail.textContent = [place.district, place.description, place.address].filter(Boolean).join(' · ');
-    card.append(name, detail);
-    const timing = document.createElement('span');
-    timing.textContent = [
-      ...(place.dates || []).map(d => d.from === d.to ? d.from : d.from + ' – ' + d.to),
-      ...(place.weekdays || []), place.time,
-      ...Object.entries(place.schedule || {}).map(([day, hours]) => day + ': ' + hours),
-      place.provenance?.observedAt?.length ? 'Pomiar: ' + place.provenance.observedAt.join(', ') + ' (Europe/Warsaw); aktualność niepotwierdzona' : '',
-      place.provenance?.sourceUpdatedAt ? 'Aktualizacja źródła: ' + place.provenance.sourceUpdatedAt : '',
-      place.provenance?.fetchedAt ? 'Pobrano: ' + place.provenance.fetchedAt : '',
-    ].filter(Boolean).join(' · ');
-    card.append(timing);
-    if (place.measurements?.length) {
-      const measurements = document.createElement('span'); measurements.textContent = place.measurements.map(m => m.parameter + ': ' + (m.value ?? 'brak pomiaru') + ' ' + m.unit).join(' · '); card.append(measurements);
-    }
-    const source = document.createElement('a'); source.textContent = place.source || 'Źródło miejskie'; source.href = place.url || place.sourceUrl; source.target = '_blank'; source.rel = 'noopener noreferrer'; card.append(source);
-    resultPanel.append(card);
+    const label = (highlighted.has(place.id) ? '★ Polecane: ' : '') + place.name;
     if (cityMap && spatial) {
       const marker = cityMap.addMarker(place, { recommended: highlighted.has(place.id), onOpen: () => setExpanded(false) });
-      const focus = document.createElement('button'); focus.type = 'button'; focus.textContent = 'Pokaż na mapie';
-      focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 15); marker.open(); }); card.append(focus);
+      const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'place-card__title'; focus.textContent = label;
+      focus.addEventListener('click', () => { if (!cityMap) return; setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); });
+      card.append(focus);
+      if (listed.has(place)) resultPanel.append(card);
       points.push([place.lat, place.lng]);
+    } else if (listed.has(place)) {
+      const name = document.createElement('strong'); name.className = 'place-card__title'; name.textContent = label;
+      card.append(name);
+      resultPanel.append(card);
     }
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
@@ -262,7 +256,14 @@ async function send() {
   pending = true; submit.disabled = true; submit.setAttribute('aria-busy', 'true');
   addMessage(value, true); input.value = '';
   const progress = addMessage(''); progress.classList.add('stream-message');
+  // Thinking indicator: three pulsing dots plus the current stage with a soft shimmer.
   const status = document.createElement('span'); status.className = 'assistant-progress'; status.setAttribute('role', 'status');
+  const dots = document.createElement('span'); dots.className = 'thinking-dots'; dots.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) dots.append(document.createElement('span'));
+  const stageLabel = document.createElement('span'); stageLabel.className = 'thinking-label';
+  status.append(dots, stageLabel);
+  // Recommended results and source info appear under the answer once it is complete.
+  resultPanel.hidden = true;
   const activity = document.createElement('span'); activity.className = 'assistant-activity'; activity.setAttribute('aria-label', 'Wykonane kroki');
   const activities = [];
   const answer = document.createElement('span'); answer.className = 'assistant-answer';
@@ -274,7 +275,8 @@ async function send() {
   content.addEventListener('scroll', onScroll, { passive: true });
   const controller = new AbortController(), startedAt = Date.now(); let stage = 'Łączę się z asystentem…', completed = false;
   stop.addEventListener('click', () => controller.abort());
-  const renderStatus = () => { status.textContent = stage + ' · ' + Math.floor((Date.now() - startedAt) / 1000) + ' s'; };
+  // While thinking only the dots show; the stage text is used for error messages.
+  const renderStatus = () => { stageLabel.textContent = stage; };
   renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
   try {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true, location: window.getCityLocation() }), signal: controller.signal });
@@ -291,10 +293,10 @@ async function send() {
         if (event.stage === 'queued') stage = 'Czekam na wolne miejsce…';
         if (['session_started', 'session_reused', 'generating'].includes(event.stage)) stage = 'Przygotowuję odpowiedź…';
       }
-      if (event.type === 'text') { stage = 'Asystent odpowiada…'; answer.textContent += event.delta; }
+      if (event.type === 'text') { stage = 'Asystent odpowiada…'; answer.textContent += event.delta; progress.classList.add('is-answering'); }
       if (event.type === 'action') applyAction(event.action);
       if (event.type === 'error') throw new Error(event.message);
-      if (event.type === 'done') { sessionId = event.sessionId; answer.textContent = event.message; stage = 'Gotowe'; completed = true; }
+      if (event.type === 'done') { sessionId = event.sessionId; answer.textContent = event.message; stage = 'Gotowe'; completed = true; progress.classList.add('is-done'); }
       renderStatus(); keepVisible();
     }
     if (!completed) throw new Error('Połączenie zostało przerwane. Spróbuj ponownie.');
@@ -305,7 +307,7 @@ async function send() {
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Spróbuj ponownie';
     retry.addEventListener('click', () => { if (pending) return; input.value = value; progress.remove(); send(); });
     progress.append(retry); renderStatus();
-  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); stop.remove(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
+  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); stop.remove(); progress.classList.add('is-finished'); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
 }
 submit.addEventListener('click', event => { event.stopPropagation(); send(); });
 input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); } });

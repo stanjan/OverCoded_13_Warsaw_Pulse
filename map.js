@@ -3,6 +3,8 @@
 (() => {
   const WARSAW = { lat: 52.2318, lng: 21.006 };
   const START_ZOOM = 12;
+  // Below this zoom results are small icons; zooming in turns them into bubbles with photo and name.
+  const DETAIL_ZOOM = 16;
 
   // Google reports a rejected key (wrong referrer, API disabled, billing off) through
   // window.gm_authFailure, often AFTER the script loaded and the map was created.
@@ -40,10 +42,14 @@
     });
     const info = new InfoWindow({ maxWidth: 290 });
     let activeBubble, activeMarker;
-    const optionalCollision = google.maps.CollisionBehavior?.OPTIONAL_AND_HIDES_LOWER_PRIORITY;
+    // Every result pin stays visible, even when pins overlap.
+    const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
     info.addListener('closeclick', () => { activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; });
     let markers = [];
     let userDot, userAccuracy;
+    const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
+    map.addListener('zoom_changed', syncDetail);
+    syncDetail();
 
     return {
       vendor: 'google',
@@ -96,18 +102,10 @@
     const layer = L.layerGroup().addTo(map);
     const results = [];
     let activeMarker;
+    // Every result pin stays visible (no hiding of overlapping pins); only the zoom mode is synced.
     function arrangeBubbles() {
-      const occupied = [];
-      const ordered = [...results].sort((a, b) => Number(b.marker === activeMarker) - Number(a.marker === activeMarker) || Number(b.recommended) - Number(a.recommended));
-      for (const entry of ordered) {
-        const point = map.latLngToContainerPoint(entry.marker.getLatLng());
-        const box = { left: point.x - 89, right: point.x + 89, top: point.y - 78, bottom: point.y + 2 };
-        const visible = !occupied.some(other => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top);
-        const icon = entry.marker.getElement();
-        if (icon) icon.style.visibility = visible ? '' : 'hidden';
-        entry.bubble.tabIndex = visible ? 0 : -1;
-        if (visible) occupied.push(box);
-      }
+      element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
+      for (const entry of results) { const icon = entry.marker.getElement(); if (icon) icon.style.visibility = ''; entry.bubble.tabIndex = 0; }
     }
     map.on('zoomend moveend resize', arrangeBubbles);
     let userDot, userAccuracy;
@@ -158,6 +156,20 @@
   }
 
   const categoryLabels = { event: 'Wydarzenie', sports: 'Zajęcia sportowe', pitch: 'Boisko', route: 'Trasa', weather: 'Pogoda', air_quality: 'Jakość powietrza' };
+  const themeIcons = { culture: 'palette', sport: 'directions_run', education: 'school', meeting: 'forum', family: 'family_restroom', seniors: 'elderly', outdoor: 'park' };
+  // Sorts a result into one of the 7 pastel themes from its category and the words in its source data.
+  function themeFor(place) {
+    if (place.category === 'sports' || place.category === 'pitch') return 'sport';
+    if (['route', 'weather', 'air_quality'].includes(place.category)) return 'outdoor';
+    const words = [place.name, place.description, ...(place.activities || []), ...(place.audience || [])].filter(Boolean).join(' ').toLowerCase();
+    if (/dzieci|dziecko|rodzin|maluch/.test(words)) return 'family';
+    if (/senior/.test(words)) return 'seniors';
+    if (/sport|bieg|joga|fitness|rower|turniej/.test(words)) return 'sport';
+    if (/piknik|plener|festyn|spacer|ogród|park/.test(words)) return 'outdoor';
+    if (/warsztat|edukac|nauk|wykład|szkoleni|kurs/.test(words)) return 'education';
+    if (/spotkani|debat|dyskusj|konferenc|panel/.test(words)) return 'meeting';
+    return 'culture';
+  }
   const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'sports_basketball', route: 'forest', weather: 'partly_cloudy_day', air_quality: 'air' };
   function safeUrl(value, image = false) {
     try {
@@ -194,7 +206,14 @@
     const title = document.createElement('strong'); title.className = 'result-bubble__title'; title.textContent = place.name;
     const caption = document.createElement('span'); caption.className = 'result-bubble__caption';
     caption.textContent = recommended ? '★ Polecane' : categoryLabels[place.category] || 'Miejsce';
-    copy.append(title, caption); button.append(thumbnail(place), copy);
+    copy.append(title, caption);
+    // Pastel pin (Stitch "Zestaw Pastelowych Pinezek"): a dot when zoomed out, a pin when zoomed in.
+    const theme = themeFor(place);
+    button.dataset.theme = theme;
+    const pin = document.createElement('span'); pin.className = 'result-pin'; pin.setAttribute('aria-hidden', 'true');
+    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = themeIcons[theme];
+    pin.append(glyph);
+    button.append(thumbnail(place), copy, pin);
     return button;
   }
   function eventDate(date) {

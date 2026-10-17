@@ -55,7 +55,7 @@ test('browser GPS updates publish measured context and chat sends a snapshot; de
     gpsButton:node(),document:{querySelector:()=>context.gpsButton,createElement:node},cityMap:{showUser(){},setView(){}},setExpanded(){},
     setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){},console:{warn(){}},Date,AbortController,
     input:{value:'Co jest blisko?'},pending:false,submit:node(),content:{...node(),scrollHeight:0,scrollTop:0,clientHeight:0},sessionId:null,
-    addMessage:node,fetch:async(_url,options)=>{requests.push(JSON.parse(options.body));return{ok:false,json:async()=>({error:'Test stops after request'})};}};
+    resultPanel:node(),addMessage:node,fetch:async(_url,options)=>{requests.push(JSON.parse(options.body));return{ok:false,json:async()=>({error:'Test stops after request'})};}};
   runInNewContext(gps+'\n'+send+'\nglobalThis.sendChat=send;',context);
   assert.equal(win.getCityLocation().reason,'locating');
   onFix({timestamp:now.getTime(),coords:{latitude:52.24,longitude:21.01,accuracy:45,altitude:105,altitudeAccuracy:20,heading:null,speed:null}});
