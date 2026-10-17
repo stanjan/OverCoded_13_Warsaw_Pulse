@@ -6,19 +6,38 @@ import { provider } from './catalog-fixture.mjs';
 const createAssistant = options => createRealAssistant({ ...options, provider });
 const executeTool = (name,args,state) => executeRealTool(name,args,state,provider);
 const call = (name, args) => ({ id: crypto.randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+test('transit planning streams a verified destination action without claiming a calculated ETA', async () => {
+  let step = 0;
+  const events = [];
+  const assistant = createAssistant({ completion: async history => {
+    if (++step === 1) return { tool_calls: [call('search_places', { category: 'event' })] };
+    if (step === 2) return { tool_calls: [call('plan_transit', { destinationId: 'demo-kopernik' })] };
+    const result = JSON.parse(history.at(-1).content);
+    assert.equal(result.status, 'planning_requested');
+    assert.equal(Object.hasOwn(result, 'routes'), false);
+    assert.equal(Object.hasOwn(result, 'eta'), false);
+    return { content: 'Otwieram panel dojazdu komunikacją miejską.' };
+  } });
+  const answer = await assistant.chat({ message: 'Jak dojechać do Kopernika komunikacją?' }, undefined, event => events.push(event));
+  assert.deepEqual(answer.actions, [{ type: 'plan_transit', destination: { latitude: 52.2418, longitude: 21.0287, label: 'Kopernik' } }]);
+  assert.equal(Object.hasOwn(answer.actions[0], 'origin'), false);
+  assert.ok(events.some(event => event.type === 'action' && event.action.type === 'plan_transit'));
+  assert.ok(events.some(event => event.type === 'progress' && event.label === 'Otwieram planowanie dojazdu…'));
+});
+
 test('data inventory answers without fetching records or replacing a prior selection', async () => {
   let searches = 0, step = 0;
   const noFetch = { search: async () => { searches++; throw new Error('Inventory must not fetch'); } };
   const state = { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } };
   const inventory = await executeRealTool('list_data_sources', {}, state, noFetch);
-  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','weather','pitch','route','air_quality']);
+  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','pitch','route']);
   assert.ok(inventory.filters.includes('district'));
-  assert.match(inventory.limitations.join(' '), /nie prognozę/);
+  assert.match(inventory.limitations.join(' '), /teraz otwarty/);
   assert.deepEqual(state, { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } });
   const assistant = createRealAssistant({ provider: noFetch, completion: async history => {
     if (++step === 1) return { tool_calls: [call('list_data_sources', {})] };
-    assert.equal(JSON.parse(history.at(-1).content).sources.length, 6);
-    return { content: 'Mam dane o wydarzeniach, sporcie, pogodzie, boiskach, trasach i jakości powietrza.' };
+    assert.equal(JSON.parse(history.at(-1).content).sources.length, 4);
+    return { content: 'Mogę wyszukać wydarzenia, zajęcia sportowe, boiska i trasy.' };
   } });
   const answer = await assistant.chat({ message: 'jakie dane masz dostępne?' });
   assert.equal(searches, 0);
@@ -123,7 +142,7 @@ test('bridge adapter sends tool schemas and uses only loopback', async () => {
     process.env.CODEX_BRIDGE_URL = 'http://127.0.0.1:9999/v1';
     const reply = await bridgeCompletion([{ role: 'user', content: 'Cześć' }], { fetchImpl: async (url, init) => {
       assert.equal(url, 'http://127.0.0.1:9999/v1/chat/completions');
-      assert.equal(JSON.parse(init.body).tools.length, 5);
+      assert.equal(JSON.parse(init.body).tools.length, 6);
       return { ok: true, json: async () => ({ choices: [{ message: { content: 'Cześć!' } }] }) };
     } });
     assert.equal(reply.content, 'Cześć!');

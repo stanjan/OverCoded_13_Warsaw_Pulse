@@ -10,6 +10,8 @@ let sessionId = null;
 let pending = false;
 let expanded = true;
 let cityMap;
+window.getCityMap = () => cityMap;
+window.expandCitySheet = () => setExpanded(true);
 let lastDisplayedAction;
 let suppressHandleClick = false;
 
@@ -43,25 +45,27 @@ const mapCanvas = document.querySelector('#city-map');
 const appShell = document.querySelector('.app-shell');
 // Keep the map's usable area (markers, fitting, attribution) above the bottom sheet.
 new ResizeObserver(() => {
-  const obstruction = document.querySelector('#ai-sheet').offsetHeight + document.querySelector('nav').offsetHeight + 4;
+  const obstruction = document.querySelector('#ai-sheet').offsetHeight + 4;
   appShell.style.setProperty('--map-obstruction', `${obstruction}px`);
 }).observe(document.querySelector('#ai-sheet'));
 let mapWasReplaced = false;
 const mapContainer = document.querySelector('#map-canvas-container');
 function showMapUnavailable() {
   mapContainer.classList.remove('map-ready', 'map-google', 'map-leaflet');
-  document.querySelector('#map-canvas-container .pointer-events-none span:last-child').textContent = 'Mapa jest chwilowo niedostępna';
+  document.querySelector('#map-loading-label').textContent = 'Mapa jest chwilowo niedostępna';
+  mapContainer.classList.add('map-unavailable');
 }
 function useMap(map) {
   cityMap = map;
   mapContainer.classList.remove('map-google', 'map-leaflet');
   mapContainer.classList.add('map-ready', `map-${map.vendor}`);
+  window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: map.vendor } }));
   return map;
 }
 // If Google rejects the key after loading, continue on OpenStreetMap with the same state.
 function onMapReplaced(map) {
   mapWasReplaced = true;
-  if (!map) { cityMap = undefined; showMapUnavailable(); return; }
+  if (!map) { cityMap = undefined; window.dispatchEvent?.(new CustomEvent('city:map', { detail: { vendor: null } })); showMapUnavailable(); return; }
   useMap(map);
   if (lastPosition) map.showUser(lastPosition);
   if (lastDisplayedAction) showResults(lastDisplayedAction);
@@ -184,6 +188,11 @@ function showResults(action) {
       card.append(name);
       resultPanel.append(card);
     }
+    if (spatial) {
+      const transit = document.createElement('button');transit.type='button';transit.textContent='Dojedź komunikacją';
+      transit.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('city:transit',{detail:{destination:{latitude:place.lat,longitude:place.lng,label:place.name}}})));
+      card.append(transit);
+    }
   }
   cityMap?.fitTo(points, { top: 70, left: 24, right: 24, bottom: cityMap.vendor === 'google' ? 24 : Math.min(drawer.offsetHeight + 80, mapCanvas.clientHeight * .6) });
 }
@@ -247,6 +256,7 @@ async function* chatEvents(body) {
   } finally { reader.releaseLock(); }
 }
 function applyAction(action) {
+  if (action.type === 'plan_transit') window.dispatchEvent(new CustomEvent('city:transit', { detail: action }));
   if (action.type === 'display_results') showResults(action);
   if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
 }
@@ -276,7 +286,7 @@ async function send() {
   const controller = new AbortController(), startedAt = Date.now(); let stage = 'Łączę się z asystentem…', completed = false;
   stop.addEventListener('click', () => controller.abort());
   // While thinking only the dots show; the stage text is used for error messages.
-  const renderStatus = () => { stageLabel.textContent = stage; };
+  const renderStatus = () => { stageLabel.textContent = stage; status.setAttribute('aria-label', stage); };
   renderStatus(); const timer = setInterval(renderStatus, 1000), timeout = setTimeout(() => controller.abort('timeout'), 95000);
   try {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify({ message: value, sessionId, stream: true, location: window.getCityLocation() }), signal: controller.signal });
@@ -316,6 +326,7 @@ document.querySelector('#mic-btn').addEventListener('click', event => {
 });
 document.querySelectorAll('nav a').forEach(link => link.addEventListener('click', event => {
   event.preventDefault();
-  if (link.dataset.path === 'city-pulse') { setExpanded(true); return; }
+  if (link.dataset.path === 'transit-live') { window.dispatchEvent(new CustomEvent('city:transit', { detail: {} })); return; }
+  if (link.dataset.path === 'city-pulse') { window.dispatchEvent(new CustomEvent('city:pulse')); setExpanded(true); return; }
   addMessage(`Sekcja ${link.querySelector('span:last-child').textContent.trim()} będzie dostępna w kolejnej wersji aplikacji.`);
 }));

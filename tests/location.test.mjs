@@ -43,6 +43,45 @@ test('every assistant turn receives the current location without changing prior 
   assert.deepEqual(histories[1].slice(0,histories[0].length),histories[0]);
 });
 
+test('environment is supplied automatically each turn from server data with location basis and independent failures',async()=>{
+  const histories=[],locations=[];
+  let step=0;
+  const assistant=createAssistant({now:()=>now,
+    provider:{search:async()=>{throw new Error('Environment must not use MCP search');}},
+    environmentProvider:async(location,{signal})=>{
+      locations.push(location); assert.equal(signal,undefined);
+      if(++step===3) throw new Error('private upstream detail');
+      return {location:{basis:location.status==='available'?'gps':'central_warsaw'},weather:{status:'available',validAt:'2026-10-17T15:45:00Z',temperatureC:11},air:{status:'unavailable',reason:'source_unavailable'},fetchedAt:now.toISOString()};
+    },completion:async history=>{histories.push(structuredClone(history));return{content:'Dane modelowe dla wskazanego obszaru.'};}});
+  const first=await assistant.chat({message:'Jak jest na zewnątrz?',location:fix,environment:{temperatureC:99}});
+  await assistant.chat({message:'A bez lokalizacji?',sessionId:first.sessionId});
+  await assistant.chat({message:'Spróbuj ponownie',sessionId:first.sessionId});
+  await assistant.chat({message:'Stary pomiar',sessionId:first.sessionId,location:{...fix,observedAt:'2026-10-16T16:00:00Z'}});
+  await assistant.chat({message:'Brak daty pomiaru',sessionId:first.sessionId,location:{...fix,observedAt:null}});
+  assert.equal(locations.length,5);
+  assert.equal(locations[0].latitude,fix.latitude);
+  assert.equal(locations[1].status,'unavailable');
+  assert.equal(locations[3].status,'unavailable');
+  assert.equal(locations[4].status,'unavailable');
+  const contexts=histories.map(h=>h.at(-2).content);
+  assert.match(contexts[0],/"basis":"gps"/);
+  assert.match(contexts[0],/"temperatureC":11/);
+  assert.doesNotMatch(contexts[0],/99/);
+  assert.match(contexts[1],/"basis":"central_warsaw"/);
+  assert.match(contexts[1],/"air":\{"status":"unavailable"/);
+  assert.match(contexts[2],/environment_source_unavailable/);
+  assert.doesNotMatch(contexts[2],/private upstream/);
+  assert.deepEqual(histories[1].slice(0,histories[0].length),histories[0]);
+});
+
+test('cancelling environment loading releases the session and never starts model completion',async()=>{
+  const controller=new AbortController(); let id,completions=0;
+  const assistant=createAssistant({environmentProvider:async()=>{controller.abort();throw new Error('cancelled');},completion:async()=>{completions++;return{content:'Gotowe.'};}});
+  await assert.rejects(assistant.chat({message:'Pogoda'},controller.signal,event=>{if(event.type==='session')id=event.sessionId;}),error=>error.status===499);
+  await assistant.chat({message:'Ponów',sessionId:id});
+  assert.equal(completions,1);
+});
+
 test('browser GPS updates publish measured context and chat sends a snapshot; denied permission clears it', async () => {
   const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
   const gps=source.slice(source.indexOf('const CENTER ='),source.indexOf('\nfunction showResults'));

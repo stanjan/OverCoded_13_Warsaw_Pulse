@@ -1,9 +1,9 @@
 <!DOCTYPE html><html class="h-full" lang="pl" style=""><head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="/loading.css">
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" name="viewport">
 <meta content="mobile_tab" name="shell-type">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script id="tailwind-config">
     tailwind.config = {
@@ -77,8 +77,8 @@
             'space-xs': '0.25rem'
           },
           fontFamily: {
-            sans: ['Plus Jakarta Sans', 'sans-serif'],
-            'space': ['Plus Jakarta Sans', 'sans-serif']
+            sans: ['Plus Jakarta Sans', 'Arial', 'sans-serif'],
+            'space': ['Plus Jakarta Sans', 'Arial', 'sans-serif']
           }
         }
       }
@@ -92,7 +92,7 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Plus Jakarta Sans', Arial, sans-serif;
       }
       body {
         overscroll-behavior: none;
@@ -150,32 +150,31 @@
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <link rel="stylesheet" href="/app.css">
 </head>
-<body class="bg-surface font-sans text-on-surface antialiased h-screen w-screen flex flex-col relative overflow-hidden select-none" style="font-family: &quot;Plus Jakarta Sans&quot;, sans-serif;"><main class="app-shell" aria-label="Warszawa Pulse">
-<!-- MAP CANVAS: Full Screen Orange Background (#ea580c) with Grid Pattern -->
-<div class="absolute inset-0 z-0 overflow-hidden" id="map-canvas-container" aria-label="Mapa Warszawy" style="background-color: #ea580c;">
-<div id="city-map"></div><!-- Subtle Dot Grid Representation -->
-<div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#ffffff 1.75px, transparent 1.75px); background-size: 24px 24px;"></div>
-<!-- Central Google Maps Integration Pin Badge -->
-<div class="absolute inset-0 flex items-center justify-center pb-28 pointer-events-none">
-<div class="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/25 backdrop-blur-md text-white/95 border border-white/20 shadow-lg">
-<span class="material-symbols-outlined text-[20px] text-amber-300">location_on</span>
-<span class="text-[13px] font-medium tracking-wide">Obszar pod integrację Google Maps</span>
-</div>
+<body class="bg-surface font-sans text-on-surface antialiased h-screen w-screen flex flex-col relative overflow-hidden select-none" style="font-family: &quot;Plus Jakarta Sans&quot;, Arial, sans-serif;"><main class="app-shell" aria-label="Warszawa Pulse">
+<!-- Map loading graphic is decorative; the real provider appears when ready. -->
+<div class="absolute inset-0 z-0 overflow-hidden" id="map-canvas-container" aria-label="Mapa Warszawy">
+<div id="city-map"></div>
+<div id="map-loading" class="map-loading pointer-events-none" role="status" aria-live="polite">
+<div class="map-loading__graphic" aria-hidden="true"></div>
+<div class="map-loading__status"><span class="map-loading__dot" aria-hidden="true"></span><span id="map-loading-label">Ładuję mapę Warszawy…</span></div>
 </div>
 </div>
 <!-- 1. FLOATING TOP WEATHER BAR: Perfectly Centered Horizontally -->
-<div title="Przykładowe dane pogodowe" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto">
-<div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface/95 backdrop-blur-xl shadow-md border border-black/5 text-on-surface whitespace-nowrap active:scale-95 transition-all" style="box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.12);">
-<span class="material-symbols-outlined text-amber-500 text-[18px] anim-sun-icon">wb_sunny</span>
-<span class="text-[10px] text-on-surface-variant">Przykład</span>
-<span class="text-[13px] font-bold">19°C</span>
-<span class="text-outline-variant">•</span>
-<span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-<span class="text-[12px] text-emerald-700 font-semibold">AQI 24</span>
-<span class="text-outline-variant">•</span>
-<span class="text-[12px] text-on-surface-variant">Zachód 19:42</span>
+<details id="environment-bar" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto" data-state="loading">
+<summary aria-label="Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.">
+<span id="environment-icon" class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
+<span id="environment-weather">Pobieram pogodę…</span>
+<span class="environment-divider" aria-hidden="true">·</span>
+<span id="environment-air" data-level="unknown"><svg class="environment-air-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h12a3 3 0 1 0-3-3M3 12h16a2 2 0 1 1-2 2M3 16h8a3 3 0 1 1-3 3"/></svg><span id="environment-air-label">Brak danych</span><small id="environment-air-value">AQI —</small></span>
+<span class="environment-divider" aria-hidden="true">·</span>
+<span id="environment-sun"><span class="environment-solar" aria-label="Wschód słońca"><svg viewBox="0 0 24 24" aria-hidden="true" class="environment-sunrise-icon"><path d="M3 19h18M6 16a6 6 0 0 1 12 0M12 2v7m-3-4 3-3 3 3M3 12l2 1m14 0 2-1"/></svg><span id="environment-sunrise">—</span></span><span class="environment-solar" aria-label="Zachód słońca"><svg viewBox="0 0 24 24" aria-hidden="true" class="environment-sunset-icon"><path d="M3 19h18M6 16a6 6 0 0 1 12 0M12 2v7m-3-3 3 3 3-3M3 12l2 1m14 0 2-1"/></svg><span id="environment-sunset">—</span></span></span>
+</summary>
+<div class="environment-details">
+<strong id="environment-location">Centrum Warszawy</strong>
+<p id="environment-info" role="status" aria-live="polite">Ładowanie danych dla centrum Warszawy.</p>
+<p class="environment-attribution">Źródła: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer">CAMS ENSEMBLE</a></p>
 </div>
-</div>
+</details>
 <!-- BOTTOM SHEET CONTAINER (WITH LOCATION BUTTON SITTING DIRECTLY ABOVE IT) -->
 <div class="drawer-container absolute inset-x-0 bottom-16 z-30 flex flex-col pointer-events-none">
 <!-- 2. COMPASS / LOCATION BUTTON: Positioned on the right side immediately ABOVE the bottom sheet -->
@@ -198,7 +197,20 @@
 </div>
 <!-- COLLAPSIBLE CONTENT SECTION (Greeting & Quick Prompt Cards) -->
 <div class="w-full flex flex-col overflow-hidden px-margin" id="sheet-content" >
-<div id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><section id="place-results" aria-label="Wyniki na mapie"></section><div id="welcome-prompts"><!-- Greeting Text -->
+<section id="transit-panel" aria-labelledby="transit-heading" hidden>
+<div class="transit-heading"><div><p class="transit-eyebrow">KOMUNIKACJA MIEJSKA</p><h2 id="transit-heading">Jak dojedziemy?</h2></div><button type="button" id="transit-close" aria-label="Wróć do Pulse">✕</button></div>
+<form id="transit-form">
+<label for="transit-origin">Skąd</label><div class="transit-origin-row"><input id="transit-origin" maxlength="200" autocomplete="off" list="transit-origin-options" placeholder="Przystanek lub współrzędne"><button type="button" id="transit-gps">Mój GPS</button></div>
+<datalist id="transit-origin-options"></datalist><p id="transit-origin-note" class="transit-note">Podaj punkt startowy lub użyj świeżej lokalizacji.</p>
+<label for="transit-destination">Dokąd</label><input id="transit-destination" maxlength="200" autocomplete="off" list="transit-destination-options" placeholder="Przystanek lub współrzędne" required>
+<datalist id="transit-destination-options"></datalist><p class="transit-note">Cel wydarzenia wybierzesz też przyciskiem Dojedź na mapie.</p><label for="transit-time">Wyjazd · czas Warszawy</label><input id="transit-time" type="datetime-local" aria-describedby="transit-time-note"><p id="transit-time-note" class="transit-note">Puste pole oznacza wyjazd teraz.</p>
+<div class="transit-controls"><button type="submit" id="transit-search">Znajdź połączenie</button><button type="button" id="transit-cancel" hidden>Przerwij</button><button type="button" id="transit-clear" hidden>Usuń trasę</button></div>
+</form>
+<p id="transit-status" role="status" aria-live="polite" class="transit-note">Wybierz cel, by porównać połączenia.</p>
+<div id="transit-alternatives" aria-label="Dostępne połączenia"></div><div id="transit-itinerary"></div>
+<div id="transit-observations"></div>
+<p class="transit-note transit-attribution">Źródła: ZTM Warszawa (datowany GTFS) i miejskie API odjazdów oraz pozycji pojazdów. ETA z rozkładu; świeża korekta GPS jest stosowana tylko do pewnie dopasowanego kursu. Model przechowuje aktualny stan w pamięci, bez historii GPS na dysku.</p>
+</section><div id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><section id="place-results" aria-label="Wyniki na mapie"></section><div id="welcome-prompts"><!-- Greeting Text -->
 <div class="w-full pt-1 pb-3 text-center flex flex-col items-center shrink-0"><h1 class="text-[22px] text-slate-900 font-bold tracking-tight" style="letter-spacing: -0.03em; font-weight: 800;"><span class="anim-title">Dzień dobry, Warszawa.</span></h1>
 <p class="text-[15px] text-slate-500 font-normal mt-0.5 tracking-tight" style="line-height: 1.4;">Czym żyje dziś miasto?</p></div>
 <!-- Quick Action Prompt Cards -->
@@ -261,31 +273,12 @@
 </div>
 </section>
 </div>
-<!-- PERSISTENT FIXED BOTTOM NAVIGATION BAR -->
-<nav class="fixed bottom-0 inset-x-0 h-16 z-50 pb-safe bg-surface/95 backdrop-blur-xl border-t border-outline-variant/30 shadow-[0_-4px_20px_rgba(9,20,38,0.06)] flex items-center justify-around px-margin font-sans">
-<!-- Pulse (Active) -->
-<a aria-current="page" class="flex flex-col items-center justify-center min-w-[54px] h-12 text-secondary transition-all" data-path="city-pulse" href="#">
-<span class="material-symbols-outlined text-[24px]">explore</span>
-<span class="text-[12px] mt-0.5 font-bold tracking-tight">Pulse</span>
-</a>
-<!-- Transit -->
-<a class="flex flex-col items-center justify-center min-w-[54px] h-12 text-on-surface-variant hover:text-primary transition-all active:scale-95" data-path="transit-live" href="#">
-<span class="material-symbols-outlined text-[24px]">subway</span>
-<span class="text-[12px] mt-0.5 font-medium tracking-tight">Transit</span>
-</a>
-<!-- Guide -->
-<a class="flex flex-col items-center justify-center min-w-[54px] h-12 text-on-surface-variant hover:text-primary transition-all active:scale-95" data-path="curated-guide" href="#">
-<span class="material-symbols-outlined text-[24px]">local_activity</span>
-<span class="text-[12px] mt-0.5 font-medium tracking-tight">Guide</span>
-</a>
-<!-- Saved -->
-<a class="flex flex-col items-center justify-center min-w-[54px] h-12 text-on-surface-variant hover:text-primary transition-all active:scale-95" data-path="saved-routes" href="#">
-<span class="material-symbols-outlined text-[24px]">bookmark</span>
-<span class="text-[12px] mt-0.5 font-medium tracking-tight">Saved</span>
-</a>
-</nav>
+
+<script src="/loading.js" defer></script>
 <script src="/map.js" defer></script>
 <script src="/app.js" defer></script>
+<script src="/environment.js" defer></script>
+<script type="module" src="/transit-ui.mjs"></script>
 
 
 </main></body></html>

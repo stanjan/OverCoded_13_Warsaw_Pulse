@@ -10,6 +10,24 @@ const response = payload => ({ok:true,json:async()=>payload});
 const event = {title:'Koncert',text:'<p>Muzyka dla rodzin</p>',localization:[{name:'Praga-Północ'},{name:'Targówek'}],map:{features:[{geometry:{type:'Point',coordinates:[21.03,52.25]},properties:{district:'Praga-Północ'}},{geometry:{type:'Point',coordinates:[21.05,52.28]},properties:{district:'Targówek'}}]},occurrence:[{from:'2026-10-17T12:00:00+02',to:'2026-10-18T12:00:00+02'}]};
 const pitch={Dzielnica:'Wola','Nazwa placówki oświatowej':'Szkoła','Typ obiektu':'Koszykówka',Poniedziałek:'Od 17:00 do 20:00',Wtorek:'Zamknięte',Środa:'-','Data aktualizacji':'2026-07-02'};
 const at='2026-10-17T14:30:00Z';
+
+test('MCP searches only four activity categories and rejects weather/air before fetching',async()=>{
+ const calls=[];
+ const provider=createCatalog({token:()=> 'test',fetchImpl:async url=>{calls.push(url);return response(url.endsWith('get_sbt_trasy_turystyczne')?{result:[]}:[]);}});
+ const state={results:[],actions:[]};
+ const client=createMcpClient(createDispatcher({state,provider}));
+ const tools=await client.listTools();
+ for(const name of ['search_places','filter_results']) assert.deepEqual(tools.find(t=>t.name===name).inputSchema.properties.category.enum,['event','sports','pitch','route']);
+ const found=await client.callTool('search_places',{});
+ assert.equal(found.complete,true); assert.equal(calls.length,4);
+ assert.equal(calls.some(url=>/pogoda|powietrza/.test(url)),false);
+ for(const category of ['weather','air_quality']) {
+   await assert.rejects(client.callTool('search_places',{category}));
+   await assert.rejects(client.callTool('filter_results',{category}));
+   await assert.rejects(provider.search({category}),/INVALID_CATEGORY/);
+ }
+ assert.equal(calls.length,4);
+});
 test('official event photos survive normalization as HTTPS without accepting executable or credential URLs',()=>{
  const record=normalizeRecord({...event,image:{small:{path:'http://um.warszawa.pl/documents/event.jpg'},highlighted:{path:'https://um.warszawa.pl/documents/large.jpg'}}},'event',at);
  assert.equal(record.imageUrl,'https://um.warszawa.pl/documents/event.jpg');
@@ -44,7 +62,7 @@ test('missing key, HTTP failures and bad records cannot appear as successful emp
 });
 test('partial multi-source failures retain working sources with explicit completeness and errors',async()=>{
  const provider=createCatalog({token:()=> 'test',fetchImpl:async url=> url.endsWith('get_bmm_kalendarz_wydarzen')?response([event]):({ok:false,status:503})});
- const found=await provider.search();assert.equal(found.results.length,1);assert.equal(found.complete,false);assert.equal(found.errors.length,5);
+ const found=await provider.search();assert.equal(found.results.length,1);assert.equal(found.complete,false);assert.equal(found.errors.length,3);
 });
 test('event date, district and bounds select the same actual source location',()=>{
  const record=normalizeRecord(event,'event',at);
@@ -89,7 +107,7 @@ test('MCP malformed params, initialization ordering, unknown tools and execution
  const rpc=(id,method,params)=>dispatch({jsonrpc:'2.0',id,method,params});
  assert.equal((await rpc(1,'tools/list',{})).error.code,-32000);
  assert.equal((await rpc(2,'initialize',null)).error.code,-32602);
- const client=createMcpClient(dispatch);assert.equal((await client.listTools()).length,5);
+ const client=createMcpClient(dispatch);assert.equal((await client.listTools()).length,6);
  assert.equal((await rpc(3,'tools/call',null)).error.code,-32602);
  assert.equal((await rpc(4,'tools/call',{name:'fake'})).error.code,-32602);
  assert.equal((await rpc(40,'tools/call',{name:'search_places',arguments:null})).error.code,-32602);
@@ -106,8 +124,8 @@ test('real stdio subprocess emits only newline JSON-RPC and supports initialize/
  try{
  assert.equal((await request(1,'initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'test',version:'1'}})).result.serverInfo.name,'warsaw-city-data');
  proc.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized'})+'\n');
- assert.equal((await request(2,'tools/list',{})).result.tools.length,5);
- const reply=await request(3,'tools/call',{name:'search_places',arguments:{category:'weather'}});const data=JSON.parse(reply.result.content[0].text);assert.equal(data.complete,false);assert.equal(data.errors[0].code,'SOURCE_NOT_CONFIGURED');
+ assert.equal((await request(2,'tools/list',{})).result.tools.length,6);
+ const reply=await request(3,'tools/call',{name:'search_places',arguments:{category:'event'}});const data=JSON.parse(reply.result.content[0].text);assert.equal(data.complete,false);assert.equal(data.errors[0].code,'SOURCE_NOT_CONFIGURED');
  assert.equal(stderr,'');
  }finally{proc.stdin.end();proc.kill();}
 });

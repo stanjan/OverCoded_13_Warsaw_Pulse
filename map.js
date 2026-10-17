@@ -16,13 +16,15 @@
     if (window.google?.maps?.importLibrary) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const callback = '__warsawMapsReady';
-      window[callback] = () => { delete window[callback]; resolve(); };
-      authFailureHandlers.add(() => reject(new Error('Google Maps odrzuciło klucz API.')));
+      window[callback] = () => { delete window[callback]; cleanup(); resolve(); };
+      const onAuthFailure = () => { cleanup(); reject(new Error('Google Maps odrzuciło klucz API.')); };
+      const cleanup = () => { authFailureHandlers.delete(onAuthFailure); };
+      authFailureHandlers.add(onAuthFailure);
       const script = document.createElement('script');
       const params = new URLSearchParams({ key, v: 'weekly', loading: 'async', callback, language: 'pl', region: 'PL' });
       script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
       script.async = true;
-      script.onerror = () => reject(new Error('Nie udało się załadować Google Maps.'));
+      script.onerror = () => { cleanup(); delete window[callback]; reject(new Error('Nie udało się załadować Google Maps.')); };
       document.head.append(script);
     });
   }
@@ -40,12 +42,16 @@
       clickableIcons: false,
       keyboardShortcuts: false, // hides the "Skróty klawiszowe" button; logo, map data and Terms must stay (Google ToS)
     });
+    // No elapsed-time fallback: a slow provider remains pending until it renders.
+    const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
     const info = new InfoWindow({ maxWidth: 290 });
     let activeBubble, activeMarker;
     // Every result pin stays visible, even when pins overlap.
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
     info.addListener('closeclick', () => { activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; });
     let markers = [];
+    let routeLines = [], routeMarkers = [], vehicleMarkers = [];
+    const clearRoute = () => { routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -53,6 +59,30 @@
 
     return {
       vendor: 'google',
+      ready,
+      clearRoute,
+      showRoute(route) {
+        clearRoute();
+        for (const step of route?.steps || []) {
+          const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
+          if (path.length < 2) continue;
+          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : '#b95637', strokeOpacity: step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, clickable: false }));
+        }
+        const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
+        if (points.length) {
+          const bounds = new google.maps.LatLngBounds();points.forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
+          map.fitBounds(bounds, { top: 65, left: 24, right: 24, bottom: 24 });
+          [points[0],points.at(-1)].forEach((point,index) => { const label = document.createElement('span');label.className = 'transit-waypoint';label.textContent=index?'B':'A';routeMarkers.push(new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content:label,title:index?'Cel przejazdu':'Początek przejazdu',zIndex:300})); });
+        }
+        return routeLines.length > 0;
+      },
+      showVehicles(vehicles) {
+        vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
+        for (const vehicle of vehicles || []) {
+          if (!validTransitPath([vehicle]).length) continue;
+          vehicleMarkers.push(new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), zIndex:250 }));
+        }
+      },
       setView({ lat, lng }, zoom) { map.panTo({ lat, lng }); map.setZoom(zoom); },
       clearMarkers() { info.close(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
@@ -98,8 +128,18 @@
   function createLeafletMap(element) {
     if (!window.L) throw new Error('Leaflet niedostępny.');
     const map = L.map(element, { zoomControl: false }).setView([WARSAW.lat, WARSAW.lng], START_ZOOM);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
+    const ready = new Promise((resolve, reject) => {
+      if (!tiles.once) { resolve(); return; }
+      let loaded = 0, failed = 0;
+      tiles.on('tileload', () => loaded++);
+      tiles.on('tileerror', () => failed++);
+      tiles.once('load', () => failed && !loaded ? reject(new Error('Nie udało się pobrać kafelków mapy.')) : resolve());
+    });
+    tiles.addTo(map);
     const layer = L.layerGroup().addTo(map);
+    const transitLayer = L.layerGroup().addTo(map);
+    const vehicleLayer = L.layerGroup().addTo(map);
     const results = [];
     let activeMarker;
     // Every result pin stays visible (no hiding of overlapping pins); only the zoom mode is synced.
@@ -112,6 +152,26 @@
     new ResizeObserver(() => map.invalidateSize()).observe(element);
     return {
       vendor: 'leaflet',
+      ready,
+      clearRoute() { transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      showRoute(route) {
+        transitLayer.clearLayers();const points=[];
+        for (const step of route?.steps || []) {
+          const path=validTransitPath(step.path).map(point=>[point.latitude,point.longitude]);
+          if(path.length<2)continue;points.push(...path);
+          L.polyline(path,{color:step.mode==='WALK'?'#61776a':'#b95637',weight:step.mode==='WALK'?4:6,dashArray:step.mode==='WALK'?'6 7':null}).addTo(transitLayer);
+        }
+        if(points.length)map.fitBounds(points,{paddingTopLeft:[24,65],paddingBottomRight:[24,24]});
+        return points.length>0;
+      },
+      showVehicles(vehicles) {
+        vehicleLayer.clearLayers();
+        for(const vehicle of vehicles||[]) {
+          if(!validTransitPath([vehicle]).length)continue;
+          L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[44,30],iconAnchor:[22,15]}),title:vehicleTitle(vehicle),zIndexOffset:250}).addTo(vehicleLayer);
+        }
+      },
+
       setView({ lat, lng }, zoom) { map.setView([lat, lng], zoom); },
       clearMarkers() { layer.clearLayers(); results.length = 0; activeMarker = undefined; },
       addMarker(place, { recommended = false, onOpen } = {}) {
@@ -144,6 +204,10 @@
       },
     };
   }
+
+  function validTransitPath(points) { return Array.isArray(points) ? points.filter(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180) : []; }
+  function vehicleTitle(vehicle) { return (vehicle.type===2?'Tramwaj ':'Autobus ')+vehicle.line+' · '+(vehicle.freshness==='recent'?'świeży pomiar':'pomiar nieaktualny lub bez czasu')+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
+  function vehicleElement(vehicle) { const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.textContent=vehicle.line;element.title=vehicleTitle(vehicle);return element; }
 
   function userDotElement(vendor) {
     const wrap = document.createElement('div');
@@ -192,6 +256,7 @@
     if (url) {
       const image = document.createElement('img');
       image.src = url; image.alt = ''; image.referrerPolicy = 'no-referrer'; image.decoding = 'async';
+      image.addEventListener('load', () => { image.dataset.loaded = 'true'; }, { once: true });
       image.addEventListener('error', () => image.remove(), { once: true });
       frame.append(image);
     }
@@ -257,24 +322,34 @@
       source.textContent = place.category === 'event' || place.category === 'sports' ? 'Szczegóły u organizatora ↗' : 'Zobacz źródło ↗';
       source.target = '_blank'; source.rel = 'noopener noreferrer'; body.append(source);
     }
+    if (Number.isFinite(place.lat) && Math.abs(place.lat) <= 90 && Number.isFinite(place.lng) && Math.abs(place.lng) <= 180) {
+      const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'result-detail__transit'; transit.textContent = 'Dojedź komunikacją →';
+      transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
+      body.append(transit);
+    }
     card.append(body); return card;
   }
 
   async function readConfig() {
     try {
       const response = await fetch('/api/config', { headers: { Accept: 'application/json' } });
-      return response.ok ? await response.json() : {};
-    } catch { return {}; }
+      if (!response.ok) throw new Error('Map configuration unavailable');
+      const config = await response.json();
+      if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Invalid map configuration');
+      return config;
+    } catch { throw new Error('Nie udało się pobrać konfiguracji mapy.'); }
   }
 
   // Swap a broken Google map for OpenStreetMap in the same container.
-  function replaceWithLeaflet(element) {
+  async function replaceWithLeaflet(element) {
     element.replaceChildren();
     element.removeAttribute('style'); // drop inline styles Google set on the container
     const holder = document.createElement('div');
     holder.style.cssText = 'position:absolute;inset:0;';
     element.append(holder);
-    return createLeafletMap(holder);
+    const leaflet = createLeafletMap(holder);
+    await leaflet.ready;
+    return leaflet;
   }
 
   // onReplace(map) is called if Google fails after the map was already returned.
@@ -283,21 +358,33 @@
     if (config.googleMapsApiKey && !authFailed) {
       try {
         const google = await createGoogleMap(element, { apiKey: config.googleMapsApiKey, mapId: config.googleMapsMapId });
-        let replaced = false;
-        const fallBack = () => {
+        let replaced = false, finishReplacement;
+        const replacementReady = new Promise(resolve => { finishReplacement = resolve; });
+        const fallBack = async () => {
           if (replaced) return;
+          google.clearRoute();
           replaced = true;
+          authFailureHandlers.delete(fallBack);
           console.warn('[map] Google Maps rejected the API key, switching to OpenStreetMap.');
-          try { onReplace?.(replaceWithLeaflet(element)); } catch (error) { console.warn('[map]', error.message); onReplace?.(null); }
+          let replacement = null;
+          try { replacement = await replaceWithLeaflet(element); } catch (error) { console.warn('[map]', error.message); }
+          // Consumer callback errors must not turn one handoff into a second callback.
+          try { onReplace?.(replacement); } catch (error) { console.warn('[map]', error.message); }
+          finally { finishReplacement(replacement); }
         };
         if (authFailed) { queueMicrotask(fallBack); } else { authFailureHandlers.add(fallBack); }
-        return google;
+        await Promise.race([google.ready, replacementReady]);
+        // Once fallback owns the container, old Google readiness cannot complete
+        // startup. Wait for the replacement's ready adapter or unavailable result.
+        return replaced ? await replacementReady : google;
       } catch (error) {
         console.warn('[map] Google Maps unavailable, using OpenStreetMap:', error.message);
         if (element.childElementCount) return replaceWithLeaflet(element);
       }
     }
-    return createLeafletMap(element);
+    const leaflet = createLeafletMap(element);
+    await leaflet.ready;
+    return leaflet;
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();
