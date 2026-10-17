@@ -92,28 +92,30 @@ button:focus-visible, a:focus-visible { outline: 3px solid #0051d5; outline-offs
 .weather-bar summary { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid #0000000c; border-radius: 24px; background: #f7f9fbf5; backdrop-filter: blur(18px); box-shadow: 0 8px 22px #09142624; cursor: pointer; white-space: nowrap; list-style: none; }
 .weather-bar summary::-webkit-details-marker { display: none; }
 .weather-bar summary:focus-visible { outline: 3px solid #0051d5; outline-offset: 3px; }
-#environment-icon { color: #ad7416; font-size: 23px; }
-#environment-icon[data-tone='sun'] { color: #b7770c; }
-#environment-icon[data-tone='night'] { color: #7653b5; }
-#environment-icon[data-tone='cloud'] { color: #647f96; }
-#environment-icon[data-tone='rain'] { color: #297da4; }
-#environment-icon[data-tone='snow'] { color: #4b91b4; }
-#environment-icon[data-tone='storm'] { color: #8752ad; }
-#environment-icon[data-tone='fog'], #environment-icon[data-tone='unknown'] { color: #7b8791; }
+#environment-icon { color: #9e8753; background: #faf1d9; border-radius: 50%; padding: 4px; box-sizing: content-box; font-size: 20px; }
+#environment-icon[data-tone='sun'] { color: #ae9253; background: #fff2cf; }
+#environment-icon[data-tone='night'] { color: #9a87bd; background: #f0eafb; }
+#environment-icon[data-tone='cloud'] { color: #829eaf; background: #eaf1f5; }
+#environment-icon[data-tone='rain'] { color: #78a2b7; background: #e5f2f7; }
+#environment-icon[data-tone='snow'] { color: #84adbc; background: #eaf5f8; }
+#environment-icon[data-tone='storm'] { color: #ab8ebd; background: #f3eaf8; }
+#environment-icon[data-tone='fog'], #environment-icon[data-tone='unknown'] { color: #96a3a8; background: #eef1f1; }
 #environment-weather { font-size: 14px; font-weight: 800; }
-#environment-air { display: inline-flex; flex-direction: column; gap: 1px; font-weight: 700; line-height: 1.2; }
-#environment-air-value { font-size: 9px; font-weight: 500; color: #68747e; }
-#environment-air[data-level='unknown'] { color: #68747e; }
+#environment-air { display: grid; grid-template-columns: 13px auto; grid-template-rows: auto auto; column-gap: 4px; row-gap: 1px; align-items: center; justify-content: center; padding: 4px 7px; border-radius: 12px; font-weight: 700; font-size: 9px; line-height: 1.2; text-align: center; }
+.environment-air-icon { grid-column: 1; grid-row: 1 / 3; width: 13px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+#environment-air-label, #environment-air-value { grid-column: 2; }
+#environment-air-value { font-size: 8px; font-weight: 500; color: inherit; opacity: .85; }
+#environment-air[data-level='unknown'] { color: #64727b; background: #edf0f2; }
 #environment-sun { display: inline-flex; gap: 7px; font-size: 10px; font-variant-numeric: tabular-nums; }
 .environment-solar { display: inline-flex; align-items: center; gap: 3px; }
 .environment-solar svg { width: 16px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.environment-sunrise-icon { color: #b7770c; }
-.environment-sunset-icon { color: #b65d42; }
-#environment-air[data-level='good'] { color: #247151; }
-#environment-air[data-level='fair'] { color: #466d25; }
-#environment-air[data-level='moderate'] { color: #8a6109; }
-#environment-air[data-level='poor'], #environment-air[data-level='very-poor'] { color: #b23e30; }
-#environment-air[data-level='extreme'] { color: #7f2f75; }
+.environment-sunrise-icon { color: #b6a06d; }
+.environment-sunset-icon { color: #c5958b; }
+#environment-air[data-level='good'] { color: #3b735f; background: #e4f1e9; }
+#environment-air[data-level='fair'] { color: #587044; background: #edf2e3; }
+#environment-air[data-level='moderate'] { color: #80652d; background: #f8f0da; }
+#environment-air[data-level='poor'], #environment-air[data-level='very-poor'] { color: #97584e; background: #f9e7e3; }
+#environment-air[data-level='extreme'] { color: #845277; background: #f2e5f0; }
 .environment-divider { color: #a0a8b1; }
 .environment-details { position: absolute; top: calc(100% + 6px); left: 0; right: 0; padding: 13px 15px; border: 1px solid #dce1e5; border-radius: 17px; background: #fffffff5; box-shadow: 0 8px 20px #09142622; font-size: 11px; line-height: 1.65; }
 .environment-details p { margin: 5px 0 0; }
