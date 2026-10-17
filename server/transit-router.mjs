@@ -56,7 +56,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
  const tripsById=new Map(graph.trips.map(trip=>[trip.id,trip]));
  return [...distinct.values()].slice(0,3).map(route=>({...route,steps:route.steps.map(step=>{
   const trip=tripsById.get(step.tripId);
-  if(step.mode==='TRANSIT'&&trip)step={...step,stopPositionSource:'gtfs_stop_sequence',stopPositions:trip.stopTimes.slice(step.fromStopIndex,step.toStopIndex+1).map((event,offset)=>{const stop=byId.get(event.stopId);return stop?{id:stop.id,name:stop.name,...coordinate(stop),sequenceIndex:step.fromStopIndex+offset}:null;}).filter(Boolean)};
+  if(step.mode==='TRANSIT'&&trip)step={...step,stopPositionSource:'gtfs_stop_sequence',stopPositions:trip.stopTimes.slice(step.fromStopIndex,step.toStopIndex+1).map((event,offset)=>{const stop=byId.get(event.stopId);return stop?{id:stop.id,name:stop.name,platform:stop.platform,...coordinate(stop),sequenceIndex:step.fromStopIndex+offset}:null;}).filter(Boolean)};
   return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&validShape(trip?.shape)?{...step,fullPath:trip.shape.map(coordinate),fullPathGeometry:'gtfs_shape'}:step;
  })}));
 }
