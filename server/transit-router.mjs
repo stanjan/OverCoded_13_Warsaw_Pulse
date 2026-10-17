@@ -8,10 +8,10 @@ export function validateGraph(graph) {
  if(!graph||!Array.isArray(graph.stops)||!Array.isArray(graph.trips)||!graph.source||graph.timeZone!=='Europe/Warsaw')throw new TransitError('GRAPH_INVALID','Nieprawidłowy graf rozkładu ZTM.');
  let url;try{url=new URL(graph.source.url);}catch{throw new TransitError('GRAPH_INVALID','Brak źródła grafu.');}
  if(url.protocol!=='https:'||!['gtfs.ztm.waw.pl','dane.um.warszawa.pl','www.ztm.waw.pl','ztm.waw.pl'].includes(url.hostname))throw new TransitError('GRAPH_INVALID','Graf musi pochodzić z oficjalnego źródła Warszawy/ZTM.');
- if(!graph.stops.length||!graph.trips.length||!graph.source.validFrom||!graph.source.validTo)throw new TransitError('GRAPH_INVALID','Brak kalendarza lub kursów w rozkładzie.');
+ if(!graph.stops.length||!graph.source.validFrom||!graph.source.validTo)throw new TransitError('GRAPH_INVALID','Brak kalendarza rozkładu.');
  return graph;
 }
-export function planGraph(graph,{origin,destination,departureTime,signal,maxBoardings=3,horizonMs=4*3600000,deltas=new Map(),now=Date.now(),walkingEdges=new Map()}={}) {
+export function planGraph(graph,{origin,destination,departureTime,signal,maxBoardings=3,horizonMs=4*3600000,firstBoardingStart=departureTime,firstBoardingDeadline=Infinity,deltas=new Map(),now=Date.now(),walkingEdges=new Map()}={}) {
  validateGraph(graph);const day=dateInWarsaw(departureTime);
  if(day<graph.source.validFrom||day>graph.source.validTo)throw new TransitError('DATE_OUTSIDE_FEED','Rozkład ZTM nie obejmuje wybranego dnia.');
  const byId=new Map(graph.stops.map(stop=>[stop.id,stop]));
@@ -41,13 +41,13 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
      }
     }
     const label=previous.get(stop.id),buffer=round>1&&label?.path.some(segment=>segment.mode==='TRANSIT')?TRANSFER_BUFFER:0;
-    if(event.pickup===0&&label&&label.time+buffer<=event.departure&&event.departure>=departureTime&&event.departure<=departureTime+horizonMs){
+    if(event.pickup===0&&label&&label.time+buffer<=event.departure&&event.departure>=departureTime&&event.departure<=departureTime+horizonMs&&(label.path.some(step=>step.mode==='TRANSIT')||event.departure>=firstBoardingStart&&event.departure<=firstBoardingDeadline)){
      if(!boarding||label.time<boarding.label.time)boarding={event,index,label};
     }
    }
   }
   const rides=[...next];for(const [id,label]of rides){if(!label.path.some(segment=>segment.mode==='TRANSIT'))continue;for(const{to,distance}of neighbours(id)){const from=byId.get(id),step=walk(from,to,distance,label.time,from.name,to.name);if(!step)continue;const time=step.end,existing=next.get(to.id);if(!existing||time<existing.time)next.set(to.id,{time,path:[...label.path,step]});}}
-  for(const{stop,distance}of ends){const label=next.get(stop.id);if(!label?.path.some(segment=>segment.mode==='TRANSIT'))continue;const step=walk(stop,destination,distance,label.time,stop.name,destination.label);if(!step)continue;const arrival=step.end;if(arrival>departureTime+horizonMs)continue;const path=[...label.path,...(distance>0?[step]:[])];candidates.push({origin:origin.label,destination:destination.label,departure:departureTime,arrival,durationMillis:arrival-departureTime,transfers:Math.max(0,path.filter(segment=>segment.mode==='TRANSIT').length-1),steps:path,provider:'Warszawa / ZTM GTFS',timing:path.some(segment=>segment.delay)?'live_model_estimate':'scheduled_estimate',realtimeConfirmed:false,modelAdjusted:path.some(segment=>segment.delay),source:graph.source,warnings:['Najlepsze spośród sprawdzonych połączeń: do 8 najbliższych przystanków w promieniu 900 m, maks. 2 przesiadki, horyzont 4 h.','Odcinki piesze są szacunkowe. Korekta opóźnienia dotyczy tylko wskazanych kursów z dopasowanym świeżym modelem; pozostałe czasy są rozkładowe.']});}
+  for(const{stop,distance}of ends){const label=next.get(stop.id);if(!label?.path.some(segment=>segment.mode==='TRANSIT'))continue;const step=walk(stop,destination,distance,label.time,stop.name,destination.label);if(!step)continue;const arrival=step.end;if(arrival>departureTime+horizonMs)continue;const path=[...label.path,...(distance>0?[step]:[])];candidates.push({origin:origin.label,destination:destination.label,departure:departureTime,arrival,durationMillis:arrival-departureTime,transfers:Math.max(0,path.filter(segment=>segment.mode==='TRANSIT').length-1),steps:path,provider:'Warszawa / ZTM GTFS',timing:path.some(segment=>segment.delay)?'live_model_estimate':'scheduled_estimate',realtimeConfirmed:false,modelAdjusted:path.some(segment=>segment.delay),source:graph.source,warnings:['Najlepsze spośród sprawdzonych połączeń: do 8 najbliższych przystanków w promieniu 900 m, maks. 2 przesiadki, zakres czasu '+Math.round(horizonMs/3600000)+' h.','Odcinki piesze są szacunkowe. Korekta opóźnienia dotyczy tylko wskazanych kursów z dopasowanym świeżym modelem; pozostałe czasy są rozkładowe.']});}
   previous=next;
  }
  const distinct=new Map();for(const route of candidates.sort((a,b)=>a.arrival-b.arrival||a.transfers-b.transfers)){const key=route.steps.filter(step=>step.mode==='TRANSIT').map(step=>step.tripId+'@'+step.fromStopId+'>'+step.toStopId).join('|');if(!distinct.has(key))distinct.set(key,route);}

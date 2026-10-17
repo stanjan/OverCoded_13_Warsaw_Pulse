@@ -73,7 +73,7 @@ export function providerError(error) {return error instanceof TransitError?error
 export function createPlanner({compute=computeMunicipal,onState=()=>{}}={}) {
  let sequence=0,controller,timer;
  const reset=(status='idle')=>{sequence++;clearTimeout(timer);controller?.abort();controller=null;onState({status,routes:[]});};
- return {reset,async search(request){reset();const turn=sequence;controller=new AbortController();const active=controller;timer=setTimeout(()=>active.abort(),95000);onState({status:'loading',routes:[]});
+ return {reset,async search(request){reset();const turn=sequence;controller=new AbortController();const active=controller;timer=setTimeout(()=>active.abort(),145000);onState({status:'loading',routes:[]});
   try{const result=await compute(request,{signal:active.signal});if(turn===sequence)onState({...result,status:result.routes.length?'ready':'limited',request});}
   catch(error){if(turn===sequence)onState({status:'error',routes:[],request,error:providerError(error)});}
   finally{if(turn===sequence)clearTimeout(timer);}
