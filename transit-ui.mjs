@@ -27,14 +27,14 @@ export function timingLabel(route,{archived=false,computedAt=Date.now(),now=Date
 }
 export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}={}){
  const template=doc.getElementById('transit-panel');if(!template)return;
- const pristine=template.cloneNode(true),chat=doc.getElementById('chat-messages');let active,current,used=false,serial=0;
+ const pristine=template.cloneNode(true),chat=doc.getElementById('chat-messages'),sessions=[];let active,current,used=false,serial=0;
  const routeBar=(route,context)=>{const bar=doc.getElementById('environment-bar'),chain=doc.getElementById('environment-route'),eta=doc.getElementById('environment-eta');if(!bar||!chain||!eta)return;const summary=bar.querySelector?.('summary');summary?.setAttribute('aria-label',route?'Pogoda i wybrana trasa '+route.origin+' → '+route.destination+'. Szacowany przyjazd '+compactTime(route.arrival)+' · '+timingLabel(route,context)+'. Rozwiń informacje o pogodzie.':'Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.');bar.dataset.route=String(Boolean(route));chain.hidden=!route;eta.hidden=!route;chain.replaceChildren();eta.replaceChildren();if(route){chain.append(routeChain(doc,route));const time=doc.createElement('strong');time.textContent='ok. '+compactTime(route.arrival);const basis=doc.createElement('small');basis.textContent=timingLabel(route,context);eta.append(time,basis);eta.setAttribute('aria-label','Szacowany przyjazd '+time.textContent+' · '+basis.textContent);}};
  function create(panel){
   const elements={};for(const element of [panel,...panel.querySelectorAll('[id]')]){const name=element.id.replace('transit-','');elements[name]=element;element.dataset.transit=name;}
   // Labels and datalists remain unique even when multiple plans stay in chat history.
   const suffix='-'+(++serial);for(const element of Object.values(elements))element.id+=suffix;
   for(const element of [panel,...panel.querySelectorAll('*')])for(const key of ['for','list','aria-describedby','aria-labelledby']){const value=element.getAttribute(key);if(value)element.setAttribute(key,value.split(' ').map(id=>id+suffix).join(' '));}
-  return mountSession({doc,host,compute,fetchImpl,panel,elements,routeBar,isActive:session=>active===session,activateSession(session){if(active!==session){active?.suspend();active=session;routeBar(null);host.getCityMap?.()?.clearRoute?.();host.getCityMap?.()?.showVehicles?.([]);}}});
+  const session=mountSession({doc,host,compute,fetchImpl,panel,elements,routeBar,isActive:session=>active===session,activateSession(session){if(active!==session){active?.suspend();active=session;routeBar(null);host.getCityMap?.()?.clearRoute?.();host.getCityMap?.()?.showVehicles?.([]);}}});sessions.push(session);return session;
  }
  current=create(template);
  function open(detail={}){
@@ -42,6 +42,7 @@ export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}=
   current.open(detail);host.expandCitySheet?.();
  }
  function appendConversation(panel,detail){const welcome=doc.getElementById('welcome-prompts');if(welcome)welcome.hidden=true;const answer=doc.createElement('p');answer.className='message';answer.textContent=detail.destination?'Sprawdźmy połączenia komunikacją miejską.':'Dokąd jedziemy? Wybierz start i cel.';chat?.append(answer,panel);}
+ host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());active=null;routeBar(null);});
  host.addEventListener('city:transit',event=>open(event.detail));host.addEventListener('city:pulse',()=>{active?.close();});host.addEventListener('city:map',()=>active?.replay());host.addEventListener('city:location',event=>active?.location(event.detail));
  return{open,search:(...args)=>current.search(...args),refreshLive:()=>active?.refreshLive(),reset:()=>active?.reset(),getState:()=>current.getState()};
 }

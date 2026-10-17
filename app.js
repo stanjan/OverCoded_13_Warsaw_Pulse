@@ -264,6 +264,9 @@ async function send() {
   const value = input.value.trim();
   if (!value || pending) return;
   pending = true; submit.disabled = true; submit.setAttribute('aria-busy', 'true');
+  window.dispatchEvent(new CustomEvent('city:query'));
+  resultPanel.replaceChildren(); lastDisplayedAction = null;
+  cityMap?.clearMarkers?.();
   addMessage(value, true); input.value = '';
   const progress = addMessage(''); progress.classList.add('stream-message');
   // Thinking indicator: three pulsing dots plus the current stage with a soft shimmer.

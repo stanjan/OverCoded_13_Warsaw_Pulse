@@ -23,6 +23,25 @@ function fixture({vendor='google',compute,fetchImpl}={}) {
 const route=id=>({id,origin:'Start <script>',destination:'Cel',durationMillis:1200000,departure:Date.parse('2026-10-17T12:00Z'),arrival:Date.parse('2026-10-17T12:20Z'),transfers:0,steps:[{mode:'TRANSIT',line:'17',from:'Dw. Centralny',to:'Anielewicza',headsign:'Nowodwory',start:Date.parse('2026-10-17T12:02Z'),end:Date.parse('2026-10-17T12:18Z'),stops:5,path:[{latitude:52.2,longitude:21},{latitude:52.25,longitude:21.02}],geometry:'gtfs_shape'}],warnings:['Sprawdź komunikat']});
 const result=routes=>({routes,origin:{latitude:52.2,longitude:21},destination:{latitude:52.25,longitude:21.02},stops:[],departures:[],vehicles:[],sources:[],errors:[]});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('a new conversation question hides previous transport data and clears its selected map and bar',async()=>{
+ const f=fixture({compute:async()=>result([route('old')])});
+ f.panel.open({origin:'Dw. Centralny',destination:'Anielewicza'});await tick();
+ f.ids['transit-alternatives'].children[0].click();assert.equal(f.ids['environment-bar'].dataset.route,'true');
+ f.events['city:query']();
+ assert.equal(f.ids['transit-panel'].hidden,true);assert.equal(f.panel.getState().routeCount,0);
+ assert.equal(f.ids['environment-bar'].dataset.route,'false');
+ assert.equal(f.ids['transit-alternatives'].children.length,0);
+ assert.deepEqual(f.calls.filter(c=>c[0]==='vehicles').at(-1)[1],[]);
+});
+
+test('a late route response cannot restore previous data after a new conversation question',async()=>{
+ let resolve;const f=fixture({compute:()=>new Promise(done=>resolve=done)});
+ f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';
+ const pending=f.panel.search();f.events['city:query']();resolve(result([route('late')]));await pending;
+ assert.equal(f.ids['transit-panel'].hidden,true);assert.equal(f.panel.getState().routeCount,0);
+ assert.equal(f.calls.filter(c=>c[0]==='route').length,0);assert.equal(f.ids['environment-bar'].dataset.route,'false');
+});
 test('Transit panel opens with no invented origin and validates missing start before provider calls',async()=>{
  let count=0;const f=fixture({compute:async()=>{count++;return result([]);}});f.panel.open({destination:{latitude:52.2,longitude:21,label:'Cel'}});assert.equal(f.ids['transit-origin'].focused,true);assert.equal(f.ids['transit-destination'].value,'Cel');assert.equal(f.shell.dataset.section,undefined);assert.ok(f.ids['chat-messages'].children.includes(f.ids['transit-panel']));await f.panel.search();assert.equal(count,0);assert.match(f.ids['transit-status'].textContent,/startowy/);
 });
