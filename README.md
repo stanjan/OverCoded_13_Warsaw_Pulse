@@ -7,7 +7,7 @@ Run `npm run build` (or `node scripts/build.mjs`) to produce the static app in `
 
 The current original export is preserved in `design/stitch-depth.html`; the previous welcome export remains in `design/stitch-welcome.html`. The app adapts the full-screen map, floating weather pill, shadowed bottom drawer and prompt cards for responsive widths, browser zoom, safe areas, keyboard input, accessible controls, and safe message rendering. The existing interactive map fills the design's map integration area.
 
-The app includes an assistant backend at `POST /api/chat` and an interactive Leaflet/OpenStreetMap map. Google Fonts, Tailwind, Leaflet and map tiles require internet access. Weather, AQI and sunset values remain sample design content. Voice and the other navigation screens are not connected.
+The app includes an assistant backend at `POST /api/chat` and an interactive Google Maps map when configured, with Leaflet/OpenStreetMap fallback. Google Fonts, Tailwind, Leaflet and map tiles require internet access. Weather, AQI and sunset values remain sample design content. Voice and the other navigation screens are not connected.
 
 ## Local assistant bridge
 

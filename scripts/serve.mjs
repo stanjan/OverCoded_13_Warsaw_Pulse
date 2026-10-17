@@ -6,13 +6,15 @@ const root = resolve(import.meta.dirname, '..');
 const assistant = createAssistant();
 const port = Number(process.env.PORT || 5173);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
-const staticFiles = new Set(['/index.html', '/app.css', '/app.js']);
+const staticFiles = new Set(['/index.html', '/app.css', '/map.js', '/app.js']);
 function json(res, status, data) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 createServer(async (req, res) => {
   try {
     if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) return json(res, 403, { error: 'Niedozwolony host.' });
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { configured: Boolean(process.env.CODEX_BRIDGE_URL), dataMode: 'official', cityDataConfigured: Boolean(process.env.DATA_API_KEY) });
+    // Browser map key: public by design, protected by its HTTP-referrer and API restrictions in Google Cloud.
+    if (url.pathname === '/api/config' && req.method === 'GET') return json(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null, googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID || null });
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return json(res, 403, { error: 'Niedozwolone źródło zapytania.' });
       if (!req.headers['content-type']?.startsWith('application/json')) return json(res, 415, { error: 'Wymagany JSON.' });
