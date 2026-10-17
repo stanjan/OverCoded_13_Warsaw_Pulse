@@ -1,0 +1,1 @@
+Temporary file for issue #3 (https://github.com/stanjan/warsaw-ai/issues/3); removed in the next commit.
