@@ -11,22 +11,22 @@ const event = {title:'Koncert',text:'<p>Muzyka dla rodzin</p>',localization:[{na
 const pitch={Dzielnica:'Wola','Nazwa placówki oświatowej':'Szkoła','Typ obiektu':'Koszykówka',Poniedziałek:'Od 17:00 do 20:00',Wtorek:'Zamknięte',Środa:'-','Data aktualizacji':'2026-07-02'};
 const at='2026-10-17T14:30:00Z';
 
-test('MCP searches only four activity categories and rejects weather/air before fetching',async()=>{
+test('MCP searches five place categories and rejects weather/air before fetching',async()=>{
  const calls=[];
  const provider=createCatalog({token:()=> 'test',fetchImpl:async url=>{calls.push(url);return response(url.endsWith('get_sbt_trasy_turystyczne')?{result:[]}:[]);}});
  const state={results:[],actions:[]};
  const client=createMcpClient(createDispatcher({state,provider}));
  const tools=await client.listTools();
- for(const name of ['search_places','filter_results']) assert.deepEqual(tools.find(t=>t.name===name).inputSchema.properties.category.enum,['event','sports','pitch','route']);
+ for(const name of ['search_places','filter_results']) assert.deepEqual(tools.find(t=>t.name===name).inputSchema.properties.category.enum,['event','sports','pitch','route','toilet']);
  const found=await client.callTool('search_places',{});
- assert.equal(found.complete,true); assert.equal(calls.length,4);
+ assert.equal(found.complete,true); assert.equal(calls.length,5);
  assert.equal(calls.some(url=>/pogoda|powietrza/.test(url)),false);
  for(const category of ['weather','air_quality']) {
    await assert.rejects(client.callTool('search_places',{category}));
    await assert.rejects(client.callTool('filter_results',{category}));
    await assert.rejects(provider.search({category}),/INVALID_CATEGORY/);
  }
- assert.equal(calls.length,4);
+ assert.equal(calls.length,5);
 });
 test('official event photos survive normalization as HTTPS without accepting executable or credential URLs',()=>{
  const record=normalizeRecord({...event,image:{small:{path:'http://um.warszawa.pl/documents/event.jpg'},highlighted:{path:'https://um.warszawa.pl/documents/large.jpg'}}},'event',at);
@@ -62,7 +62,7 @@ test('missing key, HTTP failures and bad records cannot appear as successful emp
 });
 test('partial multi-source failures retain working sources with explicit completeness and errors',async()=>{
  const provider=createCatalog({token:()=> 'test',fetchImpl:async url=> url.endsWith('get_bmm_kalendarz_wydarzen')?response([event]):({ok:false,status:503})});
- const found=await provider.search();assert.equal(found.results.length,1);assert.equal(found.complete,false);assert.equal(found.errors.length,3);
+ const found=await provider.search();assert.equal(found.results.length,1);assert.equal(found.complete,false);assert.equal(found.errors.length,4);
 });
 test('event date, district and bounds select the same actual source location',()=>{
  const record=normalizeRecord(event,'event',at);

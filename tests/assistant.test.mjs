@@ -30,7 +30,7 @@ test('data inventory answers without fetching records or replacing a prior selec
   const noFetch = { search: async () => { searches++; throw new Error('Inventory must not fetch'); } };
   const state = { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } };
   const inventory = await executeRealTool('list_data_sources', {}, state, noFetch);
-  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','pitch','route']);
+  assert.deepEqual(inventory.sources.map(s => s.category), ['event','sports','pitch','route','toilet']);
   assert.ok(inventory.filters.includes('district'));
   assert.equal(inventory.addressSearch.tool,'search_addresses');
   assert.equal(inventory.addressSearch.source.name,'GUGiK UUG');
@@ -38,7 +38,7 @@ test('data inventory answers without fetching records or replacing a prior selec
   assert.deepEqual(state, { results: [{ id: 'selected' }], actions: [], searchMeta: { complete: false } });
   const assistant = createRealAssistant({ provider: noFetch, completion: async history => {
     if (++step === 1) return { tool_calls: [call('list_data_sources', {})] };
-    assert.equal(JSON.parse(history.at(-1).content).sources.length, 4);
+    assert.equal(JSON.parse(history.at(-1).content).sources.length, 5);
     return { content: 'Mogę wyszukać wydarzenia, zajęcia sportowe, boiska i trasy.' };
   } });
   const answer = await assistant.chat({ message: 'jakie dane masz dostępne?' });

@@ -70,3 +70,16 @@ test('event cloud marks free and paid events from the source text',()=>{
  assert.equal(price({name:'Koncert',description:'Bilety 40 zł'}),'paid');
  assert.equal(price({name:'Wystawa',description:'Otwarcie wystawy'}),'unknown');
 });
+
+test('toilets have a WC marker and source details without event ticket assumptions',()=>{
+ const ui=helpers(),place={name:'Toaleta · Inwalidów 3',category:'toilet',address:'Inwalidów 3',district:'Żoliborz',description:'Bezpłatna. Przewijak: nie. Aktualizacja danych: Kwiecień 2026',paid:false};
+ const bubble=ui.resultBubble(place,false);
+ assert.equal(bubble.children[0].children[0].textContent,'wc');
+ assert.equal(bubble.children[1].children[1].textContent,'Toaleta');
+ assert.equal(bubble.children[2].children[0].textContent,'wc');
+ const body=ui.resultDetails(place,false).children[1];
+ assert.ok(body.children.some(node=>node.textContent===place.description));
+ const facts=body.children.find(node=>node.className==='result-detail__facts');
+ assert.equal(facts.children.some(node=>node.dataset.kind==='price'),false);
+ assert.equal(facts.children.find(node=>node.dataset.kind==='place').children[1].textContent,'Żoliborz · Inwalidów 3');
+});

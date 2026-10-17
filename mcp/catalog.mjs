@@ -5,6 +5,8 @@ export const normalize = value => String(value ?? '').toLowerCase().normalize('N
 const activityText = value => normalize(value).replace(/\bkoszykow(?:ka|ki|ke|ce)\b/g, 'koszykowka').replace(/\bsiatkow(?:ka|ki|ke|ce)\b/g, 'siatkowka').replace(/\bpilk(?:a|i|e)\b/g, 'pilka').replace(/\bnozn(?:a|ej|e)\b/g, 'nozna').replace(/\breczn(?:a|ej|e)\b/g, 'reczna');
 const text = value => typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : '';
 const names = value => Array.isArray(value) ? value.map(v => text(v?.name)).filter(Boolean) : [];
+// Only the published numeric flags are evidence; missing/unknown values stay unknown.
+const sourceFlag = value => value === 1 ? true : value === 0 ? false : null;
 const finite = value => (typeof value === 'number' || (typeof value === 'string' && value.trim())) && Number.isFinite(Number(value)) ? Number(value) : null;
 export function coordinates(lat, lng) {
   lat = finite(lat); lng = finite(lng);
@@ -73,6 +75,15 @@ export function normalizeRecord(raw, category, fetchedAt) {
     name = text(raw.title); description = text(raw.description);
     position = coordinates(raw.traces?.[0]?.[0], raw.traces?.[0]?.[1]);
     details = { lengthKm: finite(raw.length), touristPoints: list(raw.tourist_points).map(p => ({ name: text(p.name), ...coordinates(p.latlng?.lat, p.latlng?.lng) })) };
+  } else if (category === 'toilet') {
+    if (raw.type !== 'Feature' || !raw.properties || typeof raw.properties !== 'object' || Array.isArray(raw.properties)) throw new SourceError('SOURCE_SCHEMA', category);
+    const p = raw.properties, address = text(p.lokalizacja), type = text(p.typ);
+    if (!address) throw new SourceError('SOURCE_SCHEMA', category);
+    name = [type || 'Toaleta', address].join(' · ');
+    districts = [text(p.dzielnica)].filter(Boolean);
+    position = raw.geometry?.type === 'Point' ? coordinates(raw.geometry.coordinates?.[1], raw.geometry.coordinates?.[0]) : null;
+    details = { address, toiletType: type, operator: text(p.zarzadca), accessible: sourceFlag(p.dostepnosc), paid: sourceFlag(p.platnosc), changingTable: sourceFlag(p.przewijak), openingHours: text(p.godziny), notes: text(p.uwagi), updatedAt: text(p.aktu_dan), dataOrigin: text(p.poch_dan) };
+    description = [details.openingHours && 'Godziny według źródła: ' + details.openingHours, details.paid === null ? 'Opłata: brak danych' : details.paid ? 'Płatna' : 'Bezpłatna', details.accessible === null ? 'Dostępność: brak danych' : details.accessible ? 'Dostępna dla wszystkich według źródła' : 'Źródło zgłasza bariery architektoniczne', details.changingTable === null ? 'Przewijak: brak danych' : details.changingTable ? 'Przewijak: tak' : 'Przewijak: nie', details.notes, details.updatedAt && 'Aktualizacja danych: ' + details.updatedAt].filter(Boolean).join('. ');
   } else if (category === 'weather') {
     name = text(raw.lokalizacja); position = coordinates(raw.lat, raw.lon); observedAt = [text(raw.czas)].filter(Boolean);
     details = { airTemperatureC: finite(raw.temp_pow), surfaceTemperatureC: finite(raw.temp_naw), humidityPercent: finite(raw.wilg_pow), windSpeed: finite(raw.pred_wiatru), windDirection: finite(raw.kier_wiatru), precipitationIntensity: finite(raw.int_opadu) };
@@ -101,6 +112,7 @@ export function locate(record,filters) {
 export function matches(record, filters) {
   if (filters.query && !normalize(JSON.stringify(record)).includes(normalize(filters.query))) return false;
   if (filters.category && record.category !== filters.category) return false;
+  for (const key of ['paid', 'accessible', 'changingTable']) if (filters[key] !== undefined && (record.category !== 'toilet' || record[key] !== filters[key])) return false;
   if (filters.district && !(record.districts || [record.district]).some(d => normalize(d).includes(normalize(filters.district)))) return false;
   if (filters.activity && !(record.activities || [record.description]).some(a => activityText(a).includes(activityText(filters.activity)))) return false;
   if (filters.audience && !audienceMatches(record.audience || [], filters.audience)) return false;
@@ -127,7 +139,7 @@ export function createCatalog({ fetchImpl = fetch, token = () => process.env.DAT
         catch { throw new SourceError('SOURCE_UNAVAILABLE', category); }
         if (!response.ok) throw new SourceError(response.status === 401 || response.status === 403 ? 'SOURCE_AUTH' : 'SOURCE_HTTP_' + response.status, category);
         try { payload = await response.json(); } catch { throw new SourceError('SOURCE_SCHEMA', category); }
-        // These six endpoints document full datasets, no page/limit parameters.
+        // These endpoints document full datasets, no page/limit parameters.
         // Routes alone wrap their entire array in result. Unknown envelopes fail closed.
         const rows = Array.isArray(payload) ? payload : category === 'route' && payload && Object.keys(payload).length === 1 && Array.isArray(payload.result) ? payload.result : null;
         if (!rows) throw new SourceError('SOURCE_SCHEMA_OR_PAGINATION_CHANGED', category);

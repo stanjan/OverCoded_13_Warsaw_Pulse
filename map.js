@@ -245,12 +245,12 @@
     return wrap;
   }
 
-  const categoryLabels = { event: 'Wydarzenie', sports: 'Zajęcia sportowe', pitch: 'Boisko', route: 'Trasa', weather: 'Pogoda', air_quality: 'Jakość powietrza' };
+  const categoryLabels = { event: 'Wydarzenie', sports: 'Zajęcia sportowe', pitch: 'Boisko', route: 'Trasa', toilet: 'Toaleta', weather: 'Pogoda', air_quality: 'Jakość powietrza' };
   const themeIcons = { culture: 'palette', sport: 'directions_run', education: 'school', meeting: 'forum', family: 'family_restroom', seniors: 'elderly', outdoor: 'park' };
   // Sorts a result into one of the 7 pastel themes from its category and the words in its source data.
   function themeFor(place) {
     if (place.category === 'sports' || place.category === 'pitch') return 'sport';
-    if (['route', 'weather', 'air_quality'].includes(place.category)) return 'outdoor';
+    if (['route', 'toilet', 'weather', 'air_quality'].includes(place.category)) return 'outdoor';
     const words = [place.name, place.description, ...(place.activities || []), ...(place.audience || [])].filter(Boolean).join(' ').toLowerCase();
     if (/dzieci|dziecko|rodzin|maluch/.test(words)) return 'family';
     if (/senior/.test(words)) return 'seniors';
@@ -260,7 +260,7 @@
     if (/spotkani|debat|dyskusj|konferenc|panel/.test(words)) return 'meeting';
     return 'culture';
   }
-  const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'sports_basketball', route: 'forest', weather: 'partly_cloudy_day', air_quality: 'air' };
+  const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'sports_basketball', route: 'forest', toilet: 'wc', weather: 'partly_cloudy_day', air_quality: 'air' };
   function safeUrl(value, image = false) {
     try {
       const url = new URL(value);
@@ -302,7 +302,7 @@
     const theme = themeFor(place);
     button.dataset.theme = theme;
     const pin = document.createElement('span'); pin.className = 'result-pin'; pin.setAttribute('aria-hidden', 'true');
-    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = themeIcons[theme];
+    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = place.category === 'toilet' ? 'wc' : themeIcons[theme];
     pin.append(glyph);
     button.append(thumbnail(place), copy, pin);
     return button;
