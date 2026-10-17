@@ -57,10 +57,14 @@ test('local SVGs replace ligature text initially and after dynamic icon updates'
   icon.firstElementChild = null; icon.textContent = 'unknown_future_icon'; observe([{ target: icon, addedNodes: [] }]);
   assert.equal(icon.textContent, ''); assert.ok(icon.firstElementChild.children[0].attrs.d);
   const unknownPath = icon.firstElementChild.children[0].attrs.d;
-  for (const name of ['palette', 'directions_run', 'school', 'forum', 'family_restroom', 'elderly', 'park']) {
+  for (const name of ['palette', 'directions_run', 'school', 'forum', 'family_restroom', 'wc', 'elderly', 'park']) {
     icon.firstElementChild = null; icon.textContent = name; observe([{ target: icon, addedNodes: [] }]);
     assert.equal(icon.textContent, '');
     assert.notEqual(icon.firstElementChild.children[0].attrs.d, unknownPath, name + ' has its own local glyph');
+    if (name === 'wc') {
+      assert.equal(icon.firstElementChild.attrs.viewBox, '0 0 24 24');
+      assert.equal(icon.firstElementChild.children[0].attrs.d, 'M2 6l2 12 3-8 3 8 2-12m10 2a5 5 0 0 0-8 4 5 5 0 0 0 8 4');
+    }
   }
 });
 
