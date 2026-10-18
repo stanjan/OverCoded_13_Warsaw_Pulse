@@ -229,3 +229,7 @@ test('bridge adapter omits an unset model for automatic routing and preserves an
     if (oldModel === undefined) delete process.env.CODEX_BRIDGE_MODEL; else process.env.CODEX_BRIDGE_MODEL = oldModel;
   }
 });
+
+test('walking-only assistant tool flow preserves explicit mode and instructs auto comparison for ordinary route requests',async()=>{
+ assert.match(SYSTEM_PROMPT,/mode=walk/);assert.match(SYSTEM_PROMPT,/auto.*domyślnie/);let turn=0;const assistant=createAssistant({completion:async history=>++turn===1?{tool_calls:[call('plan_transit',{mode:'walk',originCoordinates:{latitude:52.2,longitude:21},destinationCoordinates:{latitude:52.202,longitude:21.003}})]}:{content:'Sprawdzam trasę pieszą.'}});const answer=await assistant.chat({message:'Wyznacz tylko pieszą trasę do celu.'});assert.equal(answer.actions.length,1);assert.equal(answer.actions[0].mode,'walk');assert.equal(Object.hasOwn(answer.actions[0],'eta'),false);
+});

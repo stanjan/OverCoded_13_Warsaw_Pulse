@@ -13,3 +13,9 @@ Both map renderers display confirmed walking geometry as blue dots with white ou
 Official API reference: https://valhalla.github.io/valhalla/api/route/api-reference/
 Demo service policy: https://github.com/valhalla/valhalla#demo-server
 `createTransitService({ walkingProvider })` supports an injected provider for deterministic service tests; production uses the configured Valhalla adapter by default. Continuous all-fleet delay learning is independent of the pedestrian provider and remains active while a request validates its walking legs. The service passes current exact-trip deltas into every replan, so both real walking times and learned delays affect transfer feasibility.
+
+## Direct walking and automatic comparison
+
+The route request accepts `mode: auto | walk | transit` (default `auto`). `walk` resolves the requested endpoints, then requests one verified OSM/Valhalla pedestrian path and duration independently of GTFS, vehicle positions and municipal API credentials when coordinates are already supplied. Named stops still require the stop catalogue; street addresses continue to require the existing exact GUGiK resolution before planning. Direct pedestrian requests retain the provider's 6 km straight-line endpoint limit, 20 km returned-path limit and 5-hour duration limit. Range or provider failures do not create straight-line walking routes.
+
+Automatic mode compares this direct walk with transit arrivals at the same requested departure, so waiting and later-service fallback count in the comparison. The three visible options are sorted by arrival and the earliest is recommended; a faster walk cannot be displaced by slower transit cards. Explicit `transit` retains timetable-only planning with verified access/transfer walks. Refresh preserves the chosen mode. Pure pedestrian cards and the ETA bar say estimated walking time, without timetable, GPS-delay or transfer claims. All paths remain request-local RAM only.

@@ -30,8 +30,8 @@ test('server-start learning confirms exact-trip deltas before any journey and re
   assert.equal(f.status().liveModel.confirmedTrips,1);assert.equal(f.status().liveModel.continuous,true);
   assert.equal(f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).length,1,'one positive exact-trip binding applies at subsequent stops');
   const request={origin:locations[2],destination:locations[3],departureTime:new Date(base+225000).toISOString()};
-  const first=await f.service.plan(request),second=await f.service.plan(request);for(const result of [first,second]){assert.equal(result.liveModel.confirmedTrips,1);const ride=result.routes[0].steps.find(step=>step.mode==='TRANSIT');assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);}
-  await f.service.plan({...request,departureTime:'2026-10-18T12:00:00.000Z'});assert.equal(f.status().liveModel.confirmedTrips,1,'future-date query must not replace current-day learning');
+  const first=await f.service.plan({...request,mode:'transit'}),second=await f.service.plan({...request,mode:'transit'});for(const result of [first,second]){assert.equal(result.liveModel.confirmedTrips,1);const ride=result.routes[0].steps.find(step=>step.mode==='TRANSIT');assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);}
+  await f.service.plan({...request,mode:'transit',departureTime:'2026-10-18T12:00:00.000Z'});assert.equal(f.status().liveModel.confirmedTrips,1,'future-date query must not replace current-day learning');
  }finally{f.service.stopTracking();}
 });
 test('all active lines eventually obtain evidence without the old 100-entry eviction and with four-request concurrency',async()=>{
@@ -43,7 +43,7 @@ test('all active lines eventually obtain evidence without the old 100-entry evic
 test('failed evidence retries fairly with timestamps; stale nearby positions cannot occupy the map delivery limit',async()=>{
  const f=fixture({failFirst:true,staleCount:60});try{await f.service.startTracking();await f.settled();let snapshot=f.status();assert.equal(snapshot.vehicles.length,1);assert.equal(snapshot.vehicles[0].vehicle,'0');assert.equal(snapshot.liveModel.evidenceDiagnostics.failures,1);assert.ok(snapshot.liveModel.evidenceDiagnostics.lastFailureAt);assert.equal(snapshot.liveModel.pendingEvidence,1);
   await f.tick(95);snapshot=f.status();assert.equal(snapshot.liveModel.evidenceLines,1);assert.ok(snapshot.liveModel.evidenceDiagnostics.lastSuccessAt);assert.equal(snapshot.liveModel.evidenceDiagnostics.requests,2);
-  const result=await f.service.plan({origin:locations[0],destination:locations[3],departureTime:new Date(base+95000).toISOString()});assert.equal(result.vehicles.length,1);assert.equal(result.vehicles[0].freshness,'recent');
+  const result=await f.service.plan({mode:'transit',origin:locations[0],destination:locations[3],departureTime:new Date(base+95000).toISOString()});assert.equal(result.vehicles.length,1);assert.equal(result.vehicles[0].freshness,'recent');
  }finally{f.service.stopTracking();}
 });
 test('stopTracking aborts in-flight work and discards current learning without scheduling another cycle',async()=>{
@@ -82,7 +82,7 @@ test('partial shared evidence cannot manufacture uniqueness across overlapping b
 test('a journey with verified walking reuses the globally learned delta without resetting the all-fleet tracker',async()=>{
  let walkCalls=0;const f=fixture({walkingProvider:{route:async(from,to)=>{walkCalls++;return{geometry:'osm_pedestrian',durationMillis:60000,distanceMeters:70,path:[from,to],source:{name:'OpenStreetMap · Valhalla',url:'https://www.openstreetmap.org/copyright'}};}}});
  try{await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,1);
-  const origin={latitude:locations[2].latitude-.0002,longitude:21};const result=await f.service.plan({origin,destination:locations[3],departureTime:new Date(base+225000).toISOString()});assert.equal(result.status,'ready');const route=result.routes[0],ride=route.steps.find(step=>step.mode==='TRANSIT');assert.equal(route.steps[0].geometry,'osm_pedestrian');assert.equal(route.steps[0].end,base+285000);assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);assert.equal(result.liveModel.confirmedTrips,1);assert.equal(result.liveModel.continuous,true);assert.equal(f.status().liveModel.confirmedTrips,1);assert.ok(walkCalls);assert.ok(route.walkingVerified);
+  const origin={latitude:locations[2].latitude-.0002,longitude:21};const result=await f.service.plan({mode:'transit',origin,destination:locations[3],departureTime:new Date(base+225000).toISOString()});assert.equal(result.status,'ready');const route=result.routes[0],ride=route.steps.find(step=>step.mode==='TRANSIT');assert.equal(route.steps[0].geometry,'osm_pedestrian');assert.equal(route.steps[0].end,base+285000);assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);assert.equal(result.liveModel.confirmedTrips,1);assert.equal(result.liveModel.continuous,true);assert.equal(f.status().liveModel.confirmedTrips,1);assert.ok(walkCalls);assert.ok(route.walkingVerified);
  }finally{f.service.stopTracking();}
 });
 
@@ -94,10 +94,10 @@ test('transient fleet failures and new route requests retain learned deltas only
   f.setVehicleFailure(true);await f.tick(240);
   assert.equal(f.status().errors.length,2);assert.equal(f.status().vehicles.length,0);assert.equal(f.status().liveModel.confirmedTrips,1,'a temporary missing fleet response must not discard a still-valid learned observation');
   const request={origin:locations[2],destination:locations[3],departureTime:new Date(base+240000).toISOString()};
-  const retained=await f.service.plan(request),liveRide=retained.routes[0].steps.find(step=>step.mode==='TRANSIT');
+  const retained=await f.service.plan({...request,mode:'transit'}),liveRide=retained.routes[0].steps.find(step=>step.mode==='TRANSIT');
   assert.equal(retained.errors.filter(error=>error.part==='vehicles').length,2);assert.equal(liveRide.delay.deltaMs,30000);assert.equal(liveRide.end,base+570000);assert.equal(retained.routes[0].timing,'live_model_estimate');
   await f.tick(391);assert.equal(f.status().liveModel.confirmedTrips,0,'expiry uses the crossing observation, not the last route request');
-  const expired=await f.service.plan({...request,departureTime:new Date(base+360000).toISOString()});
+  const expired=await f.service.plan({...request,mode:'transit',departureTime:new Date(base+360000).toISOString()});
   assert.ok(expired.routes.length);assert.equal(expired.routes[0].steps.find(step=>step.mode==='TRANSIT').delay,null);assert.equal(expired.routes[0].timing,'scheduled_estimate');
  }finally{f.service.stopTracking();}
 });
@@ -113,7 +113,7 @@ test('complete shared evidence excludes positively identified other-brigade head
   await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);
   assert.equal(f.status().liveModel.confirmedTrips,1);assert.equal(f.status().liveModel.pendingEvidence,0);
   assert.equal(f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).length,1,'the same complete response already binds both plausible headways to their brigades');
-  const result=await f.service.plan({origin:locations[2],destination:locations[3],departureTime:new Date(base+225000).toISOString()});
+  const result=await f.service.plan({mode:'transit',origin:locations[2],destination:locations[3],departureTime:new Date(base+225000).toISOString()});
   const ride=result.routes[0].steps.find(step=>step.mode==='TRANSIT');assert.equal(ride.tripId,first.id);assert.equal(ride.delay.deltaMs,30000);
  }finally{f.service.stopTracking();}
 });
