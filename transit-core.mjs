@@ -16,6 +16,8 @@ export function transitAppearance(record={}) {
  return {transportKind:kind,...transportStyles[kind]};
 }
 const fail=(code,message)=>{throw new TransitError(code,message);};
+export function routeMode(value='auto') {if(!['auto','walk','transit'].includes(value))fail('INVALID_MODE','Wybierz trasę automatyczną, pieszą lub komunikacją.');return value;}
+export function isWalkingRoute(route) {return Array.isArray(route?.steps)&&route.steps.length>0&&route.steps.every(step=>step.mode==='WALK');}
 export function waypoint(input,label='miejsce'){
  if(typeof input==='string'){
   const text=input.trim();if(!text||text.length>200||/[\u0000-\u001f]/.test(text))fail('INVALID_LOCATION','Podaj poprawne '+label+' (do 200 znaków).');
@@ -63,7 +65,7 @@ export function serviceInstant(day, clock) {
 export function distanceMeters(a,b) {const rad=Math.PI/180,p1=a.latitude*rad,p2=b.latitude*rad,dp=(b.latitude-a.latitude)*rad,dl=(b.longitude-a.longitude)*rad;const x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;return 6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 export async function computeMunicipal(request,{signal,fetchImpl=fetch}={}) {
  const asInput=p=>typeof p.value==='string'?p.value:{latitude:p.value.lat,longitude:p.value.lng,label:p.label};
- const response=await fetchImpl('/api/transit/plan',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({origin:asInput(request.origin),destination:asInput(request.destination),departureTime:request.departureTime.toISOString()})});
+ const response=await fetchImpl('/api/transit/plan',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({origin:asInput(request.origin),destination:asInput(request.destination),departureTime:request.departureTime.toISOString(),mode:routeMode(request.mode)})});
  const data=await response.json();
  if(!response.ok)throw new TransitError(data.code||'SOURCE_UNAVAILABLE',data.error||'Miejskie dane komunikacji są niedostępne.');
  if(!data||!Array.isArray(data.routes)||!Array.isArray(data.stops)||!Array.isArray(data.departures)||!Array.isArray(data.vehicles))throw new TransitError('INVALID_RESPONSE','Nieprawidłowa odpowiedź miejskich danych.');

@@ -448,3 +448,6 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 /* Quick prompt cards: centred when they fit, still scrollable from the first card when they don't. */
 .prompt-row > .prompt-chip:first-child { margin-inline-start: auto; }
 .prompt-row > .prompt-chip:last-child { margin-inline-end: auto; }
+
+#transit-mode,[data-transit="mode"]{width:100%;padding:10px 12px;border:1px solid #d9d5cf;border-radius:12px;background:#fff;color:#3a2a22;font:inherit}
+.transit-recommendation{color:#64564e;font-size:12px}

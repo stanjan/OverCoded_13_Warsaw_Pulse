@@ -10,7 +10,7 @@ function element(tag='div') {
  Object.defineProperty(node,'innerHTML',{set(){throw new Error('Untrusted route data must be text nodes');}});return node;
 }
 function fixture({vendor='google',compute,fetchImpl}={}) {
- const ids=Object.fromEntries(['panel','origin','destination','time','status','alternatives','itinerary','external','search','cancel','clear','form','gps','close','origin-note','observations','origin-options','destination-options','editor','details'].map(id=>['transit-'+id,element(id==='origin'||id==='destination'?'input':'div')]));
+ const ids=Object.fromEntries(['panel','origin','destination','time','status','alternatives','itinerary','external','search','cancel','clear','form','gps','close','origin-note','observations','origin-options','destination-options','editor','details','mode','attribution'].map(id=>['transit-'+id,element(id==='origin'||id==='destination'?'input':'div')]));
  for(const [id,node]of Object.entries(ids))node.id=id;ids['transit-panel'].append(...Object.entries(ids).filter(([id])=>id!=='transit-panel').map(([,node])=>node));
  for(const id of ['chat-messages','welcome-prompts','environment-bar','environment-route','environment-eta','environment-route-refresh'])ids[id]=element();
  const shell=element(),nav=['city-pulse','transit-live'].map(path=>{const e=element('a');e.dataset.path=path;return e;});
@@ -53,7 +53,7 @@ test('route search shows a decorative loading skeleton that disappears on result
  const skeleton=node=>node.querySelectorAll('*').filter(child=>child.className==='transit-skeleton');
  let resolve;const f=fixture({compute:()=>new Promise(done=>resolve=done)}),alternatives=f.ids['transit-alternatives'],status=f.ids['transit-status'];
  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';const pending=f.panel.search();
- assert.equal(f.panel.getState().status,'loading');assert.equal(status.dataset.state,'loading');assert.match(status.textContent,/Przygotowuję rozkład ZTM/);
+ assert.equal(f.panel.getState().status,'loading');assert.equal(status.dataset.state,'loading');assert.match(status.textContent,/Porównuję dostępne trasy/);
  assert.equal(alternatives.attributes['aria-busy'],'true');assert.equal(alternatives.children.length,1);assert.equal(alternatives.children[0].attributes['aria-hidden'],'true');assert.equal(skeleton(alternatives).length,2);assert.equal(f.ids['transit-cancel'].hidden,false);
  resolve(result([route('done')]));await pending;
  assert.equal(f.panel.getState().status,'ready');assert.equal(skeleton(alternatives).length,0);assert.equal(alternatives.attributes['aria-busy'],'false');assert.equal(status.dataset.state,'info');
@@ -229,4 +229,12 @@ for(const action of ['cancel','clear'])test('explicit '+action+' discards pendin
  f.ids['transit-'+action].click();const expected=action==='cancel'?'cancelled':'idle';assert.equal(f.panel.getState().status,expected);
  finish({status:'available',latitude:52.23,longitude:21.01});await pending;
  assert.equal(computes,0);assert.equal(f.panel.getState().status,expected);assert.equal(f.ids['transit-origin'].value,'');assert.equal(f.ids['environment-bar'].dataset.route,'false');
+});
+
+
+test('pure walking option uses walking estimates, no transit claims and preserves mode on route refresh',async()=>{
+ const requests=[];let liveCalls=0;const walk={...route('walk'),mode:'walk',distanceMeters:450,timing:'walking_estimate',recommendationReason:'Pieszo dotrzesz wcześniej.',steps:[{mode:'WALK',from:'Start',to:'Cel',start:Date.now(),end:Date.now()+300000,geometry:'osm_pedestrian',path:[{latitude:52.2,longitude:21},{latitude:52.202,longitude:21.003}]}]};
+ const f=fixture({compute:async request=>{requests.push(request);return result([walk]);},fetchImpl:async()=>{liveCalls++;throw new Error('walking must not poll vehicles');}});
+ f.panel.open({origin:'A',destination:'B',mode:'walk'});await tick();assert.equal(requests[0].mode,'walk');const card=f.ids['transit-alternatives'].children[0];const text=card.children.map(child=>child.textContent).join(' ');assert.match(text,/Polecana · pieszo/);assert.match(text,/szacowany czas marszu/);assert.doesNotMatch(text,/przesiad|wg rozkładu|GPS/);assert.equal(f.ids['transit-mode'].value,'walk');
+ card.click();assert.match(f.ids['transit-attribution'].textContent,/OpenStreetMap/);assert.doesNotMatch(f.ids['transit-attribution'].textContent,/ZTM|GPS/);await f.panel.refreshLive();assert.equal(liveCalls,0);await f.panel.refreshRoute();assert.equal(requests.at(-1).mode,'walk');assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].steps[0].geometry,'osm_pedestrian');
 });
