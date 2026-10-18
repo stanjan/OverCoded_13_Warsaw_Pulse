@@ -22,7 +22,7 @@ test('negative deltas, missing/ambiguous evidence, delayed headways and exact da
  const early=fixture();early.sample(.2,at(.1));early.sample(1.5,at(1));close(early.model.getDeltas().get(trip.id).deltaMs,-30000);
  const next={...trip,id:'next@2026-10-17',stopTimes:trip.stopTimes.map(event=>({...event,arrival:event.arrival+600000,departure:event.departure+600000}))};const f=fixture({trips:[trip,next]});f.sample(.2,at(7.2));f.sample(1.5,at(8.5));assert.equal(f.model.getDeltas().size,0);
  const unique=fixture({trips:[trip,next],evidence:()=>new Set([trip.id])});unique.sample(.2,at(7.2));unique.sample(1.5,at(8.5));close(unique.model.getDeltas().get(trip.id).deltaMs,420000);
- const unknown=fixture({evidence:()=>null});unknown.sample(.2,at(.7));unknown.sample(1.5,at(2));assert.equal(unknown.model.getDeltas().size,0);
+ const unknown=fixture({evidence:()=>null});unknown.sample(.2,at(.7));unknown.sample(1.5,at(2));assert.equal(unknown.model.getDeltas().size,0);assert.equal(unknown.model.summary().matchingDiagnostics.awaitingEvidence,1);
 });
 test('line/brigade changes, stale/out-of-order points and bounded RAM expiry invalidate only current estimates',()=>{
  for(const change of [{line:'22'},{brigade:'2'},{freshness:'stale'}]){const f=fixture();f.sample(.2,at(.7));f.sample(1.5,at(2));assert.equal(f.model.getDeltas().size,1);f.sample(1.6,at(2.1),change);assert.equal(f.model.getDeltas().size,0);}
@@ -57,7 +57,7 @@ test('delayed platform evidence retains the first crossing timestamp rather than
 });
 
 test('missing brigades and two simultaneous vehicles claiming the same trip cannot provide a live correction',()=>{
- const missing=fixture();missing.sample(.2,at(.7),{brigade:''});missing.sample(1.5,at(2),{brigade:''});assert.equal(missing.model.getDeltas().size,0);
+ const missing=fixture();missing.sample(.2,at(.7),{brigade:''});missing.sample(1.5,at(2),{brigade:''});assert.equal(missing.model.getDeltas().size,0);assert.equal(missing.model.summary().matchingDiagnostics.missingBrigade,1);
  const f=fixture();f.sample(.2,at(.7));f.sample(.3,at(.8),{id:'2:other'});f.sample(1.5,at(2));f.sample(1.6,at(2.1),{id:'2:other'});assert.equal(f.model.getDeltas().size,0);
 });
 
