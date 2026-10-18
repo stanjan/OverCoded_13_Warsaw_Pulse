@@ -219,11 +219,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 .transit-stop-detail strong { font-size: 14px; }
 .transit-stop-detail p { margin: 6px 0 0; }
 :focus-visible > .transit-stop { outline: 2px solid #0051d5; outline-offset: 4px; }
-.transit-vehicle { display: grid; place-items: center; width: 36px; height: 36px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: #fff; color: #65727f; box-shadow: 0 2px 5px #0003; cursor: pointer; }
+.transit-vehicle { display: grid; place-items: center; width: 36px; height: 36px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: #fff; color: #65727f; box-shadow: 0 2px 5px #0003; cursor: default; pointer-events: none; }
 .transit-vehicle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.transit-vehicle-detail { padding: 4px; color: #263442; font: 12px 'Plus Jakarta Sans', sans-serif; }
-.transit-vehicle-detail strong { font-size: 14px; }
-.transit-vehicle-detail p { margin: 6px 0 0; }
 .transit-line-badge, .transit-alternative .transit-line-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 23px; padding: 2px 6px; border-radius: 6px; background: #65727f; color: white; font-size: 12px; font-weight: 800; line-height: 1.25; vertical-align: middle; margin-top: 0; }
 .transit-lines, .transit-alternative .transit-lines { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .transit-vehicle[data-freshness='stale'], .transit-vehicle[data-freshness='unknown'] { color: #737d85; opacity: .7; }

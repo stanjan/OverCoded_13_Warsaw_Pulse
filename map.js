@@ -26,7 +26,7 @@
     const bar=document.querySelector?.('#environment-bar')?.getBoundingClientRect?.(),sheet=document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
     return {left:rect.left+12,right:rect.right-12,top:Math.max(rect.top,bar?.bottom??rect.top)+8,bottom:Math.min(rect.bottom,sheet?.top??rect.bottom)-12};
   }
-  function vehiclePopupPadding(element) {
+  function popupPadding(element) {
     const rect=element.getBoundingClientRect?.(),view=popupViewport(element);
     return view?{autoPanPaddingTopLeft:[12,view.top-rect.top],autoPanPaddingBottomRight:[12,rect.bottom-view.bottom]}:{autoPanPaddingTopLeft:[12,12],autoPanPaddingBottomRight:[12,12]};
   }
@@ -91,16 +91,6 @@
     const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
     // headerDisabled removes Google's empty title row; the cloud draws its own close button over the photo.
     const info = new InfoWindow({ maxWidth: 290, headerDisabled: true });
-    const vehicleInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
-    let vehiclePopupContent;
-    vehicleInfo.addListener('closeclick',()=>{vehiclePopupContent=null;});
-    vehicleInfo.addListener('domready',()=>{
-      const rect=(vehiclePopupContent?.closest?.('[role="dialog"]')||vehiclePopupContent)?.getBoundingClientRect?.(),view=popupViewport(element);
-      if(!rect||!view)return;
-      const x=rect.left<view.left?rect.left-view.left:rect.right>view.right?rect.right-view.right:0;
-      const y=rect.top<view.top?rect.top-view.top:rect.bottom>view.bottom?rect.bottom-view.bottom:0;
-      if(x||y)map.panBy(x,y);
-    });
     const stopInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
     let stopPopupContent;
     const closeStopPopup = () => { stopInfo.close?.();stopPopupContent=null; };
@@ -158,7 +148,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { closeStopPopup();vehicleInfo.close?.();vehiclePopupContent=null;routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { closeStopPopup();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -187,7 +177,7 @@
         }
         for(const stop of activeRouteStops(route, true)){
           const marker=new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150});
-          marker.addEventListener('gmp-click',()=>{vehicleInfo.close?.();vehiclePopupContent=null;stopPopupContent=stopDetails(stop);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
+          marker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
         }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
@@ -198,11 +188,11 @@
         return routeLines.length > 0;
       },
       showVehicles(vehicles) {
-        vehicleInfo.close?.();vehiclePopupContent=null;vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
+        vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
         for (const vehicle of vehicles || []) {
           if (!validTransitPath([vehicle]).length || !freshVehicle(vehicle)) continue;
-          const marker=new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), gmpClickable:true, zIndex:250 });
-          marker.addEventListener('gmp-click',()=>{closeStopPopup();vehiclePopupContent=vehicleDetails(vehicle);vehicleInfo.setContent(vehiclePopupContent);vehicleInfo.open({map,anchor:marker,shouldFocus:true});});vehicleMarkers.push(marker);
+          const marker=new AdvancedMarkerElement({ map, position:{lat:vehicle.latitude,lng:vehicle.longitude}, content:vehicleElement(vehicle), title:vehicleTitle(vehicle), gmpClickable:false, zIndex:250 });
+          vehicleMarkers.push(marker);
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
@@ -299,8 +289,8 @@
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
       for (const place of touristPlaces) for (const segment of touristSegments(place)) for(const [color,weight] of [['#fff8e8',8],['#3a2a22',3]])L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer);
       for (const [index, point] of touristPoints(selected).entries()) {
-        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point,index),{className:'tourist-point-popup',maxWidth:230,...vehiclePopupPadding(element)});
-        marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(touristLayer);
+        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point,index),{className:'tourist-point-popup',maxWidth:230,...popupPadding(element)});
+        marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(touristLayer);
       }
       const points=touristMapPoints(selected?[selected]:touristPlaces);
       if(points.length){routeView={tourism:true,points,options:{}};fitRoute();}return points.length>0;
@@ -329,8 +319,8 @@
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
         for(const stop of activeRouteStops(route, true)){
-          const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop),{className:'transit-stop-popup',maxWidth:230,...vehiclePopupPadding(element)});
-          marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(transitLayer);
+          const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop),{className:'transit-stop-popup',maxWidth:230,...popupPadding(element)});
+          marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(transitLayer);
         }
         if(points.length){
           const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
@@ -344,8 +334,8 @@
         vehicleLayer.clearLayers();
         for(const vehicle of vehicles||[]) {
           if(!validTransitPath([vehicle]).length||!freshVehicle(vehicle))continue;
-          const marker=L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}),title:vehicleTitle(vehicle),keyboard:true,zIndexOffset:250}).bindPopup(vehicleDetails(vehicle),{className:'transit-vehicle-popup',maxWidth:230,...vehiclePopupPadding(element)});
-          marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(vehicleLayer);
+          const marker=L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:vehicleElement(vehicle),iconSize:[36,36],iconAnchor:[18,18]}),title:vehicleTitle(vehicle),keyboard:false,interactive:false,zIndexOffset:250});
+          marker.addTo(vehicleLayer);
         }
       },
 
@@ -476,13 +466,8 @@
     const platform=stopPlatform(stop);if(platform){const label=document.createElement('p');label.textContent='Stanowisko '+platform;box.append(label);}
     return box;
   }
-  function vehicleDirection(vehicle){return vehicle.directionSource==='confirmed_gtfs_trip'&&typeof vehicle.direction==='string'&&vehicle.direction.trim()?vehicle.direction:'Kierunek niepotwierdzony';}
-  function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line+' · '+vehicleDirection(vehicle)+' · '+(vehicle.sourceClock||'brak czasu')+' · pozycja nie jest ETA'; }
-  function vehicleDetails(vehicle){
-    const box=document.createElement('div');box.className='transit-vehicle-detail';
-    const line=document.createElement('strong');line.textContent=(vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line;
-    const direction=document.createElement('p');direction.textContent=vehicleDirection(vehicle);box.append(line,direction);return box;
-  }
+  // Position observations have no next-stop timing; keep vehicle markers non-interactive.
+  function vehicleTitle(vehicle) { return (vehicle.transportLabel||(vehicle.type===2?'Tramwaj':'Autobus'))+' '+vehicle.line; }
   function vehicleElement(vehicle) {
     const element=document.createElement('span');element.className='transit-vehicle';element.dataset.freshness=vehicle.freshness;element.style.color=transitColor(vehicle);element.title=vehicleTitle(vehicle);
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
