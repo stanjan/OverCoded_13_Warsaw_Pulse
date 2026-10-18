@@ -91,9 +91,9 @@ Current source: Stitch project `4253701792170330935`, screen `dd28cf56168340ffb6
 Prezentacja nie jest modyfikowana. Mechanizm steruje **jedną jawnie połączoną kartą aplikacji** i używa zwykłej rozmowy, streamingu, kart rekomendacji oraz mapy.
 
 1. Ustaw `DEMO_REMOTE_ENABLED=1` w lokalnym `.env` i uruchom ponownie serwer. Domyślny adres pozostaje `http://127.0.0.1:5173`; nic nie otwiera automatycznie sieci ani firewalla.
-2. Otwórz `http://127.0.0.1:5173/demo`, wybierz **Utwórz cel demo**, następnie **Otwórz aplikację odbierającą**. Tylko ta karta ma widoczny przycisk „Demo”. Zwykła karta główna nie odbiera poleceń. Parowanie jest jednorazowe: po zamknięciu lub odświeżeniu odbiornika wybierz **Zakończ demo**, utwórz nowy cel i wygeneruj nowe linki. Stary link odbiornika nie łączy innej karty z zajętym celem.
+2. Otwórz `http://127.0.0.1:5173/demo`, wybierz **Utwórz cel demo**, następnie **Otwórz aplikację odbierającą**. Tylko ta karta odbiera polecenia; aplikacja nie pokazuje komunikatu ani przycisku demo. Zwykła karta główna nie odbiera poleceń. Parowanie jest jednorazowe: po zamknięciu lub odświeżeniu odbiornika wybierz **Zakończ demo**, utwórz nowy cel i wygeneruj nowe linki. Stary link odbiornika nie łączy innej karty z zajętym celem.
 3. W panelu `/demo` wpisz pytanie i wyślij je albo skopiuj **Link dla kafelka na slajdzie**. Otwarcie linku wysyła zapisane pytanie automatycznie. Każde ponowne otwarcie linku jest nowym poleceniem. Panel i linki są prywatnymi kluczami dostępu: nie umieszczaj ich w publicznym repozytorium, logach ani materiałach po prezentacji.
-4. Po pokazie użyj **Zakończ demo**. Przycisk „×” w karcie odbiornika odłącza ją. Cel wygasa po godzinie; restart usuwa wszystkie cele i historię poleceń z RAM. Limit: 8 celów, 100 poleceń na cel, prompt do 2000 znaków. Brak kolejki i historii GPS/promptów na dysku.
+4. Po pokazie użyj **Zakończ demo** w panelu `/demo`. Cel wygasa po godzinie; restart usuwa wszystkie cele i historię poleceń z RAM. Limit: 8 celów, 100 poleceń na cel, prompt do 2000 znaków. Brak kolejki i historii GPS/promptów na dysku.
 
 API sterowania (token sterujący znajduje się w prywatnym fragmencie wygenerowanego linku jako `demo-control`, pola `target` i `token`):
 
