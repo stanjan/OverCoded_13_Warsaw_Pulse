@@ -8,11 +8,12 @@ const pairs=value=>({values:Object.entries(value).map(([key,value])=>({key,value
 const events=[60,180,360,540];
 function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,departuresForStop=null,walkingProvider={route:async()=>assert.fail('Unexpected external walking call in offline fixture')}}={}){
  let time=base+80000,latitude=locations[0].latitude-.001,timer,active=0,maxActive=0,failures=0;
- let releaseEvidence;const gate=holdEvidence?new Promise(resolve=>{releaseEvidence=resolve;}):null;
+ let failVehicles=false;let releaseEvidence;const gate=holdEvidence?new Promise(resolve=>{releaseEvidence=resolve;}):null;
  const calls=[],graph={serviceDay:'2026-10-17',timeZone:'Europe/Warsaw',source:{url:'https://gtfs.ztm.waw.pl/last',version:'fixture',validFrom:'2026-10-16',validTo:'2026-10-25'},stops:locations,trips:Array.from({length:lineCount},(_,index)=>({id:'trip-'+index,serviceDate:'2026-10-17',line:String(index+1),routeType:0,headsign:'D',shape:locations,stopTimes:locations.map((stop,i)=>({stopId:stop.id,arrival:base+events[i]*1000,departure:base+events[i]*1000,departureClock:clock(events[i]),pickup:0,dropOff:0}))}))};
  const service=createTransitService({walkingProvider,now:()=>time,key:()=> 'fixture-token',graphProvider:async()=>graph,setTimeoutImpl:(callback,delay)=>{assert.ok(delay>=0&&delay<=15000);timer=callback;return{unref(){}};},clearTimeoutImpl:()=>{timer=null;},fetchImpl:async(url,options)=>{
   assert.equal(options.headers.Authorization,'fixture-token');const action=url.split('/').at(-1),args=options.body?JSON.parse(options.body):{};calls.push({action,args});
   if(action===TRANSIT_SOURCES.stops.action)return{ok:true,json:async()=>locations.map(stop=>pairs({zespol:stop.id.split('-')[0],slupek:'01',nazwa_zespolu:stop.name,szer_geo:String(stop.latitude),dlug_geo:'21'}))};
+  if(action===TRANSIT_SOURCES.vehicles.action&&failVehicles)throw new Error('temporary vehicle source failure');
   if(action===TRANSIT_SOURCES.vehicles.action)return{ok:true,json:async()=>args.type===2?[...Array.from({length:staleCount},(_,index)=>({Lat:locations[0].latitude,Lon:21,Lines:'1',VehicleNumber:'stale-'+index,Brigade:'1',Time:'2025-01-01 14:00:00'})),...[...new Map(graph.trips.map(trip=>[trip.line,trip])).values()].map((trip,index)=>({Lat:latitude,Lon:21,Lines:trip.line,VehicleNumber:String(index),Brigade:'01',Time:'2026-10-17 '+clock(Math.round((time-base)/1000))}))]:[]};
   assert.equal(action,TRANSIT_SOURCES.departures.action);active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));if(gate)await gate;active--;
   if(failFirst&&failures++===0)throw new Error('temporary source failure');
@@ -21,7 +22,7 @@ function fixture({lineCount=1,failFirst=false,staleCount=0,holdEvidence=false,de
  }});
  const status=()=>service.liveSnapshot({origin:locations[0],destination:locations[3]});
  const settled=async()=>{for(let index=0;index<100&&status().liveModel.evidenceInFlight;index++)await new Promise(resolve=>setImmediate(resolve));assert.equal(status().liveModel.evidenceInFlight,false);};
- return{service,calls,graph,status,settled,releaseEvidence:()=>releaseEvidence?.(),maxActive:()=>maxActive,async tick(seconds,point=latitude,waitEvidence=true){time=base+seconds*1000;latitude=point;assert.ok(timer);const callback=timer;timer=null;await callback();if(waitEvidence)await settled();},setTime:seconds=>{time=base+seconds*1000;}};
+ return{service,calls,graph,status,settled,setVehicleFailure:value=>{failVehicles=value;},releaseEvidence:()=>releaseEvidence?.(),maxActive:()=>maxActive,async tick(seconds,point=latitude,waitEvidence=true){time=base+seconds*1000;latitude=point;assert.ok(timer);const callback=timer;timer=null;await callback();if(waitEvidence)await settled();},setTime:seconds=>{time=base+seconds*1000;}};
 }
 test('server-start learning confirms exact-trip deltas before any journey and reuses them immediately without query reset',async()=>{
  const f=fixture();try{await f.service.startTracking();await f.settled();assert.equal(f.status().liveModel.evidenceLines,1);assert.equal(f.status().liveModel.confirmedTrips,0);
@@ -82,5 +83,52 @@ test('a journey with verified walking reuses the globally learned delta without 
  let walkCalls=0;const f=fixture({walkingProvider:{route:async(from,to)=>{walkCalls++;return{geometry:'osm_pedestrian',durationMillis:60000,distanceMeters:70,path:[from,to],source:{name:'OpenStreetMap · Valhalla',url:'https://www.openstreetmap.org/copyright'}};}}});
  try{await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);assert.equal(f.status().liveModel.confirmedTrips,1);
   const origin={latitude:locations[2].latitude-.0002,longitude:21};const result=await f.service.plan({origin,destination:locations[3],departureTime:new Date(base+225000).toISOString()});assert.equal(result.status,'ready');const route=result.routes[0],ride=route.steps.find(step=>step.mode==='TRANSIT');assert.equal(route.steps[0].geometry,'osm_pedestrian');assert.equal(route.steps[0].end,base+285000);assert.equal(ride.delay.deltaMs,30000);assert.equal(ride.end,base+570000);assert.equal(result.liveModel.confirmedTrips,1);assert.equal(result.liveModel.continuous,true);assert.equal(f.status().liveModel.confirmedTrips,1);assert.ok(walkCalls);assert.ok(route.walkingVerified);
+ }finally{f.service.stopTracking();}
+});
+
+
+test('transient fleet failures and new route requests retain learned deltas only until their source observation expires',async()=>{
+ const f=fixture();try{
+  await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);
+  assert.equal(f.status().liveModel.confirmedTrips,1);
+  f.setVehicleFailure(true);await f.tick(240);
+  assert.equal(f.status().errors.length,2);assert.equal(f.status().vehicles.length,0);assert.equal(f.status().liveModel.confirmedTrips,1,'a temporary missing fleet response must not discard a still-valid learned observation');
+  const request={origin:locations[2],destination:locations[3],departureTime:new Date(base+240000).toISOString()};
+  const retained=await f.service.plan(request),liveRide=retained.routes[0].steps.find(step=>step.mode==='TRANSIT');
+  assert.equal(retained.errors.filter(error=>error.part==='vehicles').length,2);assert.equal(liveRide.delay.deltaMs,30000);assert.equal(liveRide.end,base+570000);assert.equal(retained.routes[0].timing,'live_model_estimate');
+  await f.tick(391);assert.equal(f.status().liveModel.confirmedTrips,0,'expiry uses the crossing observation, not the last route request');
+  const expired=await f.service.plan({...request,departureTime:new Date(base+360000).toISOString()});
+  assert.ok(expired.routes.length);assert.equal(expired.routes[0].steps.find(step=>step.mode==='TRANSIT').delay,null);assert.equal(expired.routes[0].timing,'scheduled_estimate');
+ }finally{f.service.stopTracking();}
+});
+
+
+test('complete shared evidence excludes positively identified other-brigade headways without platform-by-platform refetches',async()=>{
+ const f=fixture({departuresForStop:index=>[
+  pairs({czas:clock(events[index]),brygada:'1',kierunek:'D',trasa:'A'}),
+  pairs({czas:clock(events[index]+60),brygada:'2',kierunek:'D',trasa:'A'}),
+ ]});
+ const first=f.graph.trips[0];f.graph.trips.push({...first,id:'next-brigade-trip',stopTimes:first.stopTimes.map(event=>({...event,arrival:event.arrival+60000,departure:event.departure+60000,departureClock:clock(Math.round((event.departure-base)/1000)+60)}))});
+ try{
+  await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);
+  assert.equal(f.status().liveModel.confirmedTrips,1);assert.equal(f.status().liveModel.pendingEvidence,0);
+  assert.equal(f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).length,1,'the same complete response already binds both plausible headways to their brigades');
+  const result=await f.service.plan({origin:locations[2],destination:locations[3],departureTime:new Date(base+225000).toISOString()});
+  const ride=result.routes[0].steps.find(step=>step.mode==='TRANSIT');assert.equal(ride.tripId,first.id);assert.equal(ride.delay.deltaMs,30000);
+ }finally{f.service.stopTracking();}
+});
+
+
+test('a competing trip bound to the current and another brigade remains ambiguous after shared evidence reuse',async()=>{
+ const f=fixture({departuresForStop:index=>[
+  pairs({czas:clock(events[index]),brygada:'1',kierunek:'D',trasa:'A'}),
+  pairs({czas:clock(events[index]+60),brygada:'1',kierunek:'D',trasa:'A'}),
+  pairs({czas:clock(events[index]+60),brygada:'2',kierunek:'D',trasa:'A'}),
+ ]});
+ const first=f.graph.trips[0];f.graph.trips.push({...first,id:'ambiguous-competing-trip',stopTimes:first.stopTimes.map(event=>({...event,arrival:event.arrival+60000,departure:event.departure+60000,departureClock:clock(Math.round((event.departure-base)/1000)+60)}))});
+ try{
+  await f.service.startTracking();await f.settled();await f.tick(90,locations[0].latitude);await f.tick(105);await f.tick(195,locations[1].latitude-.001);await f.tick(210,locations[1].latitude);await f.tick(225);
+  assert.equal(f.status().liveModel.confirmedTrips,0,"another brigade binding cannot erase this vehicle brigade's competing trip");
+  assert.equal(f.calls.filter(call=>call.action===TRANSIT_SOURCES.departures.action).length,1);assert.equal(f.status().liveModel.matchingDiagnostics.ambiguousTrips,1);
  }finally{f.service.stopTracking();}
 });
