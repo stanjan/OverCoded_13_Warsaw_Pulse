@@ -579,8 +579,8 @@ document.querySelectorAll('nav a').forEach(link => link.addEventListener('click'
   addMessage(`Sekcja ${link.querySelector('span:last-child').textContent.trim()} będzie dostępna w kolejnej wersji aplikacji.`);
 }));
 
-if (demoReceiverLocation) import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiver({
-  input, location: demoReceiverLocation, isReady: () => !pending && !input.value.trim(),
+import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiver({
+  input, location: demoReceiverLocation || window.location, isReady: () => !pending && !input.value.trim(),
   start: prompt => {
     if (pending || input.value.trim()) return null;
     input.value = prompt;

@@ -129,6 +129,39 @@ test('controller reload keeps access but never repeats the prompt from its origi
   assert.equal(calls.filter(call => call.method === 'POST').length, 1);
 });
 
+test('actual app bootstrap resumes its receiver after fragment removal and reload while an ordinary tab stays unpaired', async () => {
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const module = readFileSync(new URL('../demo-receiver.mjs', import.meta.url), 'utf8').replace(/^export /gm, '');
+  const startup = app.slice(0, app.indexOf('// ?safeTop='));
+  // Substitute only module loading; execute the application's real bootstrap condition/callback.
+  const bootstrap = app.slice(app.lastIndexOf('\n', app.lastIndexOf("import('/demo-receiver.mjs')")) + 1).replace("import('/demo-receiver.mjs')", 'Promise.resolve({ installDemoReceiver })');
+  assert.ok(bootstrap.includes('installDemoReceiver'), 'actual demo bootstrap must be present');
+  const entries = new Map(), api = service({ pollMs: 1000 }), target = setup(api);
+  const storage = { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) };
+  const load = (hash, sessionStorage) => {
+    const events = {}, calls = [], location = { hash, pathname: '/', search: '' };
+    const history = { replaceState() { location.hash = ''; } };
+    const window = { location, history, sessionStorage, addEventListener: (name, callback) => { events[name] = callback; }, removeEventListener() {} };
+    const context = { window, location, history, URLSearchParams, crypto, AbortController, AbortSignal, setTimeout, clearTimeout, Promise, console, input: { value: '', addEventListener() {}, removeEventListener() {} }, pending: false, setExpanded() {}, send() { throw new Error('Reload must not send a prompt'); }, fetch: async (url, options) => {
+      calls.push(url); const data = JSON.parse(options.body);
+      try { const result = url.endsWith('/poll') ? await api.poll(target.id, target.receiver, data, options.signal) : api.acknowledge(target.id, target.receiver, data); return { ok: true, json: async () => result }; }
+      catch (error) { return { ok: false, status: error.status, json: async () => ({ error: error.message }) }; }
+    } };
+    runInNewContext(module + '\n' + startup + '\n' + bootstrap, context);
+    return { calls, events, location };
+  };
+  const first = load('#' + new URLSearchParams({ 'demo-receiver': JSON.stringify({ target: target.id, token: target.receiver }) }), storage);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(first.location.hash, ''); assert.equal(api.status(target.id, target.control).ready, true); assert.equal(first.calls.length, 1);
+  const client = JSON.parse(entries.get('warsaw-ai-demo-receiver')).client;
+  first.events.pagehide(); await new Promise(resolve => setImmediate(resolve));
+  const reloaded = load('', storage); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reloaded.calls.length, 1); assert.equal(api.status(target.id, target.control).ready, true); assert.equal(JSON.parse(entries.get('warsaw-ai-demo-receiver')).client, client);
+  reloaded.events.pagehide(); await new Promise(resolve => setImmediate(resolve));
+  const ordinary = load('', { getItem: () => null }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ordinary.calls.length, 0); assert.equal(api.status(target.id, target.control).connected, false);
+});
+
 test('HTTP contract: disabled gate, exact CORS, target creation, auth, content and body bounds', async t => {
   const api = service({ origins: ['https://slides.example'], pollMs: 25000 }), handle = createDemoHandler(api);
   const server = createServer((req, res) => { const self = `http://${req.headers.host}`; handle(req, res, new URL(req.url, self), self).then(handled => { if (!handled) res.end('no'); }); });
