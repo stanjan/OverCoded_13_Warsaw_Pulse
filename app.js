@@ -416,7 +416,9 @@ function showResults(action) {
 const prompts = [...document.querySelectorAll('.prompt-chip')];
 // Each quick prompt card carries its own question (data-prompt), matched to data the assistant can really search.
 prompts.forEach(button => button.addEventListener('click', () => {
-  input.value = button.dataset.prompt || ''; input.focus();
+  if (pending) return;
+  input.value = button.dataset.prompt || '';
+  send();
 }));
 
 // Quick prompts row: on a laptop, let the mouse wheel and click-drag scroll it sideways
