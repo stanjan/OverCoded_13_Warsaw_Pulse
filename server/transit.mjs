@@ -69,7 +69,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  function sharedEvidence(line){const item=lineBindings.get(line);if(item?.until>now())return item.bindings;lineBindings.delete(line);return null;}
  function tripEvidence(vehicle,stopId){
   const stop=stopBridge.get(stopId),brigade=normalizeBrigade(vehicle.brigade);if(!stop||!brigade)return null;
-  const known=sharedEvidence(vehicle.line)?.get(brigade),cached=bindingCache.get(evidenceKey(stop,vehicle.line,stopId));
+  const shared=sharedEvidence(vehicle.line),known=shared?.get(brigade),cached=bindingCache.get(evidenceKey(stop,vehicle.line,stopId));
   // A complete current-platform response takes precedence. Shared positive
   // bindings are not an exhaustive list: another branch may use this platform.
   if(cached?.until>now())return cached.bindings.get(brigade)||new Set();
@@ -77,7 +77,10 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   const plausible=modelGraph.trips.filter(trip=>trip.line===vehicle.line&&trip.stopTimes.some(event=>event.stopId===stopId)&&trip.stopTimes[0].departure<=observedAt+900000&&trip.stopTimes.at(-1).arrival>=observedAt-900000);
   // Reuse is safe only if it cannot hide a competing spatial/temporal trip.
   // Otherwise obtain this platform's complete brigade evidence before matching.
-  if(known&&plausible.length&&plausible.every(trip=>known.has(trip.id)))return known;
+  // Complete platform responses also positively identify other brigades' trips.
+  // Those known competitors do not require re-fetching every later platform;
+  // an unbound branch still does, and own-brigade ambiguity remains in known.
+  if(known&&plausible.length&&plausible.every(trip=>known.has(trip.id)||[...shared.values()].some(ids=>ids.has(trip.id))))return known;
   queueEvidence(stop,vehicle.line,stopId);return null;
  }
  function prewarmEvidence(vehicles){
@@ -111,7 +114,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   };
   await tick();
  }
- function liveSummary(){return{...delayModel.summary(),pollSeconds:15,continuous:tracking,pendingEvidence:bindingQueue.size,evidenceCached:bindingCache.size,evidenceLines:lineBindings.size,sharedTripBindings:sharedBindingCount(),sharedTripBindingLimit:SHARED_BINDING_LIMIT,evidenceInFlight:Boolean(bindingPromise),evidenceQueueLimit:QUEUE_LIMIT,evidenceConcurrency:4,evidenceRequestsPerCycle:12,evidenceDiagnostics:{...evidenceStats},trackingDiagnostics:{...trackingStats,pollAgeSeconds:trackingStats.lastPollCompletedAt?Math.max(0,Math.floor((now()-Date.parse(trackingStats.lastPollCompletedAt))/1000)):null,vehicleSnapshotCount:latestSnapshot.vehicles.length,recentVehicleCount:latestSnapshot.vehicles.filter(vehicle=>vehicle.freshness==='recent'&&now()-Date.parse(vehicle.observedAt)<=90000).length},matchedStopPlatforms:stopBridge.size};}
+ function liveSummary(){return{...delayModel.summary(),pollSeconds:15,continuous:tracking,pendingEvidence:bindingQueue.size,evidenceCached:bindingCache.size,evidenceLines:lineBindings.size,sharedTripBindings:sharedBindingCount(),sharedTripBindingLimit:SHARED_BINDING_LIMIT,evidenceInFlight:Boolean(bindingPromise),evidenceQueueLimit:QUEUE_LIMIT,oldestQueuedEvidenceAgeSeconds:bindingQueue.size?Math.max(...[...bindingQueue.values()].map(item=>Math.max(0,Math.floor((now()-item.queuedAt)/1000)))):0,evidenceConcurrency:4,evidenceRequestsPerCycle:12,evidenceDiagnostics:{...evidenceStats},trackingDiagnostics:{...trackingStats,pollAgeSeconds:trackingStats.lastPollCompletedAt?Math.max(0,Math.floor((now()-Date.parse(trackingStats.lastPollCompletedAt))/1000)):null,vehicleSnapshotCount:latestSnapshot.vehicles.length,recentVehicleCount:latestSnapshot.vehicles.filter(vehicle=>vehicle.freshness==='recent'&&now()-Date.parse(vehicle.observedAt)<=90000).length},matchedStopPlatforms:stopBridge.size};}
  function liveSnapshot(input){
   const start=waypoint(input?.origin,'punkt startowy'),end=waypoint(input?.destination,'cel');if(typeof start.value==='string'||typeof end.value==='string')throw new TransitError('INVALID_LOCATION','Do aktualizacji mapy wymagane są współrzędne.');
   const origin={latitude:start.value.lat,longitude:start.value.lng},destination={latitude:end.value.lat,longitude:end.value.lng};

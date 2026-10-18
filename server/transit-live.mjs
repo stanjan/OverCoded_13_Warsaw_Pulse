@@ -67,6 +67,8 @@ function scheduledAt(prepared,progress){
 // RAM stores one current progress/next-stop state per vehicle and current trip
 // deltas. Source timestamps are retained; normalization is a schedule estimate.
 export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs=180000,deltaTtlMs=180000,tripEvidence=()=>null}={}){
+ const emptyDiagnostics=()=>({scope:'latest_vehicle_sample',sampledAt:null,received:0,eligible:0,missingBrigade:0,staleOrInvalid:0,duplicateObservations:0,uniquelyMatched:0,awaitingEvidence:0,ambiguousTrips:0,noPlausibleTrip:0,noUsableGeometry:0,noUsableProjection:0,noMatchingBrigadeTrip:0,conflictingVehicles:0});
+ let matchingDiagnostics=emptyDiagnostics();
  const states=new Map(),deltas=new Map();let graph,byLine=new Map(),stops=new Map(),prepared=new WeakMap(),shapes=new WeakMap();
  function invalidate(state){if(state?.tripId&&deltas.get(state.tripId)?.vehicleId===state.vehicleId)deltas.delete(state.tripId);}
  function expire(){const time=now();for(const[id,state]of states)if(time-state.observedAt>stateTtlMs){invalidate(state);states.delete(id);}for(const[id,delta]of deltas)if(time-delta.observedAt>deltaTtlMs||time-delta.observedAt< -60000)deltas.delete(id);}
@@ -75,16 +77,17 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
   if(!preserveState){states.clear();deltas.clear();}for(const trip of graph.trips){if(!byLine.has(trip.line))byLine.set(trip.line,[]);byLine.get(trip.line).push(trip);}
  }
  function geometry(trip){if(prepared.has(trip))return prepared.get(trip);let shape=null;if(Array.isArray(trip.shape)){if(!shapes.has(trip.shape))shapes.set(trip.shape,prepareShape(trip.shape));shape=shapes.get(trip.shape);}const value=prepareTrip(trip,shape,stops);prepared.set(trip,value);return value;}
- function ingest(vehicles){expire();for(const vehicle of vehicles){
+ function ingest(vehicles){expire();matchingDiagnostics=emptyDiagnostics();matchingDiagnostics.sampledAt=new Date(now()).toISOString();matchingDiagnostics.received=vehicles.length;for(const vehicle of vehicles){
   const observedAt=Date.parse(vehicle.observedAt),age=now()-observedAt,prior=states.get(vehicle.id);
-  if(vehicle.freshness!=='recent'||!String(vehicle.brigade??'').trim()||!validPoint(vehicle)||!Number.isFinite(age)||age>90000||age< -60000){invalidate(prior);states.delete(vehicle.id);continue;}
-  if(prior&&observedAt<=prior.observedAt)continue;
+  if(vehicle.freshness!=='recent'||!String(vehicle.brigade??'').trim()||!validPoint(vehicle)||!Number.isFinite(age)||age>90000||age< -60000){matchingDiagnostics[!String(vehicle.brigade??'').trim()?'missingBrigade':'staleOrInvalid']++;invalidate(prior);states.delete(vehicle.id);continue;}
+  matchingDiagnostics.eligible++;
+  if(prior&&observedAt<=prior.observedAt){matchingDiagnostics.duplicateObservations++;continue;}
   const sameIdentity=prior?.line===vehicle.line&&prior?.brigade===vehicle.brigade;if(!sameIdentity)invalidate(prior);
-  const matches=[];let unresolved=false;
+  const matches=[];let unresolved=false,plausible=false,usableGeometry=false,usableProjection=false;
   for(const trip of byLine.get(vehicle.line)||[]){
    if(trip.stopTimes[0].departure>observedAt+MAX_OFFSET||trip.stopTimes.at(-1).arrival<observedAt-MAX_OFFSET)continue;
-   const path=geometry(trip);if(!path)continue;const previous=sameIdentity&&prior.tripId===trip.id?prior:null,progress=projectVehicle(path,vehicle,previous);if(typeof progress!=='number')continue;
-   const scheduledPassageAt=scheduledAt(path,progress);if(Math.abs(observedAt-scheduledPassageAt)>MAX_OFFSET)continue;
+   plausible=true;const path=geometry(trip);if(!path)continue;usableGeometry=true;const previous=sameIdentity&&prior.tripId===trip.id?prior:null,progress=projectVehicle(path,vehicle,previous);if(typeof progress!=='number')continue;
+   const scheduledPassageAt=scheduledAt(path,progress);if(Math.abs(observedAt-scheduledPassageAt)>MAX_OFFSET)continue;usableProjection=true;
    const nextIndex=path.positions.findIndex(p=>p>progress+0.01),evidenceIndex=nextIndex<0?trip.stopTimes.length-1:Math.max(0,nextIndex-1);
    // Warm the registered next platform ahead of crossing, while current-leg
    // evidence determines identity now. A future branch must not erase a valid
@@ -98,6 +101,7 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
    matches.push({path,trip,progress,scheduledPassageAt,nextIndex});
   }
   if(unresolved||matches.length!==1){
+   matchingDiagnostics[unresolved?'awaitingEvidence':matches.length>1?'ambiguousTrips':!plausible?'noPlausibleTrip':!usableGeometry?'noUsableGeometry':!usableProjection?'noUsableProjection':'noMatchingBrigadeTrip']++;
    invalidate(prior);let waiting=null;
    if(unresolved&&matches.length<=1&&sameIdentity&&prior.tripId){
     const trip=(byLine.get(vehicle.line)||[]).find(t=>t.id===prior.tripId),path=trip&&geometry(trip),progress=path&&projectVehicle(path,vehicle,prior);
@@ -115,7 +119,8 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
   const match=matches[0],previous=sameIdentity&&prior.tripId===match.trip.id?prior:null;
   if(prior?.tripId&&!previous)invalidate(prior);
   const peer=[...states.values()].find(state=>state.vehicleId!==vehicle.id&&state.tripId===match.trip.id);
-  if(peer){invalidate(peer);invalidate(prior);states.delete(vehicle.id);states.set(vehicle.id,{vehicleId:vehicle.id,line:vehicle.line,brigade:vehicle.brigade,observedAt,tripId:match.trip.id,progressMeters:match.progress,nextStopIndex:match.nextIndex});continue;}
+  if(peer){matchingDiagnostics.conflictingVehicles++;invalidate(peer);invalidate(prior);states.delete(vehicle.id);states.set(vehicle.id,{vehicleId:vehicle.id,line:vehicle.line,brigade:vehicle.brigade,observedAt,tripId:match.trip.id,progressMeters:match.progress,nextStopIndex:match.nextIndex});continue;}
+  matchingDiagnostics.uniquelyMatched++;
   // A first point establishes the NEXT stop. It cannot claim an earlier passage.
   const progress=Math.max(previous?.progressMeters??-Infinity,match.progress),nextStopIndex=match.path.positions.findIndex(p=>p>progress+0.01);
   if(previous?.nextStopIndex>=0&&match.progress+0.01>=match.path.positions[previous.nextStopIndex]){
@@ -127,5 +132,5 @@ export function createDelayModel({now=()=>Date.now(),maxVehicles=5000,stateTtlMs
   states.delete(vehicle.id);states.set(vehicle.id,{vehicleId:vehicle.id,line:vehicle.line,brigade:vehicle.brigade,observedAt,tripId:match.trip.id,progressMeters:progress,nextStopIndex});
   while(states.size>maxVehicles){const id=states.keys().next().value;invalidate(states.get(id));states.delete(id);}
  }while(states.size>maxVehicles){const id=states.keys().next().value;invalidate(states.get(id));states.delete(id);}expire();}
- return{attachGraph,ingest,getDeltas(){expire();return new Map([...deltas].map(([id,delta])=>[id,{...delta,ageSeconds:Math.max(0,Math.floor((now()-delta.observedAt)/1000))}]));},summary(){expire();return{status:graph?'observing':'warming',trackedVehicles:states.size,tentativeTrips:[...states.values()].filter(s=>s.tripId).length,vehiclesAwaitingNextStop:[...states.values()].filter(s=>s.nextStopIndex>=0).length,confirmedTrips:deltas.size,maxVehicles,stateTtlMs,deltaTtlMs,method:'scheduled_route_progress',normalization:'scheduled_departure_to_next_arrival',persistentGpsHistory:false};},clear(){states.clear();deltas.clear();}};
+ return{attachGraph,ingest,getDeltas(){expire();return new Map([...deltas].map(([id,delta])=>[id,{...delta,ageSeconds:Math.max(0,Math.floor((now()-delta.observedAt)/1000))}]));},summary(){expire();return{status:graph?'observing':'warming',trackedVehicles:states.size,tentativeTrips:[...states.values()].filter(s=>s.tripId).length,vehiclesAwaitingNextStop:[...states.values()].filter(s=>s.nextStopIndex>=0).length,confirmedTrips:deltas.size,maxVehicles,stateTtlMs,deltaTtlMs,method:'scheduled_route_progress',normalization:'scheduled_departure_to_next_arrival',persistentGpsHistory:false,matchingDiagnostics:{...matchingDiagnostics}};},clear(){states.clear();deltas.clear();matchingDiagnostics=emptyDiagnostics();}};
 }
