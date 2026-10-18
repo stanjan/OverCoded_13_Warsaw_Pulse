@@ -1,4 +1,5 @@
 import {waypoint,gpsOrigin,departure,warsawDeparture,createPlanner,durationLabel,timeLabel,TransitError,safeLink,transitAppearance,routeMode,isWalkingRoute} from './transit-core.mjs';
+import {mountDepartureBoard} from './departure-board.mjs';
 // Each symbol is local SVG geometry, independent of icon fonts and network access.
 function glyph(doc,kind){
  const svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','transit-glyph');
@@ -41,6 +42,7 @@ export function timingLabel(route,{archived=false,computedAt=Date.now(),now=Date
 export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}={}){
  const template=doc.getElementById('transit-panel');if(!template)return;
  const pristine=template.cloneNode(true),chat=doc.getElementById('chat-messages'),sessions=[];let active,current,used=false,serial=0;
+ const board=mountDepartureBoard({doc,host,fetchImpl});
  const routeBar=(route,context={})=>{
   const bar=doc.getElementById('environment-bar'),chain=doc.getElementById('environment-route'),eta=doc.getElementById('environment-eta'),refresh=doc.getElementById('environment-route-refresh');if(!bar||!chain||!eta)return;
   const pending=Boolean(context.refreshing&&!route),shown=Boolean(route)||pending,summary=bar.querySelector?.('summary');
@@ -56,7 +58,7 @@ export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}=
   // Labels and datalists remain unique even when multiple plans stay in chat history.
   const suffix='-'+(++serial);for(const element of Object.values(elements))element.id+=suffix;
   for(const element of [panel,...panel.querySelectorAll('*')])for(const key of ['for','list','aria-describedby','aria-labelledby']){const value=element.getAttribute(key);if(value)element.setAttribute(key,value.split(' ').map(id=>id+suffix).join(' '));}
-  const session=mountSession({doc,host,compute,fetchImpl,panel,elements,routeBar,isActive:session=>active===session,activateSession(session){if(active!==session){active?.suspend();active=session;routeBar(null);host.getCityMap?.()?.clearRoute?.();host.getCityMap?.()?.showVehicles?.([]);}}});sessions.push(session);return session;
+  const session=mountSession({doc,host,compute,fetchImpl,panel,elements,routeBar,board,isActive:session=>active===session,activateSession(session){if(active!==session){active?.suspend();board.hide();active=session;routeBar(null);host.getCityMap?.()?.clearRoute?.();host.getCityMap?.()?.showVehicles?.([]);}}});sessions.push(session);return session;
  }
  current=create(template);
  function open(detail={}){
@@ -67,11 +69,11 @@ export function mountTransit({doc=document,host=window,compute,fetchImpl=fetch}=
   const opened=current;host.requestAnimationFrame?.(()=>{if(active===opened)opened.reveal();});
  }
  function appendConversation(panel,detail){const welcome=doc.getElementById('welcome-prompts');if(welcome)welcome.hidden=true;const answer=doc.createElement('p');answer.className='message';answer.textContent=detail.destination?(detail.mode==='walk'?'Sprawdzę trasę pieszą po ścieżkach.':'Porównam dostępne trasy do celu.'):'Dokąd jedziemy? Wybierz start i cel.';chat?.append(answer,panel);}
- host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());if(!used)sessions.push(current);active=null;routeBar(null);});
- host.addEventListener('city:transit',event=>open(event.detail));host.addEventListener('city:pulse',()=>{active?.close();});host.addEventListener('city:map',()=>active?.replay());host.addEventListener('city:location',event=>active?.location(event.detail));
+ host.addEventListener('city:query',()=>{sessions.splice(0).forEach(session=>session.close());if(!used)sessions.push(current);active=null;board.hide();routeBar(null);});
+ host.addEventListener('city:transit',event=>open(event.detail));host.addEventListener('city:pulse',()=>{active?.close();});host.addEventListener('city:map',()=>active?.replay());host.addEventListener('city:location',event=>{board.location(event.detail);active?.location(event.detail);});
  return{open,search:(...args)=>current.search(...args),refreshLive:()=>active?.refreshLive(),refreshRoute:()=>active?.refreshRoute(),reset:()=>active?.reset(),getState:()=>current.getState()};
 }
-function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession,isActive,routeBar}={}) {
+function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession,isActive,routeBar,board}={}) {
  const el=id=>elements[id];let api,computedAt=0,archived=false,refreshing=false;
  const origin=el('origin'),destination=el('destination'),time=el('time'),status=el('status'),alternatives=el('alternatives'),itinerary=el('itinerary'),observations=el('observations');
  let liveTimer=null,liveController=null,liveSequence=0;
@@ -87,7 +89,7 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
   alternatives.querySelectorAll('small').forEach((label,index)=>label.textContent=timingLabel(state.routes[index],{computedAt,archived}));
   if(isActive(api)&&selected>=0){const route=state.routes[selected];routeBar(route,{computedAt,archived});if(status.dataset.compact==='true')message('Wybrano trasę · przyjazd ok. '+compactTime(route.arrival)+' · '+timingLabel(route,{computedAt,archived}));}
  }
- function clearView(){liveSequence++;liveController?.abort();if(isActive(api)){map()?.clearRoute?.();routeBar(null,{refreshing});}alternatives.replaceChildren();itinerary.replaceChildren();observations.replaceChildren();selected=-1;}
+ function clearView(){liveSequence++;liveController?.abort();if(isActive(api)){board.hide();map()?.clearRoute?.();routeBar(null,{refreshing});}alternatives.replaceChildren();itinerary.replaceChildren();observations.replaceChildren();selected=-1;}
  function showObservations(){
   observations.replaceChildren();
   const fresh=(state.vehicles||[]).filter(vehicle=>{const age=Date.now()-Date.parse(vehicle.observedAt);return vehicle.freshness==='recent'&&Number.isFinite(age)&&age>=-60000&&age<=90000;});
@@ -105,6 +107,7 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  function select(index){
   activateSession(api);selected=index;const route=state.routes[index];alternatives.querySelectorAll('button').forEach((button,i)=>button.setAttribute('aria-pressed',String(i===index)));itinerary.replaceChildren();
   routeBar(route,{computedAt,archived});
+  if(archived)board.hide();else board.show(route);
   const barBottom=doc.getElementById('environment-bar')?.getBoundingClientRect?.().bottom;
   const mapTop=doc.getElementById('city-map')?.getBoundingClientRect?.().top||0;
   const canvasRect=doc.getElementById('city-map')?.getBoundingClientRect?.(),sheetTop=doc.getElementById('ai-sheet')?.getBoundingClientRect?.().top;

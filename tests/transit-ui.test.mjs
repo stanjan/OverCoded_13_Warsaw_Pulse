@@ -9,10 +9,11 @@ function element(tag='div') {
  querySelectorAll(selector){return this.children.flatMap(child=>[...((selector==='*'||selector===child.tag||(selector==='[id]'&&child.id))?[child]:[]),...child.querySelectorAll(selector)]);}};
  Object.defineProperty(node,'innerHTML',{set(){throw new Error('Untrusted route data must be text nodes');}});return node;
 }
-function fixture({vendor='google',compute,fetchImpl}={}) {
+function fixture({vendor='google',compute,fetchImpl,withBoard=false}={}) {
  const ids=Object.fromEntries(['panel','origin','destination','time','status','alternatives','itinerary','external','search','cancel','clear','form','gps','close','origin-note','observations','origin-options','destination-options','editor','details','mode','attribution'].map(id=>['transit-'+id,element(id==='origin'||id==='destination'?'input':'div')]));
  for(const [id,node]of Object.entries(ids))node.id=id;ids['transit-panel'].append(...Object.entries(ids).filter(([id])=>id!=='transit-panel').map(([,node])=>node));
  for(const id of ['chat-messages','welcome-prompts','environment-bar','environment-route','environment-eta','environment-route-refresh'])ids[id]=element();
+ if(withBoard)ids['map-canvas-container']=element();
  const shell=element(),nav=['city-pulse','transit-live'].map(path=>{const e=element('a');e.dataset.path=path;return e;});
  const events={},calls=[];const map={vendor,clearRoute(){calls.push(['clear']);},showRoute(raw){calls.push(['route',raw]);return true;},showVehicles(vehicles){calls.push(['vehicles',vehicles]);},fitTo(){}};
  const doc={getElementById:id=>ids[id],querySelector:()=>shell,querySelectorAll:()=>nav,createElement:element,createElementNS:(_ns,tag)=>element(tag)};
@@ -23,6 +24,18 @@ function fixture({vendor='google',compute,fetchImpl}={}) {
 const route=id=>({id,origin:'Start <script>',destination:'Cel',durationMillis:1200000,departure:Date.parse('2026-10-17T12:00Z'),arrival:Date.parse('2026-10-17T12:20Z'),transfers:0,steps:[{mode:'TRANSIT',line:'17',from:'Dw. Centralny',to:'Anielewicza',headsign:'Nowodwory',start:Date.parse('2026-10-17T12:02Z'),end:Date.parse('2026-10-17T12:18Z'),stops:5,path:[{latitude:52.2,longitude:21},{latitude:52.25,longitude:21.02}],geometry:'gtfs_shape'}],warnings:['Sprawdź komunikat']});
 const result=routes=>({routes,origin:{latitude:52.2,longitude:21},destination:{latitude:52.25,longitude:21.02},stops:[],departures:[],vehicles:[],sources:[],errors:[]});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('selected transit alone opens the map board; a new query, reset, close and walking selection remove it',async()=>{
+ const transit={...route('board'),steps:[{...route('board').steps[0],fromStopId:'A',toStopId:'B'}]},walk={...route('walk'),steps:[{mode:'WALK',start:0,end:60000}]};
+ let resolveBoard;const f=fixture({withBoard:true,compute:async()=>result([transit,walk]),fetchImpl:()=>new Promise(resolve=>resolveBoard=resolve)});
+ f.panel.open({origin:'A',destination:'B'});await tick();const board=f.ids['map-canvas-container'].children[0];assert.equal(board.hidden,true);
+ f.ids['transit-alternatives'].children[0].click();assert.equal(board.hidden,false);
+ f.ids['transit-alternatives'].children[1].click();assert.equal(board.hidden,true);
+ f.ids['transit-alternatives'].children[0].click();f.events['city:query']();assert.equal(board.hidden,true);
+ resolveBoard({ok:true,json:async()=>({stop:{id:'A'},departures:[],windowEnd:Date.now()+7200000})});await tick();assert.equal(board.hidden,true);
+ await f.panel.search();f.ids['transit-alternatives'].children[0].click();f.panel.reset();assert.equal(board.hidden,true);
+ await f.panel.search();f.ids['transit-alternatives'].children[0].click();f.ids['transit-close'].click();assert.equal(board.hidden,true);
+});
 
 test('later connections show dated departure and separate waiting on cards and the selected ETA bar',async()=>{
  const future={...route('future'),nextAvailable:true,departure:Date.parse('2026-10-23T06:57:00Z'),firstBoarding:Date.parse('2026-10-23T07:00:00Z'),arrival:Date.parse('2026-10-23T07:20:00Z'),durationMillis:23*60000,waitingMillis:86400000};const f=fixture({compute:async()=>result([future])});

@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {createServer} from 'node:net';import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {request as httpRequest} from 'node:http';
 test('transit HTTP validates origin, JSON, host and credential-free errors without leaking implementation faults',async t=>{
  const reservation=createServer();await new Promise(resolve=>reservation.listen(0,'127.0.0.1',resolve));const port=reservation.address().port;await new Promise(resolve=>reservation.close(resolve));
  const child=spawn(process.execPath,['scripts/serve.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),DATA_API_KEY:'',CODEX_BRIDGE_URL:''},stdio:['ignore','pipe','pipe'],windowsHide:true});t.after(()=>child.kill());
@@ -10,4 +11,12 @@ test('transit HTTP validates origin, JSON, host and credential-free errors witho
  const json=await fetch(base+'/api/transit/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:'not-json'});assert.equal(json.status,400);
  const live=await fetch(base+'/api/transit/live',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin:{latitude:52.2,longitude:21},destination:{latitude:52.25,longitude:21.02}})});assert.equal(live.status,200);const snapshot=await live.json();assert.equal(snapshot.liveModel.persistentGpsHistory,false);assert.equal(snapshot.liveModel.continuous,false);assert.deepEqual(snapshot.vehicles,[]);
  const module=await fetch(base+'/transit-core.mjs');assert.equal(module.status,200);assert.match(module.headers.get('content-type'),/javascript/);
+ const boardModule=await fetch(base+'/departure-board.mjs');assert.equal(boardModule.status,200);
+ const postBoard=(body,headers={})=>fetch(base+'/api/transit/board',{method:'POST',headers:{'Content-Type':'application/json',...headers},body});
+ assert.equal((await postBoard('{}',{Origin:'https://example.com'})).status,403);
+ assert.equal((await postBoard('{}',{'Content-Type':'text/plain'})).status,415);
+ assert.equal((await postBoard('invalid-json')).status,400);
+ assert.equal((await postBoard('x'.repeat(5001))).status,413);
+ const rejectedHost=await new Promise((resolve,reject)=>{const req=httpRequest(base+'/api/transit/board',{method:'POST',headers:{Host:'untrusted.example','Content-Type':'application/json'}},res=>{res.resume();resolve(res.statusCode);});req.on('error',reject);req.end('{}');});assert.equal(rejectedHost,403);
+ const invalidBoard=await postBoard(JSON.stringify({fromStopId:'',toStopId:'C'}));assert.equal(invalidBoard.status,400);assert.equal((await invalidBoard.json()).code,'INVALID_STOP');
 });

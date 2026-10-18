@@ -17,6 +17,10 @@
     const rect = element.getBoundingClientRect?.();
     const sheet = document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
     if (rect && sheet) bottom = Math.max(bottom, rect.bottom - sheet.top + 24);
+    const board = document.querySelector?.('.departure-board:not([hidden])');
+    const boardRect = board?.dataset?.noRoom !== 'true' ? board?.getBoundingClientRect?.() : null;
+    // Keep the fitted journey above the small board when the viewport has room.
+    if (rect && boardRect?.height > 0 && boardRect.top - rect.top - top >= 96) bottom = Math.max(bottom, rect.bottom - boardRect.top + 12);
     return { top, bottom, left: 24, right: 24 };
   }
 
@@ -37,7 +41,7 @@
       clearTimeout(timer);
       timer = setTimeout(fit, 80);
     });
-    for (const target of [element, document.querySelector?.('#ai-sheet'), document.querySelector?.('#environment-bar')]) if (target) observer.observe(target);
+    for (const target of [element, document.querySelector?.('#ai-sheet'), document.querySelector?.('#environment-bar'), document.querySelector?.('.departure-board')]) if (target) observer.observe(target);
   }
   function canFitRoute(element, padding) { return !(element.clientHeight > 0) || element.clientHeight - padding.top - padding.bottom >= 64; }
   function touristCloudPadding(element, padding, details) {

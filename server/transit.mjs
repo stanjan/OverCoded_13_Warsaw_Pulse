@@ -4,6 +4,7 @@ import {planPedestrianGraph,createWalkingVerification,planDirectWalk,mergeRouteO
 import {nextAvailableTransit} from './next-transit.mjs';
 import {getGtfsGraph} from './transit-gtfs.mjs';
 import {createDelayModel} from './transit-live.mjs';
+import {boardRequest,departureBoard} from './departure-board.mjs';
 export const TRANSIT_SOURCES={
  stops:{action:'get_ztm_przystanki_komunikacji_miejskiej',id:'009fce84-0024-431a-aa5e-9515c539899e',ttl:21600000},
  lines:{action:'get_ztm_lista_linii_na_przystanku',id:'8eb065b6-f3a0-41d4-a842-732c6c1c3063',ttl:900000},
@@ -44,8 +45,9 @@ export function withVehicleDirections(vehicles,graph,deltas,now=Date.now()) {
   return {...vehicle,direction:confirmed?matches[0].headsign:null,directionSource:confirmed?'confirmed_gtfs_trip':null,directionTripId:confirmed?matches[0].id:null};
  });
 }
-export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout,walkingProvider}={}) {
- const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),activeBindings=new Set(),lineBindings=new Map(),delayModel=createDelayModel({now,tripEvidence});
+export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_API_KEY,now=()=>Date.now(),graphProvider=getGtfsGraph,timeoutMs=8000,cacheLimit=300,setTimeoutImpl=setTimeout,clearTimeoutImpl=clearTimeout,walkingProvider,delayModel:injectedDelayModel}={}) {
+ const cache=new Map(),bindingCache=new Map(),bindingQueue=new Map(),activeBindings=new Set(),lineBindings=new Map(),delayModel=injectedDelayModel||createDelayModel({now,tripEvidence});
+ const boardGraphs=new Map();
  let municipalStops=[],stopBridge=new Map();
  let modelGraph,pollTimer,pollPromise,bindingPromise,trackingController,graphGeneration=0,tracking=false;
  const evidenceStats={requests:0,failures:0,lastSuccessAt:null,lastFailureAt:null,lastFailureCode:null};
@@ -123,6 +125,19 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   const nearby=withVehicleDirections(latestSnapshot.vehicles,modelGraph,delayModel.getDeltas(),now()).map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent',distanceMeters:Math.round(Math.min(distanceMeters(vehicle,origin),distanceMeters(vehicle,destination)))};}).filter(vehicle=>vehicle.distanceMeters<=2000&&vehicle.freshness==='recent').sort((a,b)=>a.distanceMeters-b.distanceMeters);
   return{vehicles:nearby.slice(0,40),vehicleCount:nearby.length,vehicleProvided:Math.min(40,nearby.length),liveModel:liveSummary(),errors:latestSnapshot.errors};
  }
+ async function board(input,{signal}={}){
+  // A dated GTFS graph already includes yesterday's overnight service and the
+  // next day's first four hours, covering this two-hour board across midnight.
+  signal?.throwIfAborted();const instant=now(),request=boardRequest(input,instant),days=[request.start];
+  const graphs=[];
+  for(const time of days){
+   const day=dateInWarsaw(time);let graph=modelGraph?.serviceDay===day?modelGraph:null;
+   const cached=boardGraphs.get(day);if(!graph&&cached?.until>instant)graph=cached.graph;
+   if(!graph){graph=await graphProvider(time,{signal});signal?.throwIfAborted();if(!graph)throw new TransitError('GTFS_UNAVAILABLE','Datowany rozkład ZTM jest chwilowo niedostępny.');validateGraph(graph);boardGraphs.set(day,{graph,until:instant+300000});while(boardGraphs.size>2)boardGraphs.delete(boardGraphs.keys().next().value);}
+   graphs.push(graph);
+  }
+  signal?.throwIfAborted();return departureBoard(graphs,request,{now:instant,deltas:delayModel.getDeltas(),signal});
+ }
 
  async function api(name,args,signal) {
   signal?.throwIfAborted();const spec=TRANSIT_SOURCES[name],cacheKey=name+JSON.stringify(args||{}),cached=cache.get(cacheKey);
@@ -179,6 +194,6 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   return{status:routes.length?'ready':'limited',mode,routes,reason,nextSearch,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.',routes.length?'Czasy dojść uwzględniają ścieżki OpenStreetMap / Valhalla; ostatnie metry do punktów i tempo marszu pozostają szacunkowe. Wyszukiwanie ma ograniczony zakres przystanków, przesiadek i sprawdzanych przejść.':'Przejścia piesze nie zostały potwierdzone w żadnej zwróconej trasie; wyszukiwanie ogranicza zakres przystanków, przesiadek i sprawdzanych przejść.']};
  }
 
- return{searchStops,plan,startTracking,liveSnapshot,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
+ return{searchStops,plan,startTracking,liveSnapshot,board,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();boardGraphs.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
 }
 export const transitService=createTransitService();
