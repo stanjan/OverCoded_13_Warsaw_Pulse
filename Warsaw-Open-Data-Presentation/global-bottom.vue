@@ -36,14 +36,15 @@ const fallback: Group[] = [[flip(base), right, EDGE], [base, SIDE, bottom]]
 const layouts: Record<number, Group[]> = {
   1: [[base, right, bottom], [flip(mirror(base)), SIDE, EDGE]], // tytuł
   2: [[flip(base), right, EDGE], [base, SIDE, bottom]], // problem
-  3: [[base, right, bottom], [flip(mirror(base)), right, EDGE]], // rozwiązanie
-  4: [[vertical(base), rightV, EDGE], [vertical(flip(base)), rightV, bottomV]], // demo 1: wydarzenia
-  5: [[vertical(flip(base)), rightV, EDGE], [vertical(base), rightV, bottomV]], // demo 2: dojazd
-  6: [[vertical(mirror(base)), rightV, EDGE], [vertical(flip(mirror(base))), rightV, bottomV]], // demo 3: ulubione
-  7: [[vertical(flip(base)), rightV, EDGE], [base, SIDE, bottom]], // demo na żywo
-  8: [[flip(base), right, EDGE - 6], [flip(mirror(base)), right - HW - GAP, EDGE - 6]], // otwarte dane
-  9: [[flip(base), right, EDGE], [base, SIDE, bottom + 16]], // jak to działa
-  10: [[mirror(base), SIDE, bottom], [flip(base), right, EDGE]], // podziękowanie
+  3: [[base, right, bottom], [flip(mirror(base)), SIDE, EDGE]], // dla kogo
+  4: [[base, right, bottom], [flip(mirror(base)), right, EDGE]], // rozwiązanie
+  5: [[vertical(base), rightV, EDGE], [vertical(flip(base)), rightV, bottomV]], // demo 1: wydarzenia
+  6: [[vertical(flip(base)), rightV, EDGE], [vertical(base), rightV, bottomV]], // demo 2: dojazd
+  7: [[vertical(mirror(base)), rightV, EDGE], [vertical(flip(mirror(base))), rightV, bottomV]], // demo 3: ulubione
+  8: [[vertical(flip(base)), rightV, EDGE], [base, SIDE, bottom]], // demo na żywo
+  9: [[flip(base), right, EDGE - 6], [flip(mirror(base)), right - HW - GAP, EDGE - 6]], // otwarte dane
+  10: [[flip(base), right, EDGE], [base, SIDE, bottom + 16]], // jak to działa
+  11: [[mirror(base), SIDE, bottom], [flip(base), right, EDGE]], // podziękowanie
 }
 
 const cells = computed(() => {
