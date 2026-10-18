@@ -107,6 +107,16 @@ export function mountFavorites({ doc, host, store }) {
   // Weakly held: map popups build their heart before they are attached and reattach it on every open,
   // so detached buttons must keep syncing until they are garbage-collected.
   const cardButtons = new Set(), weak = typeof WeakRef === 'function';
+  const motions = new WeakMap();
+  const motion = (node, frames, options) => {
+    motions.get(node)?.cancel();
+    if (host.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !node.animate) return null;
+    const animation = node.animate(frames, options); motions.set(node, animation);
+    animation.finished?.catch(() => {}); return animation;
+  };
+  const heartMotion = (button, saved) => motion(button.firstElementChild || button.children[0], saved ?
+    [{ transform: 'scale(1)' }, { transform: 'scale(.78)', offset: .18 }, { transform: 'scale(1.3) rotate(-9deg)', offset: .5 }, { transform: 'scale(.95) rotate(3deg)', offset: .78 }, { transform: 'scale(1)' }] :
+    [{ transform: 'scale(1)' }, { transform: 'scale(.8)', opacity: .5 }, { transform: 'scale(1)', opacity: 1 }], { duration: saved ? 480 : 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
   const trackButton = button => cardButtons.add(weak ? new WeakRef(button) : button);
   const syncButtons = () => { for (const ref of cardButtons) { const button = weak ? ref.deref() : ref; if (button) syncButton(button); else cardButtons.delete(ref); } };
   let removeButtons = new Map();
@@ -114,10 +124,15 @@ export function mountFavorites({ doc, host, store }) {
     const on = store.has(button.dataset.favoriteId), label = on ? 'Usuń z ulubionych' : 'Dodaj do ulubionych';
     button.setAttribute('aria-pressed', String(on)); button.setAttribute('aria-label', label); button.title = label;
   };
+  let opened = false, panelVersion = 0;
   const closePanel = (restoreFocus = true) => {
-    if (panel.hidden) return;
-    panel.hidden = true; trigger.setAttribute('aria-expanded', 'false');
+    if (!opened) return;
+    opened = false; const version = ++panelVersion;
+    panel.inert = true; panel.dataset.closing = 'true'; trigger.setAttribute('aria-expanded', 'false');
     if (restoreFocus) trigger.focus();
+    const finish = () => { if (version === panelVersion) { panel.hidden = true; panel.inert = false; delete panel.dataset.closing; } };
+    const animation = motion(panel, [{ opacity: 1, transform: 'translateY(0) scale(1)' }, { opacity: 0, transform: 'translateY(-7px) scale(.97)' }], { duration: 160, easing: 'cubic-bezier(.4,0,1,1)', fill: 'both' });
+    if (animation?.finished) animation.finished.then(finish, () => {}); else finish();
   };
   const action = (className, iconName, label, onClick, visibleText) => {
     const button = el('button', className); button.type = 'button'; button.append(icon(iconName));
@@ -155,8 +170,13 @@ export function mountFavorites({ doc, host, store }) {
     removeButtons = new Map(); list.replaceChildren(...items.map(entry));
     syncButtons();
   };
-  const open = () => { render(); panel.hidden = false; trigger.setAttribute('aria-expanded', 'true'); close.focus(); };
-  trigger.addEventListener('click', () => panel.hidden ? open() : closePanel());
+  const open = () => {
+    ++panelVersion; opened = true; render(); panel.hidden = false; panel.inert = false; delete panel.dataset.closing;
+    trigger.setAttribute('aria-expanded', 'true'); close.focus();
+    motion(panel, [{ opacity: 0, transform: 'translateY(-10px) scale(.95)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 280, easing: 'cubic-bezier(.16,1,.3,1)' });
+    [...list.children].slice(0, 10).forEach((row, index) => motion(row, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 240, delay: 35 + index * 24, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }));
+  };
+  trigger.addEventListener('click', () => opened ? closePanel() : open());
   close.addEventListener('click', () => closePanel());
   const onKey = event => { if (event.key === 'Escape' && !panel.hidden) { event.stopPropagation(); closePanel(); } };
   panel.addEventListener('keydown', onKey); trigger.addEventListener('keydown', onKey);
@@ -186,7 +206,10 @@ export function mountFavorites({ doc, host, store }) {
       if (!id || !favoriteSnapshot(place)) return null;
       const button = el('button', 'rec-card__favorite'); button.type = 'button'; button.dataset.favoriteId = id;
       button.append(icon('favorite'));
-      button.addEventListener('click', event => { event?.stopPropagation?.(); store.toggle(place); });
+      button.addEventListener('click', event => {
+        event?.stopPropagation?.(); const wasSaved = store.has(id); store.toggle(place); const saved = store.has(id);
+        if (saved !== wasSaved) { heartMotion(button, saved); if (saved) { heartMotion(trigger, true); motion(badge, [{ transform: 'scale(.65)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' }); } }
+      });
       syncButton(button); trackButton(button);
       return button;
     },

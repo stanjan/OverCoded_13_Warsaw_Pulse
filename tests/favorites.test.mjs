@@ -84,8 +84,24 @@ function fixture(storage = memoryStorage()) {
   const host = { addEventListener: (key, handler) => { events[key] = handler; }, dispatchEvent: event => dispatched.push(event), getCityMap: () => ({}), focusCityPlace: item => focusedPlaces.push(item) };
   const store = createFavoritesStore({ storage });
   const ui = mountFavorites({ doc, host, store });
-  return { shell, events, dispatched, focusedPlaces, store, ui, storage };
+  return { shell, events, dispatched, focusedPlaces, store, ui, storage, host };
 }
+
+test('animated close cannot hide a reopened panel and closing immediately disables interaction', async () => {
+  const {ui} = fixture(), animations = [];
+  ui.panel.animate = () => { let resolve, reject; const finished = new Promise((yes, no) => { resolve = yes; reject = no; }); const animation = {finished, resolve, cancel(){reject(new Error('cancelled'));}}; animations.push(animation); return animation; };
+  ui.open(); ui.close(); assert.equal(ui.panel.hidden, false); assert.equal(ui.panel.inert, true); assert.equal(ui.trigger.attributes['aria-expanded'], 'false');
+  const closing = animations.at(-1); ui.trigger.click(); closing.resolve(); await Promise.resolve();
+  assert.equal(ui.panel.hidden, false); assert.equal(ui.panel.inert, false); assert.equal(ui.trigger.attributes['aria-expanded'], 'true');
+  ui.close(); animations.at(-1).resolve(); await Promise.resolve(); assert.equal(ui.panel.hidden, true); assert.equal(focused, ui.trigger);
+});
+
+test('reduced motion skips panel and heart animations while saving and focus still work', () => {
+  const {ui,host,store} = fixture(); host.matchMedia = () => ({matches:true});
+  ui.panel.animate = () => { throw new Error('reduced motion must not animate'); };
+  const heart=ui.button(place('motion')); heart.children[0].animate=ui.panel.animate;
+  heart.click(); assert.equal(store.has('motion'),true); ui.open(); ui.close(); assert.equal(ui.panel.hidden,true); assert.equal(focused,ui.trigger);
+});
 
 test('card hearts, badge and panel stay in sync; panel actions map, route and remove', () => {
   const f = fixture(), { ui, store } = f;

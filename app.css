@@ -453,7 +453,7 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .result-bubble[data-tourism='true'].result-bubble--recommended .result-pin{outline:2px solid #bdb0a5;outline-offset:2px}
 
 /* Favourites: heart on place cards, top-right list button (below the weather bar on phones) and its panel. */
-.rec-card__favorite { flex: none; width: 44px; height: 44px; display: grid; place-items: center; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: #f3ece4; color: #3a2a22; cursor: pointer; }
+.rec-card__favorite { flex: none; width: 44px; height: 44px; display: grid; place-items: center; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: #f3ece4; color: #3a2a22; cursor: pointer; transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease; }
 .rec-card__actions .rec-card__transit + .rec-card__favorite, .rec-card__actions .rec-card__map + .rec-card__favorite { margin-left: 0; }
 .rec-card__favorite:hover { background: #ead9cc; }
 .rec-card__favorite[aria-pressed='true'] { background: #fce7f3; color: #be185d; }
@@ -466,6 +466,10 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .favorites-trigger__badge[hidden] { display: none; }
 .favorites-panel { position: absolute; z-index: 45; right: 12px; top: calc(var(--favorites-top, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 72px)) + 52px); width: min(340px, calc(100% - 24px)); max-height: min(60dvh, 520px); box-sizing: border-box; display: flex; flex-direction: column; padding: 14px; border: 1px solid #efe6dc; border-radius: 22px; background: #fffdf9; color: #1f1a17; box-shadow: 0 16px 40px -8px #09142640; overflow-y: auto; overscroll-behavior: contain; }
 .favorites-panel[hidden] { display: none; }
+.favorites-panel { transform-origin: top right; }
+.favorites-panel[data-closing='true'] { pointer-events: none; }
+.favorites-trigger, .rec-card__favorite { -webkit-tap-highlight-color: transparent; }
+.favorites-trigger:active, .rec-card__favorite:active { box-shadow: 0 0 0 4px #be185d12; }
 .favorites-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .favorites-panel__head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
 .favorites-panel__close { width: 44px; height: 44px; display: grid; place-items: center; margin: -8px -8px -8px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #3a2a22; cursor: pointer; }
