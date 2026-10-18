@@ -79,7 +79,9 @@ function toggle() {
   width: 226px;
   height: 490px;
   border-radius: 29px;
-  overflow: hidden;
+  /* Clipping must not create a scroll container: app scrollIntoView() can
+     otherwise scroll the larger, scaled iframe out of the phone screen. */
+  overflow: clip;
   background: #fff;
 }
 
