@@ -11,9 +11,9 @@ export const mcpTools = [
  {name:'search_addresses',description:'Znajdź numer budynku w Warszawie w oficjalnym GUGiK. Podaj ulicę i numer osobno, bez wymyślania współrzędnych. Zwraca zweryfikowane identyfikatory do plan_transit. exact_match pozwala użyć addressId; clarification_required wymaga pytania do użytkownika. Przybliżone ulice/numery nie są celem trasy: po potwierdzeniu użytkownika wyszukaj wskazany adres ponownie. Wyniki nie zastępują wydarzeń ani miejsc.',inputSchema:schema({street:{type:'string',maxLength:120},number:{type:'string',maxLength:20},city:{type:'string',enum:['Warszawa']}},['street','number'])},
  {name:'plan_transit',description:'Otwórz planowanie trasy w przeglądarce. mode=walk oznacza tylko pieszo, auto (domyślnie) porównuje pieszo i komunikację oraz poleca wcześniejszy przyjazd, transit oznacza wyraźne „tylko komunikacją”, z wykluczeniem alternatywy pieszej; zwykłe prośby o dojazd zachowują auto. Trasy piesze: do 6 km w linii prostej, wyłącznie potwierdzone ścieżki OSM/Valhalla. Cel: dokładnie jedno z destinationAddressId (dokładny wynik search_addresses), destinationId (zweryfikowane miejsce), destinationQuery (konkretny przystanek), destinationCoordinates. Start: opcjonalne originAddressId, originQuery (przystanek) lub originCoordinates; bez nich użyje ostatniej znanej lokalizacji GPS niezależnie od wieku i dokładności albo poprosi o start, gdy brak współrzędnych. Adresy najpierw sprawdź przez search_addresses. planning_requested NIE potwierdza trasy ani ETA; nie wymyślaj linii, czasu ani przystanków.',inputSchema:schema({destinationAddressId:{type:'string'},destinationId:{type:'string'},destinationQuery:{type:'string',maxLength:200},destinationCoordinates:transitPoint,originAddressId:{type:'string'},originQuery:{type:'string',maxLength:200},originCoordinates:transitPoint,mode:{type:'string',enum:['auto','walk','transit']},departureTime:{type:'string',maxLength:40}})},
  {name:'list_data_sources',description:'Opisz dostępne kategorie miejskich danych, wyszukiwanie adresów GUGiK i obsługiwane filtry, bez pobierania rekordów. Użyj dla pytań typu „jakie dane masz dostępne?”, „co możesz pokazać?” lub o możliwości aplikacji. Nie potwierdza aktualnej dostępności źródeł.',inputSchema:schema({})},
- {name:'search_places',description:'Pobierz WSZYSTKIE pasujące dane z miejskiego MCP. Kategorie: event wydarzenia, sports zajęcia, pitch boiska, route trasy, toilet toalety z miejskiego katalogu (także w budynkach dostępnych publicznie), aed defibrylatory AED. Filtry wyłącznie ze znanych preferencji rozmowy. Bez limitu wyników. complete=false oznacza niedostępne źródło, nigdy pusty katalog. Daty ISO YYYY-MM-DD: rekordy bez dat wykluczone; do cyklicznych zajęć użyj weekday. Otwarte boiska to nazwa zbioru. AED: openingHours, availability i publicAccess są deklaracjami źródła, nie statusem na żywo. Źródło AED nie podaje dzielnic; użyj bounds lub zapytania o adres/obiekt, nie zgaduj dzielnicy. Godziny toalet nie potwierdzają otwarcia teraz; paid/accessible/changingTable filtrują tylko potwierdzone cechy toalet.',inputSchema:schema(filtersSchema)},
+ {name:'search_places',description:'Pobierz WSZYSTKIE pasujące dane z miejskiego MCP. Przy potrzebach lub szukaniu pomysłu użyj alternatives, aby zebrać różne kategorie w jednej liście do display_results. Konkretne prośby obsługuj zwykłymi filtrami. Kategorie: event wydarzenia, sports zajęcia, pitch boiska, route trasy, toilet toalety z miejskiego katalogu (także w budynkach dostępnych publicznie), aed defibrylatory AED. Filtry wyłącznie ze znanych preferencji rozmowy. Bez limitu wyników. complete=false oznacza niedostępne źródło, nigdy pusty katalog. Daty ISO YYYY-MM-DD: rekordy bez dat wykluczone; do cyklicznych zajęć użyj weekday. Otwarte boiska to nazwa zbioru. AED: openingHours, availability i publicAccess są deklaracjami źródła, nie statusem na żywo. Źródło AED nie podaje dzielnic; użyj bounds lub zapytania o adres/obiekt, nie zgaduj dzielnicy. Godziny toalet nie potwierdzają otwarcia teraz; paid/accessible/changingTable filtrują tylko potwierdzone cechy toalet.',inputSchema:schema({...filtersSchema,alternatives:{type:'array',minItems:2,maxItems:3,items:schema(filtersSchema,['category']),description:'Inspiracje: 2–3 różne kategorie z osobnymi filtrami, np. route z maxLengthKm i event z dateFrom/dateTo. Nie łącz z filtrami najwyższego poziomu. Jedna świeża lista do wspólnego display_results; nie dokłada wyników poprzedniego pytania.'}})},
  {name:'filter_results',description:'Zawęź ostatnie wyniki na podstawie kontekstu rozmowy. Nie pobiera nowych danych. Brakujące cechy nie spełniają filtra.',inputSchema:schema(filtersSchema)},
- {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. Dla tras turystycznych route wybierz tylko JEDNĄ rekomendację według potrzeb rozmowy i danych źródłowych; krótko uzasadnij wybór. Wydarzenia nadal mogą mieć trzy. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
+ {name:'display_results',description:'Wyświetl WSZYSTKIE wybrane trafne rekordy z wyszukiwania i 1–3 najlepsze rekomendacje. W zestawie inspiracji rekomenduj różne kategorie, maksymalnie trzy łącznie. Limit JEDNEJ rekomendacji route dotyczy tylko kategorii tras turystycznych, nie całego mieszanego zestawu; krótko uzasadnij wybór. Wydarzenia nadal mogą mieć trzy. Przekaż identyfikatory; treści pochodzą wyłącznie z wyników MCP. highlightIds muszą należeć do ids. Następnie odpowiedz po polsku w 1–3 krótkich zdaniach.',inputSchema:schema({ids:{type:'array',items:{type:'string'}},highlightIds:{type:'array',items:{type:'string'},maxItems:3},title:{type:'string',maxLength:100}},['ids','highlightIds','title'])},
  {name:'focus_map',description:'Ustaw widok mapy; nie dodaje rekordów.',inputSchema:schema({latitude:{type:'number',minimum:-90,maximum:90},longitude:{type:'number',minimum:-180,maximum:180},zoom:{type:'integer',minimum:10,maximum:18}},['latitude','longitude','zoom'])},
 ];
 export function validate(value, rule) {
@@ -21,7 +21,7 @@ export function validate(value, rule) {
    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k=>!Object.hasOwn(rule.properties,k)) || (rule.required||[]).some(k=>!Object.hasOwn(value,k))) throw new Error('Nieprawidłowe parametry.');
    for (const [k,v] of Object.entries(value)) validate(v,rule.properties[k]);
  } else if (rule.type==='array') {
-   if (!Array.isArray(value) || value.length > (rule.maxItems??Infinity)) throw new Error('Nieprawidłowa lista.');
+   if (!Array.isArray(value) || value.length < (rule.minItems??0) || value.length > (rule.maxItems??Infinity)) throw new Error('Nieprawidłowa lista.');
    value.forEach(v=>validate(v,rule.items));
  } else if(rule.type==='string') {
    if(typeof value!=='string' || value.length>(rule.maxLength??500) || (rule.enum&&!rule.enum.includes(value))) throw new Error('Nieprawidłowy tekst.');
@@ -71,13 +71,30 @@ export async function runTool(name,args,state,provider=catalogProvider,addressPr
    filters:Object.keys(filtersSchema),
    limitations:['Opis skonfigurowanych źródeł; ich dostępność i liczba rekordów są sprawdzane dopiero podczas wyszukiwania.','Zajęcia sportowe mogą mieć dni tygodnia bez konkretnych dat.','Nazwa Otwarte boiska nie potwierdza, że obiekt jest teraz otwarty.','Toalety obejmują również budynki dostępne publicznie. Godziny, opłata, dostępność i przewijak są danymi źródłowymi, nie informacją na żywo; kwota opłaty nie jest podana.','Defibrylatory AED: opis dostępu, godziny i dostępność pochodzą ze źródła; nie potwierdzają stanu urządzenia ani dostępu teraz. Źródło nie podaje dzielnic ani czasu aktualizacji pojedynczego AED.','Nie wszystkie rekordy mają współrzędne; można pokazać je na liście bez pinezki.'],
  };
- if(name==='search_places'||name==='filter_results')validateFilters(args);
+ if(name==='search_places'&&args.alternatives){
+   if(Object.keys(args).length!==1||new Set(args.alternatives.map(filters=>filters.category)).size!==args.alternatives.length)throw new Error('Wskaż 2–3 różne kategorie z osobnymi filtrami.');
+   args.alternatives.forEach(validateFilters);
+ } else if(name==='search_places'||name==='filter_results')validateFilters(args);
  if(name==='search_places'){
    // Clear selection on failure so old results cannot masquerade as a fresh search.
    state.results=[];
    state.searchMeta={dataMode:'official',complete:false,total:0,errors:[{code:'SOURCE_UNAVAILABLE'}]};
-   const response=await provider.search(args);
-   const envelope=Array.isArray(response)?{results:response,total:response.length,complete:true,dataMode:'test',sources:[],errors:[]}:response;
+   const normalize=response=>Array.isArray(response)?{results:response,total:response.length,complete:true,dataMode:'test',sources:[],errors:[]}:response;
+   let envelope;
+   // A batch is one fresh search, never a union with previous-turn selections.
+   if(args.alternatives){
+     const searches=[],records=new Map();
+     for(const filters of args.alternatives){
+       let found;
+       try{found=normalize(await provider.search(filters));if(!found||!Array.isArray(found.results))throw new Error('Invalid source');}
+       catch{found={results:[],total:0,complete:false,dataMode:'official',sources:[],errors:[{category:filters.category,code:'SOURCE_UNAVAILABLE'}]};}
+       for(const record of found.results)records.set(record.id,record);
+       const {results,...meta}=found;searches.push({filters,...meta});
+     }
+     envelope={results:[...records.values()],total:records.size,complete:searches.every(search=>search.complete===true),
+       dataMode:searches.every(search=>search.dataMode==='test')?'test':'official',
+       sources:searches.flatMap(search=>search.sources||[]),errors:searches.flatMap(search=>search.errors||[]),searches};
+   }else envelope=normalize(await provider.search(args));
    if(!envelope||!Array.isArray(envelope.results))throw new Error('Nieprawidłowa odpowiedź źródła.');
    state.results=envelope.results;state.searchMeta={...envelope,results:undefined};
    return envelope;
@@ -96,7 +113,7 @@ export async function runTool(name,args,state,provider=catalogProvider,addressPr
    if(ids.some(id=>!byId.has(id)))throw new Error('Najpierw wyszukaj wskazane rekordy.');
    const results=ids.map(id=>byId.get(id));
    highlights=touristHighlightIds(results,highlights);
-   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[],...(state.searchMeta.audienceFilterMapping?{audienceFilterMapping:state.searchMeta.audienceFilterMapping}:{})};
+   const action={type:'display_results',title:args.title,results,highlightIds:highlights,highlights:highlights.map(id=>byId.get(id)),dataMode:state.searchMeta?.dataMode||'official',complete:state.searchMeta?.complete??true,errors:state.searchMeta?.errors||[],...(state.searchMeta.audienceFilterMapping?{audienceFilterMapping:state.searchMeta.audienceFilterMapping}:{}),...(state.searchMeta.searches?{searches:state.searchMeta.searches}:{})};
    state.actions.push(action);
    return {displayed:results.length,highlightIds:highlights,action};
  }
