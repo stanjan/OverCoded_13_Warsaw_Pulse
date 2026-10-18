@@ -149,19 +149,10 @@ Nagranie: public/demo-favorites.mp4.
 class: s s-demo
 ---
 
-<div class="demo">
-<div class="demo-text">
-<div class="eyebrow">Demo na żywo</div>
-<h1>A teraz prawdziwa strona.</h1>
-<!--<p class="addr"><span class="tbd">http://localhost:[PORT]</span></p>!-->
-</div>
-<PhoneFrame src="http://localhost:5173?safeTop=35&safeBottom=0" />
-</div>
+<LiveDemo />
 
 <!--
-[0:20] Pokaż żywą stronę tylko wtedy, gdy wszystko działa. Jeśli nic się nie ładuje po 5 sekundach, wróć do poprzedniego slajdu z nagraniem i nie próbuj naprawiać na scenie.
-Adres w slides.md: <PhoneFrame src="http://localhost:5173?safeTop=59&safeBottom=34" />. safeTop i safeBottom to odstępy (w px), które aplikacja zostawia na górze i na dole, jak na prawdziwym telefonie.
-Jeśli telefon jest pusty, strona może blokować osadzanie w ramce (nagłówki X-Frame-Options lub CSP frame-ancestors). Backendowiec to wyłączy dla tego adresu.
+[0:20] Kliknij jeden z sześciu kafelków. Pytanie trafia bezpośrednio do aplikacji w telefonie, a przyjęty kafelek podświetla się. Kolejne pytanie można wysłać po zakończeniu odpowiedzi. Prezentacja: http://localhost:3030 lub http://127.0.0.1:3030; aplikacja: http://localhost:5173. Kafelki podają dzielnicę, więc nie potrzebują zgody na GPS. Ręcznie wpisany tekst w telefonie ma pierwszeństwo; usuń szkic przed kliknięciem kafelka. Po przeładowaniu ramki połączenie odtwarza się samo, ale poprzednie pytanie nie jest wysyłane ponownie.
 -->
 
 ---

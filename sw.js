@@ -1,7 +1,7 @@
 // Service worker: network-first for the app shell so updates show immediately, cached copy when offline.
 // API calls (/api/*) and cross-origin requests (map tiles, CDNs) are never intercepted.
 const CACHE = 'warszawa-pulse-v2';
-const SHELL = ['/', '/index.html', '/app.css', '/map.js', '/app.js', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg', '/transit-ui.mjs', '/transit-core.mjs', '/departure-board.mjs', '/favorites.mjs', '/manifest.webmanifest', '/icons/icon-192.png'];
+const SHELL = ['/', '/index.html', '/app.css', '/map.js', '/app.js', '/presentation-receiver.mjs', '/environment.js', '/loading.js', '/loading.css', '/map-loading.jpg', '/transit-ui.mjs', '/transit-core.mjs', '/departure-board.mjs', '/favorites.mjs', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

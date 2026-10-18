@@ -94,7 +94,7 @@ async function browserLocation() {
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return clock; } }
   const node = () => ({ textContent: '', disabled: false, className: '', dataset: {}, classList: { add() {} }, setAttribute() {}, removeAttribute() {}, append() {}, replaceChildren() {}, remove() {}, addEventListener(type, listener) { this[type] = listener; }, removeEventListener() {} });
   const win = { dispatchEvent: event => events.push(event), addEventListener(type, listener) { listeners[type] = listener; } };
-  const context = { window: win, CustomEvent: class { constructor(type, options = {}) { this.type = type; this.detail = options.detail; } },
+  const context = { window: win, presentationDemo: false, CustomEvent: class { constructor(type, options = {}) { this.type = type; this.detail = options.detail; } },
     navigator: { permissions: { query: async () => permission }, geolocation: {
       watchPosition(success, error, options) { watches.push({ success, error, options }); return watches.length; }, clearWatch() {},
       getCurrentPosition(success, error, options) { acquisitions.push({ success, error, options }); }

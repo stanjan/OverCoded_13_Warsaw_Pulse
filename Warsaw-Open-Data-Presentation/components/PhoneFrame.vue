@@ -9,6 +9,9 @@ const props = defineProps<{ src?: string; video?: string }>()
 
 const failed = ref(false)
 const player = ref<HTMLVideoElement | null>(null)
+const frame = ref<HTMLIFrameElement | null>(null)
+defineExpose({ frame })
+const emit = defineEmits<{ load: [] }>()
 
 // Nagranie startuje od początku, gdy slajd się pojawia, i zatrzymuje po wyjściu ze slajdu.
 const active = useIsSlideActive()
@@ -33,7 +36,7 @@ function toggle() {
   <div class="phone">
     <div class="screen">
       <template v-if="props.src">
-        <iframe :src="props.src" title="Demo strony" allow="geolocation" />
+        <iframe ref="frame" :src="props.src" title="Demo strony" allow="geolocation" @load="emit('load')" />
         <div class="island" />
       </template>
       <template v-else-if="props.video">
