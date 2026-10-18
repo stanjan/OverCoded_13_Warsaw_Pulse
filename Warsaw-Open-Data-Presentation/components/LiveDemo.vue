@@ -17,7 +17,12 @@ onBeforeUnmount(() => controller?.stop())
 <template>
   <div class="demo live-demo">
     <div class="demo-text">
-      <div class="eyebrow">Demo na żywo</div>
+      <div class="demo-heading">
+        <div class="eyebrow">Demo na żywo</div>
+        <p class="connection" role="status" :class="{ error: state.error }">
+          {{ state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? 'Kliknij propozycję' : 'Łączę z aplikacją…') }}
+        </p>
+      </div>
       <h1>A teraz prawdziwa strona.</h1>
       <div class="prompt-grid" aria-label="Wyślij pytanie do aplikacji">
         <button v-for="tile in demoPrompts" :key="tile.id" type="button"
@@ -30,9 +35,6 @@ onBeforeUnmount(() => controller?.stop())
           <span class="tile-prompt">{{ tile.prompt }}</span>
         </button>
       </div>
-      <p class="connection" role="status" :class="{ error: state.error }">
-        {{ state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? 'Kliknij propozycję' : 'Łączę z aplikacją…') }}
-      </p>
     </div>
     <PhoneFrame ref="phone" :src="`${appOrigin}/?safeTop=35&safeBottom=0&presentationDemo=1`" @load="controller?.reset()" />
   </div>
@@ -40,6 +42,8 @@ onBeforeUnmount(() => controller?.stop())
 
 <style scoped>
 .live-demo .demo-text { gap: 12px; }
+.demo-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.demo-heading .eyebrow { flex: none; }
 .live-demo h1 { font-size: 2.15rem; line-height: 1.08; }
 .prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 5px; }
 .prompt-grid button { position: relative; display: grid; grid-template-columns: 25px 1fr; gap: 5px 8px; align-content: start; min-height: 105px; padding: 12px; border: 1px solid #2b3865; border-radius: 12px; background: #0a1438; color: #fff; text-align: left; font: inherit; cursor: pointer; transition: background .2s, border-color .2s, color .2s, transform .2s, box-shadow .2s; }
@@ -53,7 +57,7 @@ onBeforeUnmount(() => controller?.stop())
 .tile-prompt { grid-column: 1 / -1; font-size: 10.5px; line-height: 1.35; color: #dce2f5; }
 .selected .tile-prompt { color: #172337; }
 .sending::after { content: ''; position: absolute; width: 5px; height: 5px; right: 9px; top: 9px; background: currentColor; border-radius: 50%; animation: demo-pulse 1s ease-in-out infinite; }
-.live-demo .connection { font-size: 11px; line-height: 1.3; color: #aab8df; min-height: 15px; }
+.live-demo .connection { font-size: 11px; line-height: 1.3; color: #aab8df; min-height: 15px; text-align: right; }
 .live-demo .connection.error { color: #ffd7b2; }
 @keyframes demo-pulse { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .prompt-grid button { transition: none; } .sending::after { animation: none; } }
