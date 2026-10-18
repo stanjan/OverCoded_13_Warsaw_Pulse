@@ -62,17 +62,17 @@ test('a late route response cannot restore previous data after a new conversatio
  assert.equal(f.ids['transit-panel'].hidden,true);assert.equal(f.panel.getState().routeCount,0);
  assert.equal(f.calls.filter(c=>c[0]==='route').length,0);assert.equal(f.ids['environment-bar'].dataset.route,'false');
 });
-test('route search shows a decorative loading skeleton that disappears on results and on Przerwij',async()=>{
+test('route search hides the cancel button and removes skeletons on results or a new question',async()=>{
  const skeleton=node=>node.querySelectorAll('*').filter(child=>child.className==='transit-skeleton');
  let resolve;const f=fixture({compute:()=>new Promise(done=>resolve=done)}),alternatives=f.ids['transit-alternatives'],status=f.ids['transit-status'];
  f.ids['transit-origin'].value='Start';f.ids['transit-destination'].value='Cel';const pending=f.panel.search();
  assert.equal(f.panel.getState().status,'loading');assert.equal(status.dataset.state,'loading');assert.match(status.textContent,/Porównuję dostępne trasy/);
- assert.equal(alternatives.attributes['aria-busy'],'true');assert.equal(alternatives.children.length,1);assert.equal(alternatives.children[0].attributes['aria-hidden'],'true');assert.equal(skeleton(alternatives).length,2);assert.equal(f.ids['transit-cancel'].hidden,false);
+ assert.equal(alternatives.attributes['aria-busy'],'true');assert.equal(alternatives.children.length,1);assert.equal(alternatives.children[0].attributes['aria-hidden'],'true');assert.equal(skeleton(alternatives).length,2);assert.equal(f.ids['transit-cancel'].hidden,true);
  resolve(result([route('done')]));await pending;
  assert.equal(f.panel.getState().status,'ready');assert.equal(skeleton(alternatives).length,0);assert.equal(alternatives.attributes['aria-busy'],'false');assert.equal(status.dataset.state,'info');
- const again=f.panel.search();assert.equal(skeleton(alternatives).length,2);f.ids['transit-cancel'].click();
- assert.equal(f.panel.getState().status,'cancelled');assert.equal(skeleton(alternatives).length,0);assert.equal(alternatives.attributes['aria-busy'],'false');assert.equal(status.dataset.state,'info');assert.equal(f.ids['transit-cancel'].hidden,true);
- resolve(result([route('late')]));await again;assert.equal(f.panel.getState().status,'cancelled');
+ const again=f.panel.search();assert.equal(skeleton(alternatives).length,2);f.events['city:query']();
+ assert.equal(f.panel.getState().status,'idle');assert.equal(skeleton(alternatives).length,0);assert.equal(alternatives.attributes['aria-busy'],'false');assert.equal(status.dataset.state,'info');assert.equal(f.ids['transit-cancel'].hidden,true);
+ resolve(result([route('late')]));await again;assert.equal(f.panel.getState().status,'idle');
 });
 test('Transit panel opens with no invented origin and validates missing start before provider calls',async()=>{
  let count=0;const f=fixture({compute:async()=>{count++;return result([]);}});f.panel.open({destination:{latitude:52.2,longitude:21,label:'Cel'}});assert.equal(f.ids['transit-origin'].focused,true);assert.equal(f.ids['transit-destination'].value,'Cel');assert.equal(f.shell.dataset.section,undefined);assert.ok(f.ids['chat-messages'].children.includes(f.ids['transit-panel']));await f.panel.search();assert.equal(count,0);assert.match(f.ids['transit-status'].textContent,/startowy/);

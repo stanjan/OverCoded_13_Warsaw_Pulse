@@ -81,7 +81,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 #gps-button[data-state="active"] { color: #0051d5; }
 #gps-button[data-state="denied"] { color: #ba1a1a; }
 
-.stream-message { display: flex; flex-direction: column; gap: 8px; min-width: min(240px, 80%); }
+.stream-message { display: flex; flex-direction: column; gap: 8px; min-width: 0; width: fit-content; transform-origin: top left; }
 .assistant-progress { color: #52616e; font-size: 12px; line-height: 1.4; }
 .assistant-answer:empty { display: none; }
 .message-error .assistant-progress { color: #690005; }
@@ -313,7 +313,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 .transit-editor > summary::before, .transit-details > summary::before { content: '+'; font-size: 15px; }
 .transit-editor[open] > summary::before, .transit-details[open] > summary::before { content: '−'; }
 .transit-editor > summary::-webkit-details-marker, .transit-details > summary::-webkit-details-marker { display: none; }
-.transit-alternatives { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; padding: 5px 3px 12px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+.transit-alternatives { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; padding: 5px 3px 8px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.transit-alternatives::-webkit-scrollbar { display: none; }
 .transit-alternative { flex: 0 0 min(258px, 83%); width: auto; min-width: 0; margin: 0; padding: 13px; border: 1.5px solid #d6dce0; border-radius: 18px; scroll-snap-align: start; transition: background .2s, border-color .2s, box-shadow .2s; }
 .transit-alternative[aria-pressed='true'] { border: 1.5px solid #8a5e78; background: #fbf1f7; box-shadow: 0 0 0 1px #8a5e7833; }
 .transit-alternative > strong { font-size: 23px; letter-spacing: -.8px; color: #263442; }
