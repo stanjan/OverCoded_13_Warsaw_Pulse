@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { bridgeNetworkConfig, bridgeRequestAccess, isLoopback } from './network.mjs';
 import https from 'node:https';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
@@ -13,7 +14,8 @@ import { openCompletionStream } from './completion-stream.mjs';
 import { resolveRequestModel } from './model-routing.mjs';
 import { isClaudeCliModel, claudeCliSelection, claudeCliModels, executeClaudeCli, claudeCliHealth } from './claude-cli.mjs';
 
-const HOST = '127.0.0.1';
+const network = bridgeNetworkConfig();
+const HOST = network.host;
 const PORT = Number.parseInt(process.env.CODEX_BRIDGE_PORT ?? '8780', 10);
 const MODEL_ID = 'codex-chatgpt';
 const MAX_RUN_BODY_BYTES = 128 * 1024;
@@ -1289,39 +1291,20 @@ async function forwardAntigravityChat(payload, response, signal) {
 }
 
 async function requestHandler(request, response) {
-  const remote = request.socket.remoteAddress;
-  if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
-    sendJson(response, 403, { ok: false, error: 'Loopback access only' });
-    return;
+  const denied = bridgeRequestAccess(request, network);
+  if (denied) { sendJson(response, denied.status, { ok: false, error: denied.error }); return; }
+  let url;
+  try {
+    if (!request.url?.startsWith('/') || request.url.startsWith('//')) throw new Error('Invalid request target');
+    url = new URL(request.url, `http://${HOST}:${PORT}`);
+  } catch { sendJson(response, 400, { ok: false, error: 'Invalid request target.' }); return; }
+  // Legacy execution can modify a workspace and is never available over LAN.
+  if (!isLoopback(request.socket.remoteAddress) && url.pathname === '/v1/run') {
+    sendJson(response, 403, { ok: false, error: 'Legacy execution is loopback-only.' }); return;
   }
+  if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
 
-  let hostname;
-  try { hostname = new URL(`http://${request.headers.host || ''}`).hostname; } catch {}
-  if (!['127.0.0.1', 'localhost', '[::1]'].includes(hostname)) {
-    sendJson(response, 403, { ok: false, error: 'A loopback Host header is required.' });
-    return;
-  }
 
-  // App traffic comes from its Node backend. Do not let arbitrary web pages
-  // invoke a local agent (especially /v1/run, which can write a workspace).
-  if (request.headers.origin) {
-    sendJson(response, 403, { ok: false, error: 'Use the application backend to access the bridge; browser-origin requests are disabled.' });
-    return;
-  }
-
-  if (request.method === 'OPTIONS') {
-    response.writeHead(204, {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': '*',
-      'access-control-allow-methods': 'GET, POST, OPTIONS',
-      'access-control-allow-private-network': 'true',
-      'access-control-max-age': '86400',
-    });
-    response.end();
-    return;
-  }
-
-  const url = new URL(request.url ?? '/', `http://${HOST}:${PORT}`);
   if (request.method === 'GET' && url.pathname === '/') {
     sendJson(response, 200, {
       ok: true,

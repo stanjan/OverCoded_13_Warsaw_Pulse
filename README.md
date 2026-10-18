@@ -32,6 +32,22 @@ The app includes an assistant backend at `POST /api/chat` and an interactive Goo
 
 The bridge source is included in `bridge/`. From the repository root, run `npm run bridge:start` (or `node --env-file-if-exists=.env bridge/server.mjs`) in one terminal and `npm run dev` in another. Both use the ignored local `.env`; copy `.env.example` first if needed. Requires Node.js 24+. The previously installed global `codex-bridge` command points at a separate installation; use the repository script for this version. If port 8780 is occupied, stop that bridge first or set `CODEX_BRIDGE_PORT` and update `CODEX_BRIDGE_URL` to match. Startup never kills another listener.
 
+### Bridge on a second LAN computer
+
+On the **bridge computer** (with its signed-in Codex/Antigravity/Claude CLI), set in its local ignored `.env`:
+
+```dotenv
+CODEX_BRIDGE_HOST=0.0.0.0
+CODEX_BRIDGE_PORT=8780
+CODEX_BRIDGE_API_KEY=
+```
+
+Run `npm run bridge:start` there. On the **application server computer**, set `CODEX_BRIDGE_URL=http://192.168.1.50:8780/v1` (replace the example IP with the bridge computer's private IPv4), leave `CODEX_BRIDGE_API_KEY=` blank, and restart `npm run dev`. The application can still listen on localhost; only its backend talks to the bridge. No presentation changes are needed.
+
+Check `http://192.168.1.50:8780/health` from the server computer (for example `curl.exe http://192.168.1.50:8780/health`). If unreachable, check that both computers share the LAN and allow inbound TCP 8780 on the bridge computer's **Private** firewall profile, restricted to the application server IP. Do not open an Internet/router port or the Public profile. Nothing changes the firewall automatically.
+
+This explicit LAN mode works **without a key** and trusts private-network peers; HTTP is unencrypted. Optional: set the same `CODEX_BRIDGE_API_KEY` on both computers and/or `CODEX_BRIDGE_ALLOWED_CLIENTS=192.168.1.20` on the bridge to restrict the exact app-server IP. When a key is configured, even health requests require `Authorization: Bearer …`. For a specific interface, replace `0.0.0.0` with the bridge computer's private IP. Existing bridge HTTPS remains supported with a valid trusted certificate; certificate verification is never disabled. Browser-origin requests, public peers/Host names and public destination URLs are rejected; legacy `/v1/run` stays loopback-only. Restart both processes after changing their configuration.
+
 Leave `CODEX_BRIDGE_MODEL` blank to choose an available provider in this order: **Antigravity → Codex → Claude CLI**. Antigravity and Claude use their CLI's default model; Codex uses **gpt-6.1-sol, low effort**. Discovery checks the Antigravity daemon or CLI, Codex ChatGPT login, then Claude subscription authentication. Results are cached for 30 seconds. An explicit model selects that provider directly; failures never retry inference on a different provider.
 
 To use a Claude subscription, install current [Claude Code](https://code.claude.com/docs/en/setup), run `claude`, and sign in with the subscription account. Set `CODEX_BRIDGE_MODEL=claude-cli/default` to preserve the CLI default, or choose `claude-cli/sonnet`, `claude-cli/opus`, `claude-cli/haiku`, or `claude-cli/<Claude model ID>`. Restart the app after changing its model. If the executable is not on PATH, set `CLAUDE_CLI_PATH` to the native executable or CLI JavaScript entry point. Windows batch wrappers are not supported; use the native Claude Code installation. This provider runs natively where the bridge runs, rather than inside the Codex WSL environment.
