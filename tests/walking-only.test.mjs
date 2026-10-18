@@ -19,6 +19,7 @@ test('automatic comparison retains a faster walk among three cards and counts fu
  const walking=await planDirectWalk(options,{provider});const rides=[30,32,35].map(minutes=>({arrival:departureTime+minutes*60000,steps:[{mode:'TRANSIT'}]}));
  const routes=mergeRouteOptions(rides,walking);assert.equal(routes.length,3);assert.equal(routes[0].mode,'walk');assert.ok(routes[0].recommended);assert.equal(routes.filter(route=>route.recommended).length,1);assert.match(routes[0].recommendationReason,/wcześniej/);
  const future={departure:departureTime+86400000,arrival:departureTime+87000000,durationMillis:600000,nextAvailable:true,steps:[{mode:'TRANSIT'}]};assert.equal(mergeRouteOptions([future],walking)[0].mode,'walk');
+ const tied=mergeRouteOptions([{arrival:walking.arrival,steps:[{mode:'TRANSIT'}]}],walking);assert.equal(tied[0].mode,'walk');assert.equal(tied[0].recommendationReason,'Pieszo dotrzesz równie szybko jak sprawdzoną komunikacją.');assert.doesNotMatch(tied[0].recommendationReason,/wcześniej/);
  const faster={arrival:departureTime+120000,steps:[{mode:'TRANSIT'}]};assert.equal(mergeRouteOptions([faster],walking)[0].steps[0].mode,'TRANSIT');assert.equal(mergeRouteOptions([faster],walking)[1].mode,'walk');
 });
 test('walking mode survives client HTTP serialization and MCP action while invalid modes are rejected',async()=>{
