@@ -1,3 +1,6 @@
+// A demo receiver is opt-in for this tab only. Remove capability fragments before other app work.
+const demoReceiverLocation = new URLSearchParams(location.hash.slice(1)).has('demo-receiver') ? { hash: location.hash, pathname: location.pathname, search: location.search } : null;
+if (demoReceiverLocation) history.replaceState(null, '', location.pathname + location.search);
 // ?safeTop= / ?safeBottom= (0–100) override safe-area insets, e.g. inside an iframe where env() is always 0.
 {
   const params = new URLSearchParams(location.search);
@@ -590,3 +593,13 @@ document.querySelectorAll('nav a').forEach(link => link.addEventListener('click'
   if (link.dataset.path === 'city-pulse') { window.dispatchEvent(new CustomEvent('city:pulse')); setExpanded(true); return; }
   addMessage(`Sekcja ${link.querySelector('span:last-child').textContent.trim()} będzie dostępna w kolejnej wersji aplikacji.`);
 }));
+
+if (demoReceiverLocation) import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiver({
+  input, location: demoReceiverLocation, isReady: () => !pending && !input.value.trim(),
+  start: prompt => {
+    if (pending || input.value.trim()) return null;
+    input.value = prompt;
+    setExpanded(true);
+    return { completion: send() };
+  },
+})).catch(() => {});

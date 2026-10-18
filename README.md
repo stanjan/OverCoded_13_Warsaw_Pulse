@@ -69,3 +69,30 @@ Large complete searches can exceed the local bridge's 2 MiB request / 1,000,000-
 Run `npm test` (or `node --test tests/*.test.mjs`) for backend/tool tests. These test the tool loop with controlled model replies, not the actual bridge.
 
 Current source: Stitch project `4253701792170330935`, screen `dd28cf56168340ffb6b9a92e27153783`.
+
+### Zdalne promptowanie podczas live demo
+
+Prezentacja nie jest modyfikowana. Mechanizm steruje **jedną jawnie połączoną kartą aplikacji** i używa zwykłej rozmowy, streamingu, kart rekomendacji oraz mapy.
+
+1. Ustaw `DEMO_REMOTE_ENABLED=1` w lokalnym `.env` i uruchom ponownie serwer. Domyślny adres pozostaje `http://127.0.0.1:5173`; nic nie otwiera automatycznie sieci ani firewalla.
+2. Otwórz `http://127.0.0.1:5173/demo`, wybierz **Utwórz cel demo**, następnie **Otwórz aplikację odbierającą**. Tylko ta karta ma widoczny przycisk „Demo”. Zwykła karta główna nie odbiera poleceń. Parowanie jest jednorazowe: po zamknięciu lub odświeżeniu odbiornika wybierz **Zakończ demo**, utwórz nowy cel i wygeneruj nowe linki. Stary link odbiornika nie łączy innej karty z zajętym celem.
+3. W panelu `/demo` wpisz pytanie i wyślij je albo skopiuj **Link dla kafelka na slajdzie**. Otwarcie linku wysyła zapisane pytanie automatycznie. Każde ponowne otwarcie linku jest nowym poleceniem. Panel i linki są prywatnymi kluczami dostępu: nie umieszczaj ich w publicznym repozytorium, logach ani materiałach po prezentacji.
+4. Po pokazie użyj **Zakończ demo**. Przycisk „×” w karcie odbiornika odłącza ją. Cel wygasa po godzinie; restart usuwa wszystkie cele i historię poleceń z RAM. Limit: 8 celów, 100 poleceń na cel, prompt do 2000 znaków. Brak kolejki i historii GPS/promptów na dysku.
+
+API sterowania (token sterujący znajduje się w prywatnym fragmencie wygenerowanego linku jako `demo-control`, pola `target` i `token`):
+
+```js
+const access = JSON.parse(new URLSearchParams(new URL(privateTileLink).hash.slice(1)).get('demo-control'));
+const response = await fetch(`${appOrigin}/api/demo/targets/${access.target}/prompts`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access.token}` },
+  body: JSON.stringify({ requestId: crypto.randomUUID(), prompt: 'Jestem zmęczony, pokaż pomysły na spokojny wieczór' }),
+});
+const command = await response.json();
+```
+
+`202` z `state: delivered` oznacza dostarczenie polecenia do połączonego odbiornika, **nie gotową odpowiedź AI**. `GET /api/demo/targets/:target/prompts/:requestId` z tym samym Bearer zwraca `delivered`, `started`, `rejected` albo `finished` (zakończenie obsługi w UI, również gdy asystent pokazał błąd). W razie utraty połączenia po dostarczeniu stan może pozostać `delivered`; nie oznacza to startu ani sukcesu. Ponowienie POST z **tym samym requestId i promptem** odczytuje poprzedni stan i nigdy nie wysyła ponownie. Nie używaj nowego ID do automatycznego retry niepewnego wyniku.
+
+`409`: brak połączonej karty, zajęta rozmowa lub niewysłany ręczny tekst; nic nie zostaje zakolejkowane. Ręczny draft ma pierwszeństwo również w wyścigu z dostarczeniem. `401`: nieprawidłowy/wygasły dostęp; `413`: za duże body; `429`: limit celów/poleceń; `503`: funkcja wyłączona. `GET /api/demo/targets/:target` pokazuje `connected`, `ready`, `expiresAt`; `DELETE` unieważnia cel. Token odbiornika jest oddzielny i nie pozwala wysyłać promptów.
+
+Dla sterowania z innej aplikacji ustaw `DEMO_ALLOWED_ORIGINS=https://twoje-slajdy.example` (dokładne origins rozdzielone przecinkami, bez ścieżek/wildcard). CORS dotyczy wyłącznie uwierzytelnionego sterowania; utworzenie celu i połączenie odbiornika pozostają w tej samej aplikacji. Slajdy na tym samym komputerze mogą używać localhost. Dla innego urządzenia świadomie skonfiguruj dostępny `HOST`/HTTPS i użyj dostępnego z niego adresu; localhost na telefonie oznacza telefon. Nie przesyłaj tokenów przez niezaufaną sieć HTTP. CORS nie zastępuje Bearer i nie omija ograniczeń przeglądarki dotyczących HTTPS/HTTP ani dostępu do sieci lokalnej. Capability nie jest publikowane przez `/api/config`, cookies ani query URL; fragment jest usuwany z paska adresu po odczytaniu i nie trafia do żądania HTTP.
