@@ -47,7 +47,7 @@ test('revocation and expiry close receivers; bounded sessions, ids and prompt va
 });
 
 test('HTTP contract: disabled gate, exact CORS, target creation, auth, content and body bounds', async t => {
-  const api = service({ origins: ['https://slides.example'] }), handle = createDemoHandler(api);
+  const api = service({ origins: ['https://slides.example'], pollMs: 25000 }), handle = createDemoHandler(api);
   const server = createServer((req, res) => { const self = `http://${req.headers.host}`; handle(req, res, new URL(req.url, self), self).then(handled => { if (!handled) res.end('no'); }); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => { server.closeAllConnections(); server.close(); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -65,7 +65,12 @@ test('HTTP contract: disabled gate, exact CORS, target creation, auth, content a
   assert.equal((await request(path + '/prompts', { method: 'POST', headers: { Authorization: headers.Authorization }, body: '{}' })).status, 415);
   assert.equal((await request(path + '/prompts', { method: 'POST', headers, body: JSON.stringify({ prompt: 'x'.repeat(12000) }) })).status, 413);
   const receiving = fetch(base + path + '/poll', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${target.receiverToken}` }, body: JSON.stringify({ client: 'http_receiver_123', ready: true }) });
-  await new Promise(resolve => setTimeout(resolve, 5));
+  // Wait for the real receiver HTTP request to register, rather than guessing a scheduling delay.
+  const deadline = Date.now() + 5000;
+  while (!(await (await request(path, { headers })).json()).ready) {
+    assert.ok(Date.now() < deadline, 'receiver did not finish its ready handshake');
+    await new Promise(resolve => setImmediate(resolve));
+  }
   const result = await request(path + '/prompts', { method: 'POST', headers, body: JSON.stringify(command()) }); assert.equal(result.status, 202); assert.equal((await result.json()).state, 'delivered'); assert.equal((await (await receiving).json()).command.id, 'request_123');
   const disabled = createDemoHandler(createDemoService()); let status;
   await disabled({ method: 'GET', headers: {} }, { destroyed: false, writeHead(code) { status = code; }, end() {} }, new URL(base + '/api/demo/targets'), base); assert.equal(status, 503);
