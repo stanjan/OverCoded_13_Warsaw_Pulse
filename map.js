@@ -495,7 +495,7 @@
   }
 
   const categoryLabels = { event: 'Wydarzenie', sports: 'Zajęcia sportowe', pitch: 'Boisko', route: 'Trasa', toilet: 'Toaleta', aed: 'Defibrylator AED', weather: 'Pogoda', air_quality: 'Jakość powietrza' };
-  const themeIcons = { culture: 'palette', sport: 'directions_run', education: 'school', meeting: 'forum', family: 'family_restroom', seniors: 'elderly', outdoor: 'park' };
+  const themeIcons = { culture: 'palette', sport: 'directions_run', education: 'school', meeting: 'forum', family: 'family_restroom', seniors: 'elderly', outdoor: 'park', aed: 'aed' };
   // Sorts a result into one of the 7 pastel themes from its category and the words in its source data.
   // Theme order matters: the city's own event categories decide first, then the title, then the description.
   // Culture is checked before sport so "Kultura" events never get a sport pin from a stray word.
@@ -515,6 +515,7 @@
     return null;
   }
   function themeFor(place) {
+    if (place.category === 'aed') return 'aed';
     if (place.category === 'sports' || place.category === 'pitch') return 'sport';
     if (['route', 'toilet', 'weather', 'air_quality'].includes(place.category)) return 'outdoor';
     return matchTheme([...(place.audience || []), ...(place.activities || [])].join(' · '))
@@ -750,7 +751,7 @@
     return leaflet;
   };
   // Short facts for the recommended cards in the conversation (theme, when, price, photo).
-  const themeLabels = { culture: 'Kultura', sport: 'Sport', education: 'Edukacja', meeting: 'Spotkanie', family: 'Rodzina', seniors: 'Seniorzy', outdoor: 'Plener' };
+  const themeLabels = { culture: 'Kultura', sport: 'Sport', education: 'Edukacja', meeting: 'Spotkanie', family: 'Rodzina', seniors: 'Seniorzy', outdoor: 'Plener', aed: 'AED' };
   function cardWhen(place) {
     const first = (place.dates || [])[0];
     if (!first) return place.time || '';
@@ -770,7 +771,7 @@
   window.cityCardInfo = place => {
     const theme = themeFor(place);
     const price = priceInfo(place);
-    return { theme, themeLabel: place.category==='aed'?'AED':themeLabels[theme], icon: place.category==='route'?'explore':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+    return { theme, themeLabel: place.category==='toilet'?'WC':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();

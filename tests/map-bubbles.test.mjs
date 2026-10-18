@@ -108,6 +108,6 @@ test('AED cards and details identify defibrillators while unknown category fallb
  assert.equal(detailTag.textContent,'Defibrylator AED');
  const unknown={name:'Miejsce',category:'unknown'},fallback=context.window.cityCardInfo(unknown);
  assert.equal(fallback.themeLabel,'Kultura');assert.equal(fallback.icon,'palette');
- assert.equal(info.icon,fallback.icon);assert.equal(info.theme,fallback.theme);
+ assert.equal(info.icon,'aed');assert.equal(info.theme,'aed');assert.equal(ui.resultBubble(place,false).dataset.theme,'aed');
  assert.equal(ui.resultBubble(unknown,false).children[1].children[1].textContent,'Miejsce');
 });

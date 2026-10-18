@@ -169,7 +169,7 @@
 <!-- 1. FLOATING TOP WEATHER BAR: Perfectly Centered Horizontally -->
 <div id="environment-bar" class="weather-bar absolute top-4 left-1/2 -translate-x-1/2 z-20 pt-safe pointer-events-auto" data-state="loading">
 <details class="environment-disclosure">
-<summary aria-label="Pogoda, jakość powietrza, wschód i zachód słońca. Rozwiń informacje o źródłach.">
+<summary aria-label="Pogoda, jakość powietrza, wschód i zachód słońca.">
 <span id="environment-route" class="route-chain" hidden></span>
 <span class="environment-bottom-row"><span class="environment-weather-row">
 <span id="environment-icon" class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
@@ -180,7 +180,7 @@
 <span id="environment-sun"><span class="environment-solar" aria-label="Wschód słońca"><svg viewBox="0 0 24 24" aria-hidden="true" class="environment-sunrise-icon"><path d="M3 19h18M6 16a6 6 0 0 1 12 0M12 2v7m-3-4 3-3 3 3M3 12l2 1m14 0 2-1"/></svg><span id="environment-sunrise">—</span></span><span class="environment-solar" aria-label="Zachód słońca"><svg viewBox="0 0 24 24" aria-hidden="true" class="environment-sunset-icon"><path d="M3 19h18M6 16a6 6 0 0 1 12 0M12 2v7m-3-3 3 3 3-3M3 12l2 1m14 0 2-1"/></svg><span id="environment-sunset">—</span></span></span>
 </span><span id="environment-eta" hidden></span></span>
 </summary>
-<div class="environment-details">
+<div class="environment-details" hidden>
 <strong id="environment-location">Centrum Warszawy</strong>
 <p id="environment-info" role="status" aria-live="polite">Ładowanie danych dla centrum Warszawy.</p>
 <p class="environment-attribution">Źródła: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer">CAMS ENSEMBLE</a></p>
@@ -283,6 +283,19 @@
 <div>
 <span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-emerald-600">Toaleta w pobliżu</span>
 <span class="text-[11px] text-on-surface-variant block">Najbliższa publiczna</span>
+</div>
+</button>
+<!-- Card: Defibrylator AED -->
+<button type="button" data-prompt="Gdzie jest najbliższy defibrylator AED?" class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-red-500/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
+<div class="flex items-center justify-between w-full mb-2">
+<div class="w-8 h-8 rounded-xl bg-red-500/10 text-red-600 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+<span class="material-symbols-outlined text-[18px]">aed</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-red-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
+</div>
+<div>
+<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-red-600">Najbliższy AED</span>
+<span class="text-[11px] text-on-surface-variant block">Defibrylator</span>
 </div>
 </button>
 </div>

@@ -98,6 +98,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .result-bubble[data-theme='family'] { --pin-light: #fbcfe8; --pin: #f472b6; }
 .result-bubble[data-theme='seniors'] { --pin-light: #99f6e4; --pin: #2dd4bf; }
 .result-bubble[data-theme='outdoor'] { --pin-light: #bef264; --pin: #a3e635; }
+.result-bubble[data-theme='aed'] { --pin-light: #fca5a5; --pin: #ef4444; }
 .result-marker { display: flex; align-items: flex-end; justify-content: center; }
 #city-map .result-bubble { width: 42px; height: 54px; padding: 0; margin: 0; gap: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; justify-content: center; align-items: flex-start; }
 #city-map .result-bubble::after { content: none; }
@@ -131,6 +132,8 @@ button.place-card__title:hover { background: #f2f4f6; }
 .weather-bar { width: max-content; max-width: calc(100% - 24px); color: #263442; font-size: 11px; }
 .weather-bar summary { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid #0000000c; border-radius: 24px; background: #f7f9fbf5; backdrop-filter: blur(18px); box-shadow: 0 8px 22px #09142624; cursor: pointer; white-space: nowrap; list-style: none; }
 .weather-bar summary::-webkit-details-marker { display: none; }
+.weather-bar summary { cursor: default; }
+.environment-details[hidden] { display: none; }
 .weather-bar summary:focus-visible { outline: 3px solid #0051d5; outline-offset: 3px; }
 #environment-icon { color: #9e8753; background: #faf1d9; border-radius: 50%; padding: 4px; box-sizing: content-box; font-size: 20px; }
 #environment-icon[data-tone='sun'] { color: #ae9253; background: #fff2cf; }
@@ -340,6 +343,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .rec-card--family { --pin-light: #fce7f3; --pin-ink: #9d2766; }
 .rec-card--seniors { --pin-light: #ccfbf1; --pin-ink: #0f6b60; }
 .rec-card--outdoor { --pin-light: #ecfccb; --pin-ink: #4d6b08; }
+.rec-card--aed { --pin-light: #fee2e2; --pin-ink: #b91c1c; }
 .rec-card__meta { grid-area: meta; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rec-card__tag { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--pin-light); color: var(--pin-ink); font-size: 11px; font-weight: 800; }
 .rec-card__when { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #342b26; font-size: 12px; font-weight: 700; }

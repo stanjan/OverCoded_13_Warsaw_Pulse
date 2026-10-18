@@ -45,6 +45,8 @@
   }
   function mountEnvironment(doc = document, win = window) {
     const bar = doc.querySelector('#environment-bar'); if (!bar) return;
+    // The capsule is display-only: no expanding details panel.
+    bar.querySelector?.('summary')?.addEventListener('click', event => event.preventDefault());
     const field = name => doc.querySelector(`#environment-${name}`);
     const weatherEl = field('weather'), airEl = field('air'), sunEl = field('sun'), locationEl = field('location'), infoEl = field('info'), icon = field('icon');
     const airLabel = field('air-label'), airValue = field('air-value'), sunriseEl = field('sunrise'), sunsetEl = field('sunset');
@@ -66,16 +68,13 @@
       const condition = weatherCondition(weather.weatherCode, weather.isDay);
       icon.textContent = weather.status === 'unavailable' ? 'cloud_off' : condition.icon;
       icon.dataset.tone = weather.status === 'unavailable' ? 'unknown' : condition.tone;
-      icon.title = condition.label;
       weatherEl.textContent = Number.isFinite(weather.temperatureC) ? `${Math.round(weather.temperatureC)}°C` : 'Pogoda —';
-      weatherEl.title = [condition.label, stamp(weather.validAt), freshness(weather)].filter(Boolean).join(' · ');
       const category = aqiCategory(air.europeanAqi);
       const usableAir = Number.isFinite(air.europeanAqi) && air.status !== 'unavailable';
       airValue.textContent = usableAir ? `AQI EU ${Math.round(air.europeanAqi)}` : 'AQI —';
       airLabel.textContent = !usableAir ? 'Brak danych' : air.freshness === 'stale' ? 'Nieaktualne' : air.freshness === 'unknown' ? 'Niepotwierdzone' : category.label;
       airEl.dataset.level = !usableAir || ['stale','unknown'].includes(air.freshness) ? 'unknown' : category.level;
-      airEl.title = ['Jakość powietrza', stamp(air.validAt), freshness(air)].filter(Boolean).join(' · ');
-      sunriseEl.textContent = time(sun.sunrise); sunsetEl.textContent = time(sun.sunset); sunEl.title = 'Wschód i zachód · czas Warszawy';
+      sunriseEl.textContent = time(sun.sunrise); sunsetEl.textContent = time(sun.sunset);
       locationEl.textContent = location.basis === 'gps' ? 'Twoja okolica' : 'Centrum Warszawy';
       infoEl.textContent = `${condition.label}. Pogoda: ${stamp(weather.validAt)}${freshness(weather) ? ' — ' + freshness(weather) : ''}. Powietrze: ${stamp(air.validAt)}${freshness(air) ? ' — ' + freshness(air) : ''}. Dane modelowe dla okolicy.`;
       bar.dataset.stale = String(weather.freshness === 'stale' || air.freshness === 'stale');
