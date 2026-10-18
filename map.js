@@ -778,7 +778,8 @@
   window.cityCardInfo = place => {
     const theme = themeFor(place);
     const price = priceInfo(place);
-    return { theme, themeLabel: place.category==='toilet'?'WC':place.category==='route'?'Trasa':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+    // Tourist routes use the same brown as their trace and pins on the map.
+    return { theme: place.category==='route'?'route':theme, themeLabel: place.category==='toilet'?'WC':place.category==='route'?'Trasa':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();

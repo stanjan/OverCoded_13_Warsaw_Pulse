@@ -344,6 +344,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .rec-card--seniors { --pin-light: #ccfbf1; --pin-ink: #0f6b60; }
 .rec-card--outdoor { --pin-light: #ecfccb; --pin-ink: #4d6b08; }
 .rec-card--aed { --pin-light: #fee2e2; --pin-ink: #b91c1c; }
+.rec-card--route { --pin-light: #f3eeea; --pin-ink: #3a2a22; }
 .rec-card__meta { grid-area: meta; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rec-card__tag { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--pin-light); color: var(--pin-ink); font-size: 11px; font-weight: 800; }
 .rec-card__when { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #342b26; font-size: 12px; font-weight: 700; }
