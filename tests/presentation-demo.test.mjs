@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { installPresentationReceiver, PRESENTATION_CHANNEL } from '../presentation-receiver.mjs';
-import { createSlideDemoController, demoPrompts } from '../Warsaw-Open-Data-Presentation/components/live-demo-controller.mjs';
+import { createSlideDemoController, demoPrompts } from '../2_OverCoded_WarsawPulse/components/live-demo-controller.mjs';
 
 class Host extends EventTarget {
   location = { search: '?presentationDemo=1' };

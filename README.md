@@ -53,10 +53,10 @@ Sources can be unavailable or incomplete; the app reports this rather than subst
 
 ## Presentation
 
-The Slidev presentation lives in [Warsaw-Open-Data-Presentation](Warsaw-Open-Data-Presentation/). Install its separate dependencies and start it while the app and bridge are running:
+The Slidev presentation lives in [2_OverCoded_WarsawPulse](2_OverCoded_WarsawPulse/). Install its separate dependencies and start it while the app and bridge are running:
 
 ```sh
-cd Warsaw-Open-Data-Presentation
+cd 2_OverCoded_WarsawPulse
 npm ci
 npm run dev -- --port 3030
 ```
