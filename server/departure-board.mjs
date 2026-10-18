@@ -19,8 +19,9 @@ function graphIndex(graph){
 }
 // Exact platforms, dated trips and the downstream destination determine compatibility.
 // This projection never changes the continuous fleet model or retains GPS history.
-export function departureBoard(graphs,request,{now=Date.now(),deltas=new Map(),signal}={}){
- const rows=[],seen=new Set();let from,to;
+export function departureBoard(graphs,request,{now=Date.now(),deltas=new Map(),vehicles=[],signal}={}){
+ const rows=[],seen=new Set(),byTrip=new Map();let from,to;
+ for(const vehicle of vehicles){const age=now-Date.parse(vehicle.observedAt);if(typeof vehicle.id!=='string'||!vehicle.id||vehicle.directionSource!=='confirmed_gtfs_trip'||!vehicle.directionTripId||vehicle.freshness!=='recent'||!Number.isFinite(age)||age< -60000||age>90000||!Number.isFinite(vehicle.latitude)||Math.abs(vehicle.latitude)>90||!Number.isFinite(vehicle.longitude)||Math.abs(vehicle.longitude)>180)continue;const matches=byTrip.get(vehicle.directionTripId)||[];matches.push(vehicle);byTrip.set(vehicle.directionTripId,matches);}
  for(const graph of graphs){
   const index=graphIndex(graph);from||=index.stops.get(request.fromStopId);to||=index.stops.get(request.toStopId);
   for(const {trip,index:stopIndex,event}of index.departures.get(request.fromStopId)||[]){
@@ -30,9 +31,11 @@ export function departureBoard(graphs,request,{now=Date.now(),deltas=new Map(),s
    const key=trip.id+'|'+stopIndex;if(seen.has(key))continue;seen.add(key);
    const delta=deltas.get(trip.id),age=now-delta?.observedAt;
    const live=delta&&Number.isFinite(delta.deltaMs)&&Number.isFinite(age)&&age>=-60000&&age<=180000&&delta.confidence==='brigade_route_progress'&&Number.isInteger(delta.stopIndex)&&stopIndex>delta.stopIndex;
+   const matches=byTrip.get(trip.id)||[],point=live&&matches.length===1&&matches[0].id===delta.vehicleId&&matches[0].line===trip.line?matches[0]:null;
+   const vehicle=point?{id:point.id,line:point.line,latitude:point.latitude,longitude:point.longitude,observedAt:point.observedAt,freshness:'recent',directionSource:'confirmed_gtfs_trip',directionTripId:trip.id,...transitAppearance(trip)}:null;
    const correction=live?Math.max(0,delta.deltaMs):0,estimated=event.departure+correction;
    if(estimated<request.start||estimated>request.end)continue;
-   rows.push({tripId:trip.id,serviceDate:trip.serviceDate,line:trip.line,headsign:trip.headsign,...transitAppearance(trip),fromStopIndex:stopIndex,scheduledDeparture:event.departure,departure:estimated,timing:live?'live_model_estimate':'scheduled',deltaMs:live?delta.deltaMs:null,departureCorrectionMs:correction,observedAt:live?delta.observedAt:null,liveUntil:live?delta.observedAt+180000:null});
+   rows.push({vehicle,tripId:trip.id,serviceDate:trip.serviceDate,line:trip.line,headsign:trip.headsign,...transitAppearance(trip),fromStopIndex:stopIndex,scheduledDeparture:event.departure,departure:estimated,timing:live?'live_model_estimate':'scheduled',deltaMs:live?delta.deltaMs:null,departureCorrectionMs:correction,observedAt:live?delta.observedAt:null,liveUntil:live?delta.observedAt+180000:null});
   }
  }
  if(!from||!to)throw new TransitError('STOP_NOT_FOUND','Nie znaleziono przystanku w datowanym rozkładzie ZTM.');

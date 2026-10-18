@@ -92,6 +92,19 @@
     const bar=document.querySelector?.('#environment-bar')?.getBoundingClientRect?.(),sheet=document.querySelector?.('#ai-sheet')?.getBoundingClientRect?.();
     return {left:rect.left+12,right:rect.right-12,top:Math.max(rect.top,bar?.bottom??rect.top)+8,bottom:Math.min(rect.bottom,sheet?.top??rect.bottom)-12};
   }
+  // Put selections in the remaining map space, rather than underneath the weather/chat/board.
+  function focusOffset(element) {
+    const rect=element.getBoundingClientRect?.(),view=popupViewport(element);if(!rect||!view)return [0,0];
+    const board=document.querySelector?.('.departure-board:not([hidden])'),box=board?.dataset?.noRoom!=='true'?board?.getBoundingClientRect?.():null;
+    if(box?.height>0&&box.top<view.bottom){if(box.top-view.top>=80)view.bottom=box.top-12;else if(view.right-box.right>=70)view.left=Math.max(view.left,box.right+12);}
+    return [(rect.left+rect.right-view.left-view.right)/2,(rect.top+rect.bottom-view.top-view.bottom)/2].map(value=>Number.isFinite(value)?value:0);
+  }
+  function focusCenter(point,element){
+    const [x,y]=focusOffset(element),world=256*2**17,latitude=Math.max(-85,Math.min(85,point.latitude)),sine=Math.sin(latitude*Math.PI/180);
+    const mercator=(.5-Math.log((1+sine)/(1-sine))/(4*Math.PI))+y/world;
+    return {lat:Math.atan(Math.sinh(Math.PI*(1-2*mercator)))*180/Math.PI,lng:point.longitude+x/world*360};
+  }
+  function selectedVehicle(vehicle){return vehicle&&vehicle.directionSource==='confirmed_gtfs_trip'&&vehicle.directionTripId&&freshVehicle(vehicle)&&validTransitPath([vehicle]).length;}
   function popupPadding(element) {
     const rect=element.getBoundingClientRect?.(),view=popupViewport(element);
     return view?{autoPanPaddingTopLeft:[12,view.top-rect.top],autoPanPaddingBottomRight:[12,rect.bottom-view.bottom]}:{autoPanPaddingTopLeft:[12,12],autoPanPaddingBottomRight:[12,12]};
@@ -176,7 +189,9 @@
     const resultReveal = mapReveal(), routeReveal = mapReveal(), touristReveal = mapReveal();
     let routeKey, touristKey;
     let markers = [];
-    let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView;
+    let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView, boardStopMarker, boardVehicleMarker, boardStops=[], cameraPoint;
+    const focusPoint=point=>{cameraPoint=point;const center=focusCenter(point,element);map.setZoom(17);if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches&&map.moveCamera)map.moveCamera({center,zoom:17});else map.panTo(center);};
+    const clearBoardFocus=()=>{if(boardStopMarker)boardStopMarker.map=null;if(boardVehicleMarker)boardVehicleMarker.map=null;boardStopMarker=boardVehicleMarker=null;cameraPoint=null;boardStops=[];};
     let touristPlaces = [], touristLines = [], touristMarkers = [], touristRecommendedId;
     const touristInfo = new InfoWindow({ maxWidth: 260, disableAutoPan: true, headerDisabled: true });
     let touristPopupContent;
@@ -214,6 +229,7 @@
       return points.length > 0;
     };
     const fitRoute = () => {
+      if(cameraPoint){focusPoint(cameraPoint);return;}
       if (!routeView) return;
       const padding = touristCloudPadding(element,routePadding(element, routeView.options),routeView.tourism?touristResultDetails:null);
       if (!canFitRoute(element, padding)) return;
@@ -221,7 +237,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { routeReveal.cancel(); routeKey = undefined; closeStopPopup();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { clearBoardFocus();routeReveal.cancel(); routeKey = undefined; closeStopPopup();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -251,7 +267,7 @@
           routeLines.push(line); drawing.push({path:path.map(({lat,lng})=>[lat,lng]),set:points=>line.setPath?.(points.map(([lat,lng])=>({lat,lng})))});
         }
         routeReveal.draw(drawing,animate);
-        for(const stop of activeRouteStops(route, true)){
+        for(const stop of (boardStops=activeRouteStops(route, true))){
           const marker=new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150});
           marker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop,closeStopPopup);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
         }
@@ -263,6 +279,22 @@
           routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content, title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
         return routeLines.length > 0;
+      },
+      setBoardStop(stop,{focus=false}={}) {
+        if(boardStopMarker)boardStopMarker.map=null;boardStopMarker=null;if(!stop&&!cameraPoint?.directionTripId)cameraPoint=null;
+        if(!stop||!validTransitPath([stop]).length)return false;
+        const point=boardStops.find(item=>item.id===stop.id&&(!Number.isInteger(stop.sequenceIndex)||item.sequenceIndex===stop.sequenceIndex))||stop;
+        const content=document.createElement('span');content.className='transit-board-stop';
+        boardStopMarker=new AdvancedMarkerElement({map,position:{lat:point.latitude,lng:point.longitude},content,title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:350});
+        boardStopMarker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop,closeStopPopup);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:boardStopMarker,shouldFocus:true});});
+        if(focus)focusPoint(point);return true;
+      },
+      setBoardVehicle(vehicle,{focus=false}={}) {
+        if(boardVehicleMarker)boardVehicleMarker.map=null;boardVehicleMarker=null;if(!vehicle&&cameraPoint?.directionTripId)cameraPoint=null;
+        if(!selectedVehicle(vehicle))return false;
+        const content=vehicleElement(vehicle);content.dataset.selected='true';
+        boardVehicleMarker=new AdvancedMarkerElement({map,position:{lat:vehicle.latitude,lng:vehicle.longitude},content,title:vehicleTitle(vehicle),gmpClickable:false,zIndex:400});
+        if(focus)focusPoint(vehicle);return true;
       },
       showVehicles(vehicles) {
         vehicleMarkers.forEach(marker => { marker.map = null; });vehicleMarkers = [];
@@ -342,6 +374,10 @@
     const transitLayer = L.layerGroup().addTo(map);
     const vehicleLayer = L.layerGroup().addTo(map);
     const touristLayer = L.layerGroup().addTo(map);
+    const boardStopLayer=L.layerGroup().addTo(map),boardVehicleLayer=L.layerGroup().addTo(map);
+    let boardStops=[],cameraPoint;
+    const focusPoint=point=>{cameraPoint=point;const center=focusCenter(point,element),options={animate:!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,duration:.5};if(map.flyTo&&options.animate)map.flyTo([center.lat,center.lng],17,options);else map.setView([center.lat,center.lng],17,options);};
+    const clearBoardFocus=()=>{boardStopLayer.clearLayers();boardVehicleLayer.clearLayers();cameraPoint=null;boardStops=[];};
     let touristPlaces = [], touristRecommendedId;
     const resultReveal = mapReveal(), routeReveal = mapReveal(), touristReveal = mapReveal();
     let routeKey, touristKey;
@@ -357,6 +393,7 @@
     let routeView;
     const fitRoute = () => {
       map.invalidateSize();
+      if(cameraPoint){focusPoint(cameraPoint);return;}
       if (!routeView) return;
       const padding = touristCloudPadding(element,routePadding(element, routeView.options),routeView.tourism?touristResultDetails:null);
       if (canFitRoute(element, padding)) map.fitBounds(routeView.points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom],animate:false});
@@ -386,13 +423,13 @@
       vendor: 'leaflet',
       ready,
       showTouristRoutes,
-      clearRoute() { routeReveal.cancel();routeKey=undefined;map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      clearRoute() { clearBoardFocus();routeReveal.cancel();routeKey=undefined;map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
         const key=routeRevealKey(route),animate=key!==routeKey,drawing=[];
         routeReveal.cancel();routeKey=key;
         touristResultDetails=null;
         clearTourism();
-        routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
+        clearBoardFocus();routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
         const points=(route?.steps || []).flatMap(step=>validTransitPath(step.path)).map(point=>[point.latitude,point.longitude]);
         let lineCount=0;
         for(const step of route?.steps || []){
@@ -412,7 +449,7 @@
           }
         }
         routeReveal.draw(drawing,animate);
-        for(const stop of activeRouteStops(route, true)){
+        for(const stop of (boardStops=activeRouteStops(route, true))){
           const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop,()=>map.closePopup()),{className:'transit-stop-popup',maxWidth:230,closeButton:false,...popupPadding(element)});
           marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(transitLayer);
         }
@@ -424,6 +461,19 @@
           routeView={points:[...points,...activeRouteStops(route).map(stop=>[stop.latitude,stop.longitude]),...(destination?[[destination.latitude,destination.longitude]]:[])],options:{top}};fitRoute();
         }
         return lineCount>0;
+      },
+      setBoardStop(stop,{focus=false}={}) {
+        boardStopLayer.clearLayers();if(!stop&&!cameraPoint?.directionTripId)cameraPoint=null;if(!stop||!validTransitPath([stop]).length)return false;
+        const point=boardStops.find(item=>item.id===stop.id&&(!Number.isInteger(stop.sequenceIndex)||item.sequenceIndex===stop.sequenceIndex))||stop;
+        const content=document.createElement('span');content.className='transit-board-stop';
+        L.marker([point.latitude,point.longitude],{icon:L.divIcon({className:'',html:content,iconSize:[16,16],iconAnchor:[8,8]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:350}).bindPopup(stopDetails(stop,()=>map.closePopup()),{className:'transit-stop-popup',maxWidth:230,closeButton:false,...popupPadding(element)}).addTo(boardStopLayer);
+        if(focus)focusPoint(point);return true;
+      },
+      setBoardVehicle(vehicle,{focus=false}={}) {
+        boardVehicleLayer.clearLayers();if(!vehicle&&cameraPoint?.directionTripId)cameraPoint=null;if(!selectedVehicle(vehicle))return false;
+        const content=vehicleElement(vehicle);content.dataset.selected='true';
+        L.marker([vehicle.latitude,vehicle.longitude],{icon:L.divIcon({className:'',html:content,iconSize:[36,36],iconAnchor:[18,18]}),title:vehicleTitle(vehicle),keyboard:false,interactive:false,zIndexOffset:400}).addTo(boardVehicleLayer);
+        if(focus)focusPoint(vehicle);return true;
       },
       showVehicles(vehicles) {
         vehicleLayer.clearLayers();

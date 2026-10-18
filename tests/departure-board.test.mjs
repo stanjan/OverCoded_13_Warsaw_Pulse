@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {boardRequest,departureBoard} from '../server/departure-board.mjs';
 import {createTransitService} from '../server/transit.mjs';
-import {boardingStages,nearestBoarding,boardTiming,departureDirection,mountDepartureBoard} from '../departure-board.mjs';
+import {boardingStages,nearestBoarding,boardTiming,departureDirection,boardVehicle,mountDepartureBoard} from '../departure-board.mjs';
 
 const now=Date.parse('2026-10-18T12:00:00Z');
 const stops=[{id:'A',name:'Start',platform:'01',latitude:52.2,longitude:21},{id:'A2',name:'Start',platform:'02',latitude:52.2001,longitude:21},{id:'B',name:'Przesiadka',platform:'03',latitude:52.21,longitude:21},{id:'C',name:'Cel',latitude:52.22,longitude:21}];
@@ -45,11 +45,11 @@ function element(tag='div'){
 const stage=(from,to,lat,start=now)=>({mode:'TRANSIT',fromStopId:from,toStopId:to,from:'Przystanek '+from,to:'Przystanek '+to,scheduledStart:start,stopPositions:[{id:from,latitude:lat,longitude:21,platform:'01'}]});
 const journey={departure:now,steps:[{mode:'WALK'},stage('A','B',52.2),{mode:'WALK'},stage('B','C',52.21,now+600000)]};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function ui(fetchImpl){
+function ui(fetchImpl,extraHost={}){
  const container=element(),timers=new Map();let serial=0,clock=now;
  const doc={getElementById:id=>id==='map-canvas-container'?container:null,createElement:element};
- const board=mountDepartureBoard({doc,host:{getCityLocation:()=>({status:'available',latitude:52.21,longitude:21,observedAt:null,accuracy:10000})},fetchImpl,now:()=>clock,setIntervalImpl:(fn,delay)=>{timers.set(++serial,{fn,delay});return serial;},clearIntervalImpl:id=>timers.delete(id)});
- return{board,panel:container.children[0],timers,advance(value){clock+=value;},body:()=>container.children[0].children[2].children[0].children[1]};
+ const board=mountDepartureBoard({doc,host:{getCityLocation:()=>({status:'available',latitude:52.21,longitude:21,observedAt:null,accuracy:10000}),...extraHost},fetchImpl,now:()=>clock,setIntervalImpl:(fn,delay)=>{timers.set(++serial,{fn,delay});return serial;},clearIntervalImpl:id=>timers.delete(id)});
+ return{board,doc,panel:container.children[0],timers,advance(value){clock+=value;},body:()=>container.children[0].children[2].children[0].children[1]};
 }
 const response=(from='B',rows=[])=>({ok:true,json:async()=>({stop:{id:from,name:'Przystanek '+from,platform:'01'},departures:rows,windowEnd:now+7200000})});
 test('nearest boarding uses known coordinates regardless of location age, and skips walking/intermediate stops',()=>{
@@ -87,4 +87,37 @@ test('board hides rather than covering weather or attribution when a small viewp
  const sheet=element();sheet.getBoundingClientRect=()=>({top:260,bottom:360});
  const doc={createElement:element,getElementById:id=>({'map-canvas-container':container,'environment-bar':weather,'ai-sheet':sheet}[id])};
  const board=mountDepartureBoard({doc,host:{},now:()=>now,fetchImpl:async()=>response('A'),setIntervalImpl:()=>1,clearIntervalImpl(){}});board.show(journey);assert.equal(container.children[0].dataset.noRoom,'true');board.hide();
+});
+
+const liveBoardRow=()=>({tripId:'exact@2026-10-18',fromStopIndex:1,line:'17',headsign:'17 -> Cel',scheduledDeparture:now+600000,departure:now+660000,timing:'live_model_estimate',deltaMs:60000,observedAt:now,liveUntil:now+180000,vehicle:{id:'2:123',line:'17',latitude:52.205,longitude:21,observedAt:new Date(now).toISOString(),freshness:'recent',directionSource:'confirmed_gtfs_trip',directionTripId:'exact@2026-10-18'}});
+test('board returns only a unique fresh vehicle bound to the exact live trip and model vehicle ID',()=>{
+ const t=trip('exact','17',[event('B',-3),event('A',10),event('C',15)]),g=graph([t]),row=liveBoardRow(),vehicle=row.vehicle;
+ const delta={tripId:t.id,vehicleId:vehicle.id,confidence:'brigade_route_progress',deltaMs:60000,observedAt:now,stopIndex:0};
+ const get=(vehicles,change={})=>departureBoard([g],request(),{now,vehicles,deltas:new Map([[t.id,{...delta,...change}]])}).departures[0];
+ assert.equal(get([vehicle]).vehicle.id,vehicle.id);
+ for(const vehicles of [[{...vehicle,id:'wrong'}],[{...vehicle,line:'22'}],[{...vehicle,directionTripId:'other'}],[{...vehicle,directionSource:null}],[{...vehicle,observedAt:new Date(now-90001).toISOString()}],[{...vehicle,observedAt:new Date(now+60001).toISOString()}],[{...vehicle,latitude:91}],[vehicle,{...vehicle,id:'2:999'}]])assert.equal(get(vehicles).vehicle,null);
+ assert.equal(get([vehicle],{observedAt:now-180001}).vehicle,null);assert.equal(get([vehicle],{stopIndex:1}).vehicle,null);
+});
+test('board selection highlights the initial stop without focus, arrow focuses next stop, and rows stay stable on countdowns',async()=>{
+ const calls=[],map={setBoardStop:(...args)=>calls.push(['stop',...args]),setBoardVehicle:(...args)=>calls.push(['vehicle',...args])},row=liveBoardRow();
+ const f=ui(async(_url,options)=>response(JSON.parse(options.body).fromStopId,[row]),{getCityMap:()=>map});f.board.show(journey);await tick();
+ const first=calls.filter(call=>call[0]==='stop'&&call[1]).at(-1);assert.equal(first[1].id,'B');assert.equal(first[2].focus,false);
+ const tr=f.body().children[0],button=tr.children[1].children[0];assert.equal(button.disabled,false);button.click();assert.equal(calls.filter(call=>call[0]==='vehicle'&&call[2]?.focus).length,1);assert.equal(tr.dataset.selected,'true');
+ [...f.timers.values()].find(item=>item.delay===1000).fn();assert.equal(f.body().children[0],tr);assert.equal(f.body().children[0].children[1].children[0],button);assert.equal(calls.filter(call=>call[0]==='vehicle'&&call[2]?.focus).length,1,'countdowns never steal camera focus');
+ await f.board.refresh();assert.equal(f.body().children[0],tr);assert.equal(calls.filter(call=>call[0]==='vehicle'&&call[2]?.focus).length,1,'polls do not focus again');
+ f.panel.children[0].children[1].children[0].click();await tick();const last=calls.filter(call=>call[0]==='stop'&&call[1]).at(-1);assert.equal(last[1].id,'A');assert.equal(last[2].focus,true);assert.equal(calls.filter(call=>call[0]==='vehicle').at(-1)[1],null);f.board.hide();assert.equal(calls.filter(call=>call[0]==='stop').at(-1)[1],null);
+});
+test('selected vehicles expire and cannot be clicked again; provider replay restores valid selection without moving camera',async()=>{
+ const calls=[],host={setBoardStop:(...args)=>calls.push(['stop',...args]),setBoardVehicle:(...args)=>calls.push(['vehicle',...args])};let active=host,offline=false;
+ const row=liveBoardRow(),f=ui(async()=>{if(offline)throw Error('offline');return response('B',[row]);},{getCityMap:()=>active});f.board.show(journey);await tick();let tr=f.body().children[0];tr.click();
+ const replaced=[];active={setBoardStop:(...args)=>replaced.push(['stop',...args]),setBoardVehicle:(...args)=>replaced.push(['vehicle',...args])};f.board.show(journey);assert.equal(replaced.find(call=>call[0]==='vehicle')[2].focus,false);assert.equal(replaced.find(call=>call[0]==='stop')[2].focus,false);
+ f.advance(90001);[...f.timers.values()].find(item=>item.delay===1000).fn();assert.equal(tr.children[1].children[0].disabled,true);assert.equal(replaced.filter(call=>call[0]==='vehicle').at(-1)[1],null);const count=replaced.length;tr.click();assert.equal(replaced.length,count);
+ assert.equal(boardVehicle({...row,vehicle:{...row.vehicle,directionTripId:'other'}},now),null);
+ f.board.hide();f.board.show(journey);await tick();f.advance(-90001);await f.board.refresh();f.body().children[0].click();offline=true;await f.board.refresh();assert.equal(replaced.filter(call=>call[0]==='vehicle').at(-1)[1],null);assert.equal(f.body().children[0].children[1].children[0].disabled,true);f.board.hide();
+});
+
+test('a polling reorder preserves the active row control and scrolled board position',async()=>{
+ const a=liveBoardRow(),b={...liveBoardRow(),tripId:'second',scheduledDeparture:now+900000,departure:now+960000,vehicle:{...liveBoardRow().vehicle,id:'2:999',directionTripId:'second'}};let rows=[a,b];
+ const f=ui(async()=>response('B',rows));f.board.show(journey);await tick();const control=f.body().children[1].children[1].children[0],scroll=f.panel.children[2];let focus;
+ control.focus=options=>focus=options;f.doc.activeElement=control;scroll.scrollTop=40;rows=[{...a,departure:now+1200000},b];await f.board.refresh();assert.equal(f.body().children[0].children[1].children[0],control);assert.deepEqual(focus,{preventScroll:true});assert.equal(scroll.scrollTop,40);f.board.hide();
 });

@@ -136,7 +136,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
    if(!graph){graph=await graphProvider(time,{signal});signal?.throwIfAborted();if(!graph)throw new TransitError('GTFS_UNAVAILABLE','Datowany rozkład ZTM jest chwilowo niedostępny.');validateGraph(graph);boardGraphs.set(day,{graph,until:instant+300000});while(boardGraphs.size>2)boardGraphs.delete(boardGraphs.keys().next().value);}
    graphs.push(graph);
   }
-  signal?.throwIfAborted();return departureBoard(graphs,request,{now:instant,deltas:delayModel.getDeltas(),signal});
+  signal?.throwIfAborted();return departureBoard(graphs,request,{now:instant,deltas:delayModel.getDeltas(),vehicles:withVehicleDirections(latestSnapshot.vehicles,modelGraph,delayModel.getDeltas(),instant),signal});
  }
 
  async function api(name,args,signal) {

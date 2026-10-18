@@ -107,13 +107,13 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  function select(index){
   activateSession(api);selected=index;const route=state.routes[index];alternatives.querySelectorAll('button').forEach((button,i)=>button.setAttribute('aria-pressed',String(i===index)));itinerary.replaceChildren();
   routeBar(route,{computedAt,archived});
-  if(archived)board.hide();else board.show(route);
+  if(archived)board.hide();
   const barBottom=doc.getElementById('environment-bar')?.getBoundingClientRect?.().bottom;
   const mapTop=doc.getElementById('city-map')?.getBoundingClientRect?.().top||0;
   const canvasRect=doc.getElementById('city-map')?.getBoundingClientRect?.(),sheetTop=doc.getElementById('ai-sheet')?.getBoundingClientRect?.().top;
   const visibleBottom=canvasRect?Math.min(canvasRect.bottom,Number.isFinite(sheetTop)?sheetTop:canvasRect.bottom):0;
   if(canvasRect&&visibleBottom-Math.max(canvasRect.top,barBottom||canvasRect.top)<172)host.collapseCitySheet?.();
-  const rendered=map()?.showRoute?.(route,{top:Math.max(0,(barBottom||0)-mapTop+8)});status.dataset.compact=String(Boolean(rendered));el('details').hidden=false;ageTiming();
+  const rendered=map()?.showRoute?.(route,{top:Math.max(0,(barBottom||0)-mapTop+8)});if(!archived)board.show(route);status.dataset.compact=String(Boolean(rendered));el('details').hidden=false;ageTiming();
   message(!rendered?'Mapa jest niedostępna. Sprawdź wskazówki w szczegółach.':archived?'Zapisany plan z '+timeLabel(computedAt)+' · odśwież połączenie przed wyjazdem.':'Wybrano trasę · przyjazd ok. '+compactTime(route.arrival)+' · '+timingLabel(route,{archived,computedAt}));
   itinerary.append(node('h3',route.origin+' → '+route.destination),node('p','Wyjazd '+timeLabel(route.departure)+' · przyjazd ok. '+compactTime(route.arrival),'transit-note'));
   const list=node('ol');for(const step of route.steps){const item=node('li');const heading=node('strong');if(step.mode==='TRANSIT')heading.append(lineBadge(step),node('span',' → '+step.headsign));else heading.textContent=step.geometry==='osm_pedestrian'?'Pieszo · ścieżkami':'Pieszo · w przybliżeniu';item.append(heading);item.append(node('p',step.from+' → '+step.to));item.append(node('p',timeLabel(step.start)+' – '+timeLabel(step.end)+(step.mode==='TRANSIT'?' · przystanki: '+step.stops:'')));if(step.delay){const minutes=Math.round(step.delay.deltaMs/6000)/10;item.append(node('p','Korekta GPS: '+(minutes>=0?'+':'')+minutes+' min'));}if(step.geometry==='schematic'&&step.mode==='TRANSIT')item.append(node('p','Przebieg schematyczny między przystankami; brak potwierdzonego odcinka geometrii.'));list.append(item);}itinerary.append(list);if(route.walkingSource)itinerary.append(link('Ścieżki piesze: © OpenStreetMap · Valhalla ↗','https://www.openstreetmap.org/copyright'));showObservations();
