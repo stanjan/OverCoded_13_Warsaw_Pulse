@@ -232,44 +232,57 @@
 <!-- Quick Action Prompt Cards -->
 <div class="w-full pb-4 shrink-0">
 <span class="text-[11px] font-semibold text-slate-400 uppercase block mb-2 text-center" style="letter-spacing: 0.12em;">SZYBKIE ZAPYTANIA</span>
-<div class="w-full flex items-stretch gap-2.5 overflow-x-auto pb-1 justify-start">
-<!-- Card: Trasa nad Wisłę -->
-<button class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-secondary/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
+<div class="prompt-row w-full flex items-stretch gap-2.5 overflow-x-auto pb-1">
+<!-- Card: Co dziś w mieście -->
+<button type="button" data-prompt="Jakie wydarzenia odbywają się dziś w Warszawie?" class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-secondary/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
 <div class="flex items-center justify-between w-full mb-2">
 <div class="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-<span class="material-symbols-outlined text-[18px]">water</span>
+<span class="material-symbols-outlined text-[18px]">event</span>
 </div>
 <span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-secondary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
 </div>
 <div>
-<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-secondary">Trasa nad Wisłę</span>
-<span class="text-[11px] text-on-surface-variant block">Odkryj bulwary</span>
+<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-secondary">Dziś w mieście</span>
+<span class="text-[11px] text-on-surface-variant block">Wydarzenia na dziś</span>
 </div>
 </button>
-<!-- Card: Opóźnienia ZTM -->
-<button class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-amber-500/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
+<!-- Card: Weekend z dziećmi -->
+<button type="button" data-prompt="Jakie wydarzenia dla dzieci są w ten weekend?" class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-amber-500/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
 <div class="flex items-center justify-between w-full mb-2">
 <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-<span class="material-symbols-outlined text-[18px]">schedule</span>
+<span class="material-symbols-outlined text-[18px]">family</span>
 </div>
-<span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-amber-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
+<span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-amber-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
 </div>
 <div>
-<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-amber-600">Opóźnienia ZTM</span>
-<span class="text-[11px] text-on-surface-variant block">Sprawdź komunikację</span>
+<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-amber-600">Z dziećmi</span>
+<span class="text-[11px] text-on-surface-variant block">Rodzinny weekend</span>
 </div>
 </button>
-<!-- Card: Najbliższe Veturilo -->
-<button class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-emerald-500/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
+<!-- Card: Trasa turystyczna -->
+<button type="button" data-prompt="Poleć mi jedną trasę turystyczną po Warszawie." class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-rose-700/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
+<div class="flex items-center justify-between w-full mb-2">
+<div class="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-700 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+<span class="material-symbols-outlined text-[18px]">explore</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-rose-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
+</div>
+<div>
+<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-rose-700">Trasa na spacer</span>
+<span class="text-[11px] text-on-surface-variant block">Szlaki turystyczne</span>
+</div>
+</button>
+<!-- Card: Toaleta w pobliżu -->
+<button type="button" data-prompt="Gdzie jest najbliższa publiczna toaleta?" class="prompt-chip shrink-0 w-[148px] p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between text-left shadow-xs hover:border-emerald-500/50 hover:shadow-md active:scale-95 transition-all cursor-pointer group" style="box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);">
 <div class="flex items-center justify-between w-full mb-2">
 <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-<span class="material-symbols-outlined text-[18px]">pedal_bike</span>
+<span class="material-symbols-outlined text-[18px]">wc</span>
 </div>
 <span class="material-symbols-outlined text-outline-variant text-[16px] group-hover:text-emerald-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">arrow_outward</span>
 </div>
 <div>
-<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-emerald-600">Najbliższe Veturilo</span>
-<span class="text-[11px] text-on-surface-variant block">Zapytaj o rowery</span>
+<span class="text-[14px] font-bold text-[#0f172a] block leading-tight mb-0.5 group-hover:text-emerald-600">Toaleta w pobliżu</span>
+<span class="text-[11px] text-on-surface-variant block">Najbliższa publiczna</span>
 </div>
 </button>
 </div>

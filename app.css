@@ -409,3 +409,7 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 .favorites-item__actions .favorites-item__transit { flex: 1; padding: 0 12px; background: #3a2a22; color: #fffdf9; }
 .favorites-item__actions .favorites-item__remove { margin-left: auto; }
 .favorites-item__actions .material-symbols-outlined { width: 18px; height: 18px; }
+
+/* Quick prompt cards: centred when they fit, still scrollable from the first card when they don't. */
+.prompt-row > .prompt-chip:first-child { margin-inline-start: auto; }
+.prompt-row > .prompt-chip:last-child { margin-inline-end: auto; }

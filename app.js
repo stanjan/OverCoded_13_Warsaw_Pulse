@@ -413,9 +413,10 @@ function showResults(action) {
   cityMap?.showTouristRoutes?.(action.results, {selectedId:action.selectedTouristId,recommendedId:action.results.find(place=>place.category==='route'&&highlighted.has(place.id))?.id});
 }
 
-const prompts = ['Zaproponuj spacer nad Wisłą.', 'Czy są teraz opóźnienia komunikacji ZTM?', 'Gdzie znajdę najbliższe Veturilo?'];
-document.querySelectorAll('.prompt-chip').forEach((button, index) => button.addEventListener('click', () => {
-  input.value = prompts[index]; input.focus();
+const prompts = [...document.querySelectorAll('.prompt-chip')];
+// Each quick prompt card carries its own question (data-prompt), matched to data the assistant can really search.
+prompts.forEach(button => button.addEventListener('click', () => {
+  input.value = button.dataset.prompt || ''; input.focus();
 }));
 
 // Quick prompts row: on a laptop, let the mouse wheel and click-drag scroll it sideways
