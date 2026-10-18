@@ -21,9 +21,9 @@ test('a new question clears previous results and signals transport cleanup befor
  fixture.context.resultPanel.append({textContent:'Poprzedni wynik'});await fixture.context.sendChat();assert.equal(fixture.nodes.length,2);
 });
 test('an early transport tool action waits for completed answer and retains that answer as its anchor',async()=>{
- const action={type:'plan_transit',destination:{latitude:52.25,longitude:21}};
+ const action={type:'plan_transit',mode:'walk',destination:{latitude:52.25,longitude:21}};
  const fixture=setup(async function*(actions){yield{type:'action',action};assert.equal(actions.length,0);yield{type:'text',delta:'Sprawdzam'};assert.equal(actions.length,0);yield{type:'done',sessionId:'test',message:'Opcje znajdziesz pod odpowiedzią.'};});
- await fixture.context.sendChat();assert.equal(fixture.actions.length,1);assert.equal(fixture.actions[0].anchor,fixture.nodes[1]);assert.equal(fixture.actions[0].answer,'Opcje znajdziesz pod odpowiedzią.');
+ await fixture.context.sendChat();assert.equal(fixture.actions.length,1);assert.equal(fixture.actions[0].action.mode,'walk');assert.equal(fixture.actions[0].anchor,fixture.nodes[1]);assert.equal(fixture.actions[0].answer,'Opcje znajdziesz pod odpowiedzią.');
 });
 test('a failed or truncated assistant response never launches its queued transport plan',async()=>{
  for(const failed of [false,true]){const fixture=setup(async function*(){yield{type:'action',action:{type:'plan_transit'}};if(failed)yield{type:'error',message:'Źródło niedostępne'};});await fixture.context.sendChat();assert.equal(fixture.actions.length,0);}

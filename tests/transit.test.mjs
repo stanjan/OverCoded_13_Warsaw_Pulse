@@ -41,13 +41,13 @@ test('municipal API posts raw authorization and bounds/caches fan-out without fa
  const calls=[];const service=createTransitService({key:()=> 'test-only-token',now:()=>now,graphProvider:async()=>null,fetchImpl:async(url,init)=>{
  calls.push({url,init});assert.equal(init.method,'POST');assert.equal(init.headers.Authorization,'test-only-token');assert.equal(init.headers.Authorization.startsWith('Bearer '),false);
  const action=url.split('/').at(-1);return{ok:true,json:async()=>action===TRANSIT_SOURCES.stops.action?rows:action===TRANSIT_SOURCES.lines.action?[{values:[{key:'linia',value:'17'}]}]:action===TRANSIT_SOURCES.departures.action?[dep]:[{Lat:52.2,Lon:21,Lines:'17',VehicleNumber:'1000',Time:'2026-10-17 14:00:00'}]};}});
- assert.equal((await service.searchStops('sta')).results[0].id,'1000-01');const result=await service.plan({origin:'Start',destination:'Cel',departureTime:new Date(now).toISOString()});assert.equal(result.routes.length,0);assert.equal(result.reason,'GRAPH_UNAVAILABLE');assert.equal(result.complete,false);assert.equal(result.departures[0].records[0].tripId,null);assert.ok(calls.length<=23);const before=calls.length;await service.plan({origin:'Start',destination:'Cel',departureTime:new Date(now).toISOString()});assert.equal(calls.length,before);
- await assert.rejects(()=>service.plan({origin:'Unknown street address',destination:'Cel'}),{code:'LOCATION_REQUIRED'});
+ assert.equal((await service.searchStops('sta')).results[0].id,'1000-01');const result=await service.plan({mode:'transit',origin:'Start',destination:'Cel',departureTime:new Date(now).toISOString()});assert.equal(result.routes.length,0);assert.equal(result.reason,'GRAPH_UNAVAILABLE');assert.equal(result.complete,false);assert.equal(result.departures[0].records[0].tripId,null);assert.ok(calls.length<=23);const before=calls.length;await service.plan({mode:'transit',origin:'Start',destination:'Cel',departureTime:new Date(now).toISOString()});assert.equal(calls.length,before);
+ await assert.rejects(()=>service.plan({mode:'transit',origin:'Unknown street address',destination:'Cel'}),{code:'LOCATION_REQUIRED'});
 });
 test('source failures and caller cancellation cannot become a successful empty catalogue',async()=>{
  await assert.rejects(()=>createTransitService({key:()=>null}).searchStops('ab'),{code:'SOURCE_NOT_CONFIGURED'});
  await assert.rejects(()=>createTransitService({key:()=> 'test',fetchImpl:async()=>({ok:true,json:async()=>({result:[]})})}).searchStops('ab'),{code:'SOURCE_SCHEMA'});
- const controller=new AbortController();controller.abort();await assert.rejects(()=>createTransitService().plan({origin:'A',destination:'B'},{signal:controller.signal}),{name:'AbortError'});
+ const controller=new AbortController();controller.abort();await assert.rejects(()=>createTransitService().plan({mode:'transit',origin:'A',destination:'B'},{signal:controller.signal}),{name:'AbortError'});
 });
 const instant=clock=>gtfsInstant('2026-10-17',clock);
 const event=(stopId,arrival,departure=arrival,pickup=0,dropOff=0)=>({stopId,arrival:instant(arrival),departure:instant(departure),pickup,dropOff});

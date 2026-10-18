@@ -6,9 +6,9 @@ function glyph(doc,kind){
  for(const d of paths){const path=doc.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);svg.append(path);}return svg;
 }
 // Decorative placeholder cards shown while a route is computed; the status line carries the accessible text.
-export function loadingSkeleton(doc){
+export function loadingSkeleton(doc,{mode='auto'}={}){
  const row=doc.createElement('div');row.className='transit-skeleton-row';row.setAttribute('aria-hidden','true');
- for(const kind of ['bus','tram']){
+ for(const kind of (mode==='walk'?['walk']:['bus','tram'])){
   const card=doc.createElement('div');card.className='transit-skeleton';
   for(const size of ['label','title','text']){const bar=doc.createElement('span');bar.className='transit-skeleton-bar transit-skeleton-'+size;card.append(bar);}
   const track=doc.createElement('span');track.className='transit-skeleton-track';
@@ -118,7 +118,7 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  function render(next){
   const scroller=doc.getElementById('sheet-content'),following=scroller&&scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight<80;state=next;clearView();status.dataset.compact=String(next.status==='ready');el('details').hidden=true;el('search').disabled=next.status==='loading';el('search').setAttribute('aria-busy',String(next.status==='loading'));el('cancel').hidden=next.status!=='loading';el('clear').hidden=true;
   alternatives.setAttribute('aria-busy',String(next.status==='loading'));
-  if(next.status==='loading'){message(travelMode==='walk'?'Sprawdzam trasę pieszą po ścieżkach…':'Porównuję dostępne trasy i sprawdzam połączenia…');status.dataset.state='loading';alternatives.append(loadingSkeleton(doc));}
+  if(next.status==='loading'){message(travelMode==='walk'?'Sprawdzam trasę pieszą po ścieżkach…':'Porównuję dostępne trasy i sprawdzam połączenia…');status.dataset.state='loading';alternatives.append(loadingSkeleton(doc,{mode:travelMode}));}
   else if(next.status==='error'){el('editor').open=true;message(next.error.message,true);}
   else if(next.status==='cancelled')message('Przerwano planowanie.');
   else if(next.status==='idle')message('Wybierz start i cel, by sprawdzić miejski rozkład.');

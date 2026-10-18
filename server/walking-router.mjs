@@ -30,6 +30,6 @@ export async function planDirectWalk(options,{provider=createWalkingProvider()}=
  return {mode:'walk',origin:origin.label,destination:destination.label,departure:departureTime,arrival,durationMillis:edge.durationMillis,distanceMeters:edge.distanceMeters,transfers:0,steps:[{mode:'WALK',from:origin.label,to:destination.label,start:departureTime,end:arrival,...edge}],provider:'OpenStreetMap · Valhalla',timing:'walking_estimate',realtimeConfirmed:false,modelAdjusted:false,walkingVerified:true,walkingSource:WALK_SOURCE,source:WALK_SOURCE,destinationPoint:{latitude:destination.latitude,longitude:destination.longitude},warnings:[edge.assumption||'Trasa piesza po ścieżkach OpenStreetMap; czas jest szacunkiem Valhalla.']};
 }
 export function mergeRouteOptions(transitRoutes,walkingRoute) {
- const routes=[...transitRoutes,...(walkingRoute?[walkingRoute]:[])].sort((a,b)=>a.arrival-b.arrival||(a.mode==='walk'?-1:1)).slice(0,3);
+ const routes=[...transitRoutes,...(walkingRoute?[walkingRoute]:[])].sort((a,b)=>a.arrival-b.arrival||Number(b.mode==='walk')-Number(a.mode==='walk')).slice(0,3);
  return routes.map((route,index)=>({...route,recommended:index===0,...(index===0&&route.mode==='walk'?{recommendationReason:transitRoutes.length?'Pieszo dotrzesz wcześniej niż sprawdzoną komunikacją.':'Potwierdzona trasa piesza do celu.'}:{})}));
 }
