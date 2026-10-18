@@ -70,7 +70,7 @@ class: s s-solution
 # Od „mam chwilę” do „już idę” w 10 sekund.
 
 <div class="cols">
-<div class="col" v-click><h3>Powiedz</h3><p>Po ludzku: ile masz czasu, gdzie jesteś, na co masz ochotę. Bez filtrów i kategorii.</p></div>
+<div class="col" v-click><h3>Napisz</h3><p>Po ludzku: ile masz czasu, gdzie jesteś, na co masz ochotę. Bez filtrów i kategorii.</p></div>
 <div class="col" v-click><h3>Dostań 1–3 propozycje</h3><p>AI wybiera z prawdziwych danych miasta. Nie lista 600 pozycji, tylko decyzja.</p></div>
 <div class="col" v-click><h3>Idź</h3><p>Dojazd ZTM z pojazdami na żywo. Wiesz, czy zdążysz, zanim wyjdziesz.</p></div>
 </div>
