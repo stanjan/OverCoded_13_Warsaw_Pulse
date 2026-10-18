@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createDemoService, createDemoHandler } from '../server/demo.mjs';
-import { createDemoReceiver, receiverCredentials } from '../demo-receiver.mjs';
+import { createDemoReceiver, receiverCredentials, receiverSession } from '../demo-receiver.mjs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 const service = options => createDemoService({ enabled: true, pollMs: 30, ...options });
 const setup = api => { const target = api.create({}); return { ...target, id: target.target, control: target.controlToken, receiver: target.receiverToken }; };
 const poll = (api, target, ready = true, signal, client = 'receiver_client_123') => api.poll(target.id, target.receiver, { ready, client }, signal);
@@ -35,15 +39,129 @@ test('auth, absent receiver, busy draft, disconnected poll and receiver ownershi
   assert.throws(() => api.acknowledge(target.id, target.control, {}), { status: 401 });
 });
 
-test('revocation and expiry close receivers; bounded sessions, ids and prompt validation', async () => {
-  let now = 0; const api = service({ now: () => now, ttl: 100 }), target = setup(api), waiting = poll(api, target);
-  now = 101; assert.throws(() => api.status(target.id, target.control), { status: 401 }); assert.equal((await waiting).command, null);
-  const fresh = setup(api), revoked = poll(api, fresh); api.revoke(fresh.id, fresh.control); assert.equal((await revoked).command, null); assert.throws(() => api.status(fresh.id, fresh.control), { status: 401 });
+test('targets never expire; explicit revocation closes receiver; bounded targets and rolling deduplication', async () => {
+  let now = 0; const api = service({ now: () => now }), target = setup(api), waiting = poll(api, target);
+  now = 365 * 86400000; assert.equal(api.status(target.id, target.control).expiresAt, null); assert.equal(api.status(target.id, target.control).ready, true);
+  api.revoke(target.id, target.control); assert.equal((await waiting).command, null); assert.throws(() => api.status(target.id, target.control), { status: 401 });
   for (let i = 0; i < 8; i++) setup(api); assert.throws(() => setup(api), { status: 429 });
   const other = service(), t = setup(other);
   for (const bad of [null, [], { prompt: '', requestId: 'request_123' }, command('x'.repeat(2001)), command('Hi', 'bad')]) assert.throws(() => other.prompt(t.id, t.control, bad), { status: 400 });
-  for (let i = 0; i < 100; i++) { const pending = poll(other, t); other.prompt(t.id, t.control, command('Hi', `request_${i}`)); await pending; }
-  const pending = poll(other, t); assert.throws(() => other.prompt(t.id, t.control, command('Hi', 'request_limit')), { status: 429 }); await pending;
+  for (let i = 0; i < 105; i++) { const pending = poll(other, t); other.prompt(t.id, t.control, command('Hi', `request_${i}`)); await pending; }
+  assert.throws(() => other.status(t.id, t.control, 'request_0'), { status: 404 });
+  assert.equal(other.status(t.id, t.control, 'request_104').state, 'delivered');
+  const pending = poll(other, t); assert.equal(other.prompt(t.id, t.control, command('Hi', 'request_104')).state, 'delivered'); assert.equal((await pending).command, null);
+});
+
+test('persistent targets survive restart without prompt text or replay; revocation persists', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'warsaw-demo-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const storePath = join(directory, 'targets.json');
+  let api = service({ storePath }), target = setup(api), pending = poll(api, target);
+  const sent = api.prompt(target.id, target.control, command('Private one-off example'));
+  await pending;
+  api.acknowledge(target.id, target.receiver, { client: 'receiver_client_123', id: sent.id, state: 'started' });
+  const raw = readFileSync(storePath, 'utf8'); assert.ok(!raw.includes('Private one-off example')); assert.ok(!raw.includes('prompt')); assert.ok(!raw.includes('waiter'));
+  api = service({ storePath });
+  assert.deepEqual(api.status(target.id, target.control), { target: target.id, expiresAt: null, connected: false, ready: false });
+  assert.equal(api.status(target.id, target.control, sent.id).state, 'started');
+  await assert.rejects(poll(api, target, true, undefined, 'different_client_123'), { status: 409 });
+  pending = poll(api, target);
+  assert.equal(api.prompt(target.id, target.control, command('Private one-off example')).state, 'started');
+  assert.equal((await pending).command, null);
+  pending = poll(api, target); api.prompt(target.id, target.control, command('New after restart', 'request_after_restart')); assert.equal((await pending).command.prompt, 'New after restart');
+  api.revoke(target.id, target.control);
+  api = service({ storePath }); assert.throws(() => api.status(target.id, target.control), { status: 401 });
+});
+
+test('storage errors fail explicitly instead of generating replacement links or claiming successful writes', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'warsaw-demo-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const storePath = join(directory, 'targets.json'); writeFileSync(storePath, 'broken');
+  assert.throws(() => service({ storePath }), /Nie można odczytać/);
+  rmSync(storePath); const api = service({ storePath }), target = setup(api);
+  // Replace the parent directory with a file, producing a deterministic ENOTDIR on all platforms.
+  rmSync(directory, { recursive: true }); writeFileSync(directory, 'blocked');
+  assert.throws(() => api.revoke(target.id, target.control), { status: 503 });
+  assert.equal(api.status(target.id, target.control).expiresAt, null);
+});
+
+test('explicit RAM-era migration preserves existing tile capabilities, validates the whole batch and never resets pairing', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'warsaw-demo-import-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const old = service(), existing = setup(old), storePath = join(directory, 'targets.json');
+  const entry = { target: existing.id, controlToken: existing.control, receiverToken: existing.receiver };
+  let api = service({ storePath });
+  assert.throws(() => api.importTargets([entry, { ...entry, target: 'invalid' }]), { status: 400 });
+  assert.throws(() => api.status(existing.id, existing.control), { status: 401 });
+  assert.deepEqual(api.importTargets([entry]), { imported: 1 });
+  api = service({ storePath }); const waiting = poll(api, existing);
+  api.prompt(existing.id, existing.control, command('Unchanged old tile')); assert.equal((await waiting).command.prompt, 'Unchanged old tile');
+  api.importTargets([entry]);
+  await assert.rejects(poll(api, existing, true, undefined, 'different_client_123'), { status: 409 });
+  assert.throws(() => api.importTargets([{ ...entry, controlToken: 'x'.repeat(43) }]), { status: 409 });
+  assert.equal(api.status(existing.id, existing.control).expiresAt, null);
+});
+
+test('receiver tab reload restores the same explicit target and client; ordinary tabs stay unpaired', () => {
+  const entries = new Map(); const storage = { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) };
+  assert.equal(receiverSession('', storage), null);
+  const credentials = { target: 'a'.repeat(24), token: 'x'.repeat(43) };
+  const fragment = '#' + new URLSearchParams({ 'demo-receiver': JSON.stringify(credentials) });
+  const original = receiverSession(fragment, storage);
+  assert.ok(original.client); assert.deepEqual(receiverSession('', storage), original); assert.deepEqual(receiverSession(fragment, storage), original);
+  assert.equal(receiverSession('', { getItem: () => null }), null);
+  assert.throws(() => receiverSession(fragment, { getItem: () => null, setItem() { throw new Error('blocked'); } }), /blocked/);
+});
+
+test('controller reload keeps access but never repeats the prompt from its original tile link', async () => {
+  const source = readFileSync(new URL('../demo-control.mjs', import.meta.url), 'utf8');
+  const entries = new Map(), calls = [];
+  const storage = { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value), removeItem: key => entries.delete(key) };
+  const load = hash => {
+    const elements = new Map();
+    const $ = selector => { if (!elements.has(selector)) elements.set(selector, { hidden: true, value: '', addEventListener() {} }); return elements.get(selector); };
+    runInNewContext(source, { document: { querySelector: $ }, location: { hash, pathname: '/demo', search: '', origin: 'http://localhost:5173' }, history: { replaceState() {} }, sessionStorage: storage, URL, URLSearchParams, crypto, setTimeout: () => 1, clearTimeout() {}, fetch: async (url, options) => { calls.push({ url, method: options.method }); return { ok: true, json: async () => options.method === 'POST' ? { state: 'finished' } : { ready: true } }; } });
+    return elements;
+  };
+  const hash = '#' + new URLSearchParams({ 'demo-control': JSON.stringify({ target: 'a'.repeat(24), token: 'x'.repeat(43), receiverToken: 'y'.repeat(43), prompt: 'A one-time tile click' }) });
+  load(hash); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1);
+  assert.ok(!entries.get('warsaw-ai-demo-control').includes('A one-time tile click'));
+  const reloaded = load(''); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reloaded.get('#control').hidden, false);
+  assert.equal(reloaded.get('#receiver').hidden, false);
+  assert.equal(JSON.parse(new URLSearchParams(new URL(reloaded.get('#receiver').href).hash.slice(1)).get('demo-receiver')).token, 'y'.repeat(43));
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1);
+});
+
+test('actual app bootstrap resumes its receiver after fragment removal and reload while an ordinary tab stays unpaired', async () => {
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const module = readFileSync(new URL('../demo-receiver.mjs', import.meta.url), 'utf8').replace(/^export /gm, '');
+  const startup = app.slice(0, app.indexOf('// ?safeTop='));
+  // Substitute only module loading; execute the application's real bootstrap condition/callback.
+  const bootstrap = app.slice(app.lastIndexOf('\n', app.lastIndexOf("import('/demo-receiver.mjs')")) + 1).replace("import('/demo-receiver.mjs')", 'Promise.resolve({ installDemoReceiver })');
+  assert.ok(bootstrap.includes('installDemoReceiver'), 'actual demo bootstrap must be present');
+  const entries = new Map(), api = service({ pollMs: 1000 }), target = setup(api);
+  const storage = { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) };
+  const load = (hash, sessionStorage) => {
+    const events = {}, calls = [], location = { hash, pathname: '/', search: '' };
+    const history = { replaceState() { location.hash = ''; } };
+    const window = { location, history, sessionStorage, addEventListener: (name, callback) => { events[name] = callback; }, removeEventListener() {} };
+    const context = { window, location, history, URLSearchParams, crypto, AbortController, AbortSignal, setTimeout, clearTimeout, Promise, console, input: { value: '', addEventListener() {}, removeEventListener() {} }, pending: false, setExpanded() {}, send() { throw new Error('Reload must not send a prompt'); }, fetch: async (url, options) => {
+      calls.push(url); const data = JSON.parse(options.body);
+      try { const result = url.endsWith('/poll') ? await api.poll(target.id, target.receiver, data, options.signal) : api.acknowledge(target.id, target.receiver, data); return { ok: true, json: async () => result }; }
+      catch (error) { return { ok: false, status: error.status, json: async () => ({ error: error.message }) }; }
+    } };
+    runInNewContext(module + '\n' + startup + '\n' + bootstrap, context);
+    return { calls, events, location };
+  };
+  const first = load('#' + new URLSearchParams({ 'demo-receiver': JSON.stringify({ target: target.id, token: target.receiver }) }), storage);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(first.location.hash, ''); assert.equal(api.status(target.id, target.control).ready, true); assert.equal(first.calls.length, 1);
+  const client = JSON.parse(entries.get('warsaw-ai-demo-receiver')).client;
+  first.events.pagehide(); await new Promise(resolve => setImmediate(resolve));
+  const reloaded = load('', storage); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reloaded.calls.length, 1); assert.equal(api.status(target.id, target.control).ready, true); assert.equal(JSON.parse(entries.get('warsaw-ai-demo-receiver')).client, client);
+  reloaded.events.pagehide(); await new Promise(resolve => setImmediate(resolve));
+  const ordinary = load('', { getItem: () => null }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ordinary.calls.length, 0); assert.equal(api.status(target.id, target.control).connected, false);
 });
 
 test('HTTP contract: disabled gate, exact CORS, target creation, auth, content and body bounds', async t => {
@@ -107,8 +225,9 @@ test('draft typed between ready poll and delivery wins; reconnect never replays 
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 test('real application server exposes opt-in setup and receiver assets without publishing capability in public config', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'warsaw-demo-http-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
   const reserve = createServer(); await new Promise(resolve => reserve.listen(0, '127.0.0.1', resolve)); const port = reserve.address().port; await new Promise(resolve => reserve.close(resolve));
-  const child = spawn(process.execPath, ['scripts/serve.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', HTTPS_PORT: '', DATA_API_KEY: '', CODEX_BRIDGE_URL: '', DEMO_REMOTE_ENABLED: '1', DEMO_ALLOWED_ORIGINS: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const child = spawn(process.execPath, ['scripts/serve.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', HTTPS_PORT: '', DATA_API_KEY: '', CODEX_BRIDGE_URL: '', DEMO_REMOTE_ENABLED: '1', DEMO_ALLOWED_ORIGINS: '', DEMO_STORE_FILE: join(directory, 'targets.json') }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   t.after(() => child.kill());
   await new Promise((resolve, reject) => { child.stdout.on('data', data => { if (data.toString().includes('Local:')) resolve(); }); child.once('error', reject); child.once('exit', code => reject(new Error('preview exited ' + code))); });
   const base = `http://127.0.0.1:${port}`;
