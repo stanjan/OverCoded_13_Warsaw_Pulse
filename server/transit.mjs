@@ -54,7 +54,9 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  async function vehicleSnapshot(signal){
   const results=await Promise.all([1,2].map(async type=>{try{const data=await api('vehicles',{type},signal);return{vehicles:normalizeVehicles(data.rows,type,now()),source:data.source};}catch(error){signal?.throwIfAborted();return{error:{code:error.code||'SOURCE_UNAVAILABLE',part:'vehicles',type}};}}));
   signal?.throwIfAborted();const vehicles=results.flatMap(result=>result.vehicles||[]),sources=results.flatMap(result=>result.source?[result.source]:[]),errors=results.flatMap(result=>result.error?[result.error]:[]);
-  delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return latestSnapshot;
+  // Reserve every active line's bootstrap before per-vehicle platform misses
+  // can fill the bounded queue in source-record order.
+  prewarmEvidence(vehicles);delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return latestSnapshot;
  }
  function attach(graph){if(modelGraph===graph)return;const same=Boolean(modelGraph&&modelGraph.serviceDay===graph.serviceDay&&modelGraph.source.version===graph.source.version);modelGraph=graph;delayModel.attachGraph(graph,{preserveState:same});if(same)return;graphGeneration++;bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();stopBridge.clear();const byName=new Map();for(const stop of municipalStops){const name=fold(stop.name);if(!byName.has(name))byName.set(name,[]);byName.get(name).push(stop);}for(const stop of graph.stops){const matches=(byName.get(fold(stop.name))||[]).filter(item=>!stop.platform||item.platform===stop.platform).map(item=>({stop:item,distance:distanceMeters(stop,item)})).filter(item=>item.distance<=60).sort((a,b)=>a.distance-b.distance);if(matches[0]&&(!matches[1]||matches[1].distance-matches[0].distance>=5))stopBridge.set(stop.id,matches[0].stop);}}
 
@@ -109,7 +111,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   if(tracking)return;tracking=true;trackingController=new AbortController();const signal=trackingController.signal;
   const tick=async()=>{
    pollTimer=null;if(!tracking||signal.aborted)return;const startedAt=now();trackingStats.lastPollStartedAt=new Date(startedAt).toISOString();
-   pollPromise=(async()=>{try{if(!municipalStops.length)municipalStops=(await stops(signal)).stops;const graph=await graphProvider(now(),{signal});if(signal.aborted)return;if(graph)attach(validateGraph(graph));const snapshot=await vehicleSnapshot(signal);prewarmEvidence(snapshot.vehicles);void flushBindings(signal);trackingStats.lastPollCompletedAt=new Date(now()).toISOString();trackingStats.lastPollError=null;}catch(error){if(!signal.aborted){delayModel.ingest([]);trackingStats.lastPollError=error.code||'SOURCE_UNAVAILABLE';}}})();
+   pollPromise=(async()=>{try{if(!municipalStops.length)municipalStops=(await stops(signal)).stops;const graph=await graphProvider(now(),{signal});if(signal.aborted)return;if(graph)attach(validateGraph(graph));await vehicleSnapshot(signal);void flushBindings(signal);trackingStats.lastPollCompletedAt=new Date(now()).toISOString();trackingStats.lastPollError=null;}catch(error){if(!signal.aborted){delayModel.ingest([]);trackingStats.lastPollError=error.code||'SOURCE_UNAVAILABLE';}}})();
    try{await pollPromise;}finally{pollPromise=null;if(tracking&&!signal.aborted){pollTimer=setTimeoutImpl(tick,Math.max(0,15000-(now()-startedAt)));pollTimer.unref?.();}}
   };
   await tick();
