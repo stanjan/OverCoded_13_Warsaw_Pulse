@@ -87,7 +87,7 @@ test('cancelling environment loading releases the session and never starts model
 async function browserLocation() {
   const source = await readFile(new URL('../app.js', import.meta.url), 'utf8');
   const gps = source.slice(source.indexOf('const CENTER ='), source.indexOf('\nfunction showResults'));
-  const send = 'const requestAnimationFrame = callback => callback();\n' + source.slice(source.indexOf('function animateMessageSize('), source.indexOf("\nsubmit.addEventListener('click'"));
+  const send = source.slice(source.indexOf('async function send()'), source.indexOf("\nsubmit.addEventListener('click'"));
   const events = [], requests = [], acquisitions = [], watches = [], timers = new Map(), intervals = [], listeners = {}, mapPoints = [];
   let clock = now.getTime(), timerId = 0, permissionListener;
   const permission = { state: 'granted', addEventListener(_type, listener) { permissionListener = listener; } };

@@ -135,9 +135,26 @@ test('failed turns do not commit partial conversation or UI actions', async () =
 });
 test('tool loops are bounded', async () => {
   let calls = 0;
-  const assistant = createAssistant({ completion: async () => { calls++; return { tool_calls: [call('search_places', {})] }; } });
+  const assistant = createAssistant({ completion: async () => { calls++; return { tool_calls: [call('list_data_sources', {})] }; } });
   await assert.rejects(assistant.chat({ message: 'Test' }), /zbyt wielu/);
   assert.equal(calls, 6);
+});
+
+test('invalid display retries still finish with verified cards and never flash provisional refusals', async () => {
+  let step = 0;
+  const events = [];
+  const assistant = createAssistant({ completion: async (_history, options) => {
+    options.onEvent?.({ type: 'text', delta: 'Nie mogę wyświetlić kart.' });
+    if (++step === 1) return { tool_calls: [call('search_places', { category: 'event' })] };
+    return { tool_calls: [call('display_results', { ids: ['invented'], highlightIds: ['invented'], title: 'Pomysły' })] };
+  } });
+  const answer = await assistant.chat({ message: 'Pokaż mi propozycje' }, undefined, event => events.push(event));
+  assert.equal(step, 6);
+  assert.equal(answer.actions.length, 1);
+  assert.deepEqual(answer.actions[0].results.map(record => record.id), ['demo-kopernik', 'demo-zacheta']);
+  assert.ok(events.some(event => event.type === 'action' && event.action.type === 'display_results'));
+  assert.ok(events.some(event => event.type === 'text' && event.delta === answer.message));
+  assert.ok(events.filter(event => event.type === 'text').every(event => !event.delta.includes('Nie mogę')));
 });
 test('bridge adapter sends tool schemas and uses only loopback', async () => {
   const old = process.env.CODEX_BRIDGE_URL;

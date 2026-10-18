@@ -483,32 +483,6 @@ function applyAction(action, anchor) {
   if (action.type === 'display_results') showResults(action);
   if (action.type === 'focus_map' && cityMap) cityMap.setView({ lat: action.latitude, lng: action.longitude }, action.zoom);
 }
-// Resize the visible bubble smoothly while keeping its natural text layout measurable.
-function animateMessageSize(bubble) {
-  if (!window.ResizeObserver || !bubble.animate) return () => {};
-  let previous, from, animation;
-  const observer = new window.ResizeObserver(([entry]) => {
-    const box = entry.borderBoxSize?.[0];
-    const next = { width: box?.inlineSize ?? bubble.offsetWidth, height: box?.blockSize ?? bubble.offsetHeight };
-    if (!next.width || !next.height) return;
-    const last = previous; previous = next;
-    if (!last || (last.width === next.width && last.height === next.height)) return;
-    let visible = last;
-    if (animation?.playState === 'running') {
-      const progress = animation.effect.getComputedTiming().progress ?? 1;
-      visible = { width: from.width + (last.width - from.width) * progress, height: from.height + (last.height - from.height) * progress };
-    }
-    animation?.cancel();
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    from = visible;
-    animation = bubble.animate([
-      { transform: `scale(${visible.width / next.width}, ${visible.height / next.height})` },
-      { transform: 'scale(1, 1)' },
-    ], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
-  });
-  observer.observe(bubble, { box: 'border-box' });
-  return () => observer.disconnect();
-}
 async function send() {
   const value = input.value.trim();
   if (!value || pending) return;
@@ -533,7 +507,6 @@ async function send() {
   const transitActions = [];
   const answer = document.createElement('span'); answer.className = 'assistant-answer';
   progress.append(status, activity, answer);
-  const stopSizing = animateMessageSize(progress);
   let followResponse = true;
   const onScroll = () => { followResponse = content.scrollHeight - content.scrollTop - content.clientHeight < 80; };
   const keepVisible = () => { if (followResponse) content.scrollTop = content.scrollHeight; };
@@ -578,9 +551,9 @@ async function send() {
     progress.classList.add('message-error');
     stage = controller.signal.aborted ? (controller.signal.reason === 'timeout' ? 'Odpowiedź trwa zbyt długo.' : 'Przerwano odpowiedź.') : error.message;
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Spróbuj ponownie';
-    retry.addEventListener('click', () => { if (pending) return; input.value = value; stopSizing(); progress.remove(); send(); });
+    retry.addEventListener('click', () => { if (pending) return; input.value = value; progress.remove(); send(); });
     progress.append(retry); renderStatus();
-  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); progress.classList.add('is-finished'); requestAnimationFrame(() => requestAnimationFrame(stopSizing)); if (resultPanel.childElementCount) progress.after?.(resultPanel); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
+  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); progress.classList.add('is-finished'); if (resultPanel.childElementCount) progress.after?.(resultPanel); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
 }
 submit.addEventListener('click', event => { event.stopPropagation(); send(); });
 input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); } });

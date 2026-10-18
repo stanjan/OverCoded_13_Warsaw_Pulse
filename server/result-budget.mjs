@@ -149,10 +149,6 @@ function fitModelResultBudget(result, {
     if (toolFits(result, context)) return { response: result, records: result.results };
   }
   const original = result.results;
-  // Alternative categories have independent date/length scopes. Do not apply
-  // a shared automatic date/radius that could erase a whole category.
-  const varied = Array.isArray(filters.alternatives);
-  const filtersFor = record => varied ? filters.alternatives.find(item => item.category === record.category) || {} : filters;
   const originalTotal = original.length, countsByCategory = categoryCounts(original);
   const attempts = [];
   let records = original, applied = { requested: filters }, excluded = {}, preserved = {};
@@ -174,7 +170,7 @@ function fitModelResultBudget(result, {
     if (records.length && toolFits(response, context)) return { response, records };
     return null;
   };
-  if (!varied && original.some(record => record.category === 'event')) {
+  if (original.some(record => record.category === 'event')) {
     const today = warsawDate(now);
     // An explicit future/past trip is anchored to its requested date, never
     // silently replaced with today. dateTo-only requests remain within that cap.
@@ -196,7 +192,7 @@ function fitModelResultBudget(result, {
   }
   const knownLocation = location?.status === 'available' &&
     location.source === 'browser_geolocation' && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180;
-  if (knownLocation && !varied) {
+  if (knownLocation) {
     // Spatial narrowing starts from the entire requested date/audience scope,
     // rather than inheriting the last failed one-day trial.
     const dated = original;
@@ -217,17 +213,11 @@ function fitModelResultBudget(result, {
   // Return to the original user-filtered set: failed automatic dates/radii
   // must never hide every real match. GPS orders known positions nearest first;
   // unlocated records remain eligible but never acquire an invented distance.
-  let ranked = original.map((record, index) => {
-    const nearest = knownLocation ? selectLocations(record, filtersFor(record)).map(point => ({ ...point,
+  const ranked = original.map((record, index) => {
+    const nearest = knownLocation ? selectLocations(record, filters).map(point => ({ ...point,
       distance: distanceKm(location.latitude, location.longitude, point.lat, point.lng) })).sort((a, b) => a.distance - b.distance)[0] : null;
     return { record: nearest ? { ...record, lat: nearest.lat, lng: nearest.lng } : record, index, distance: nearest?.distance ?? Infinity };
   }).sort((a, b) => a.distance - b.distance || a.index - b.index);
-  // Keep nearest/source order within each category while giving each a turn.
-  if (varied) {
-    const queues = filters.alternatives.map(filters => ranked.filter(item => item.record.category === filters.category));
-    ranked = [];
-    while (queues.some(queue => queue.length)) for (const queue of queues) if (queue.length) ranked.push(queue.shift());
-  }
   const suggestions = refinementExamples(original);
   const missingCoordinates = original.filter(record => !selectLocations(record, filters).length).length;
   const preview = (selected, projected = false) => ({
@@ -237,7 +227,7 @@ function fitModelResultBudget(result, {
     suggestedRefinements: suggestions,
     narrowing: { reason: 'conversation_capacity', preview: true, originalTotal, effectiveTotal: selected.length,
       candidateTotal: originalTotal, appliedFilters: { requested: filters }, attempts,
-      selection: varied ? 'category_balanced_examples' : knownLocation && ranked.some(item => Number.isFinite(item.distance)) ? 'nearest_known_locations_first' : 'source_order',
+      selection: knownLocation && ranked.some(item => Number.isFinite(item.distance)) ? 'nearest_known_locations_first' : 'source_order',
       ...(knownLocation ? { positionBasis: 'last_known_location', observedAt: location.observedAt ?? null, accuracyMeters: location.accuracy ?? null,
         freshness: location.freshness || 'unknown' } : {}),
       farthestKnownDistanceKm: selected.reduce((distance, item) => Number.isFinite(item.distance) ? Math.max(distance ?? 0, item.distance) : distance, null),
@@ -248,7 +238,7 @@ function fitModelResultBudget(result, {
   });
   // The largest fitting prefix has an explicit count and deterministic order.
   // If even its first full record is huge, use a disclosed bounded model copy.
-  for (const projected of varied ? [true] : [false, true]) {
+  for (const projected of [false, true]) {
     const first = preview(ranked.slice(0, 1), projected);
     compactHistory(history, requestOptions, limits, [{ role: 'tool', tool_call_id: toolCallId, content: JSON.stringify(first) }]);
     if (!toolFits(first, context)) continue;

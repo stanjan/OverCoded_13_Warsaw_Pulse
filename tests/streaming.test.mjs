@@ -51,9 +51,14 @@ test('assistant publishes validated map actions and activity before final respon
     await new Promise(resolve => setTimeout(resolve, 10)); finished = true;
     return { content: 'Pokazuję miejsca.' };
   } });
-  const result = await assistant.chat({ message: 'Pokaż muzea' }, undefined, event => { if (event.type === 'action' || event.type === 'text') assert.equal(finished, false); events.push(event); });
+  const result = await assistant.chat({ message: 'Pokaż muzea' }, undefined, event => {
+    if (event.type === 'action') assert.equal(finished, false);
+    if (event.type === 'text') assert.equal(finished, true);
+    events.push(event);
+  });
   assert.equal(events[0].sessionId, result.sessionId);
   assert.equal(events.filter(event => event.type === 'action').length, 1);
+  assert.deepEqual(events.filter(event => event.type === 'text').map(event => event.delta), ['Pokazuję miejsca.']);
   assert.ok(events.some(event => event.type === 'activity' && /Zaktualizowano/.test(event.label)));
 });
 

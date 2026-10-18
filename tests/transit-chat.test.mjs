@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
 
 const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-const send='const requestAnimationFrame = callback => callback();\n'+source.slice(source.indexOf('function animateMessageSize('),source.indexOf("\nsubmit.addEventListener('click'"));
+const send=source.slice(source.indexOf('async function send()'),source.indexOf("\nsubmit.addEventListener('click'"));
 function setup(stream){
  const nodes=[],actions=[],events=[],cleared=[];
  const node=()=>({textContent:'',children:[],classList:{add(){}},setAttribute(){},removeAttribute(){},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},remove(){},addEventListener(){},removeEventListener(){}});
