@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { bridgeCompletionUrl } from '../bridge/network.mjs';
 import { executeTool } from './tools.mjs';
 import { fitResultBudget, compactHistory, serializeBridgeRequest, requestFits, BRIDGE_LIMITS, boundDisplayAction } from './result-budget.mjs';
 import { normalizeLocation, locationContext } from './location.mjs';
@@ -56,14 +57,15 @@ export async function* readSse(body) {
 export async function bridgeCompletion(messages, { signal, fetchImpl = fetch, onEvent, sessionId } = {}) {
   const base = process.env.CODEX_BRIDGE_URL;
   if (!base) throw new BridgeError('Asystent nie jest jeszcze połączony. Spróbuj ponownie po uruchomieniu lokalnego serwera.', 503);
-  const url = new URL(base);
-  if (!['http:', 'https:'].includes(url.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new BridgeError('Adres codex-bridge musi wskazywać lokalny serwer.', 503);
+  let endpoint;
+  try { endpoint = bridgeCompletionUrl(base); }
+  catch { throw new BridgeError('Adres codex-bridge musi wskazywać lokalny serwer lub prywatny adres IPv4 w sieci LAN, bez hasła, query i fragmentu.', 503); }
   const headers = { 'Content-Type': 'application/json' };
   if (process.env.CODEX_BRIDGE_API_KEY) headers.Authorization = `Bearer ${process.env.CODEX_BRIDGE_API_KEY}`;
   const body = serializeBridgeRequest(messages, { onEvent, sessionId });
   if (!requestFits(messages, { onEvent, sessionId }, BRIDGE_LIMITS)) throw new BridgeError('Wszystkie wyniki przekraczają pojemność rozmowy. Zawęź kategorię, dzielnicę lub daty; żaden wynik nie został pominięty.', 413);
   let response;
-  try { response = await fetchImpl(`${base.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers, signal, body }); }
+  try { response = await fetchImpl(endpoint, { method: 'POST', headers, signal, body, redirect: 'error' }); }
   catch { throw new BridgeError(signal?.aborted ? 'Asystent nie odpowiedział na czas. Spróbuj ponownie.' : 'Nie można połączyć się z codex-bridge. Sprawdź, czy serwer działa.', signal?.aborted ? 504 : 503); }
   if (!response.ok) throw new BridgeError(`Serwer codex-bridge odrzucił zapytanie (HTTP ${response.status}).`);
   if (onEvent) {
