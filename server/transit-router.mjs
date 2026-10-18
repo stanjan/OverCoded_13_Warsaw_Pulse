@@ -23,7 +23,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
   return {mode:'WALK',from:fromName,to:toName,start,end:start+duration,distanceMeters:known?edge.distanceMeters:Math.round(distance*WALK_FACTOR),path:known?edge.path:[coordinate(from),coordinate(to)],geometry:known?edge.geometry:'schematic',walkingKey:key,...(known?{walkingSource:edge.source,endpointGapsMeters:edge.endpointGapsMeters}:{}),assumption:known?edge.assumption:'Odległość w linii prostej × 1,3; prędkość 1,2 m/s. Brak weryfikacji przejścia dla pieszych.'};
  }
  let previous=new Map();for(const{stop,distance}of starts){const step=walk(origin,stop,distance,departureTime,origin.label,stop.name);if(step)previous.set(stop.id,{time:step.end,path:distance>0?[step]:[]});}
- const candidates=[];
+ const candidates=[],preparedShapes=new Map();
  const grid=new Map();for(const stop of graph.stops){const key=Math.floor(stop.latitude*100)+':'+Math.floor(stop.longitude*100);if(!grid.has(key))grid.set(key,[]);grid.get(key).push(stop);}
  const transfers=new Map();function neighbours(id){if(transfers.has(id))return transfers.get(id);const from=byId.get(id),items=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)for(const to of grid.get((Math.floor(from.latitude*100)+y)+':'+(Math.floor(from.longitude*100)+x))||[]){const distance=distanceMeters(from,to);if(to.id!==id&&distance<=250)items.push({to,distance});}transfers.set(id,items);return items;}
  for(let round=1;round<=maxBoardings;round++){
@@ -36,7 +36,7 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
     if(boarding&&event.dropOff===0&&event.arrival>=boarding.event.departure&&event.arrival<=departureTime+horizonMs){
      const existing=next.get(stop.id);if(!existing||event.arrival<existing.time){
       const from=byId.get(boarding.event.stopId),sequence=trip.stopTimes.slice(boarding.index,index+1).map(item=>byId.get(item.stopId)).filter(Boolean);
-      const shapePath=validShape(trip.shape)?shapeSlice(trip.shape,boarding.event,event,byId):[];
+      const shapePath=shapeSlice(trip,boarding.index,index,byId,preparedShapes);
       next.set(stop.id,{time:event.arrival,path:[...boarding.label.path,{mode:'TRANSIT',line:trip.line,...transitAppearance(trip),routeType:trip.routeType,headsign:trip.headsign,tripId:trip.id,serviceDate:trip.serviceDate,from:from.name,to:stop.name,fromStopId:from.id,toStopId:stop.id,fromStopIndex:boarding.index,toStopIndex:index,start:boarding.event.departure,end:event.arrival,scheduledStart:trip.stopTimes[boarding.index].departure,scheduledEnd:scheduled.arrival,delay:event.live?{...event.live}:null,stops:index-boarding.index,path:shapePath.length>1?shapePath:sequence.map(coordinate),geometry:shapePath.length>1?'gtfs_shape':'schematic'}]});
      }
     }
@@ -60,11 +60,38 @@ export function planGraph(graph,{origin,destination,departureTime,signal,maxBoar
   return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&validShape(trip?.shape)?{...step,fullPath:trip.shape.map(coordinate),fullPathGeometry:'gtfs_shape'}:step;
  })}));
 }
-function shapeSlice(shape,from,to,byId){
- const a=byId.get(from.stopId),b=byId.get(to.stopId);if(!a||!b)return[];
- let start=-1,end=-1,d1=Infinity,d2=Infinity;
- for(let i=0;i<shape.length;i++){const distance=distanceMeters(shape[i],a);if(distance<d1){d1=distance;start=i;}}
- for(let i=start;i<shape.length;i++){const distance=distanceMeters(shape[i],b);if(distance<d2){d2=distance;end=i;}}
- if(start<0||end<=start||d1>150||d2>150)return[];
+function shapeSlice(trip,fromIndex,toIndex,byId,prepared){
+ const shape=trip.shape,from=trip.stopTimes[fromIndex],to=trip.stopTimes[toIndex],a=byId.get(from.stopId),b=byId.get(to.stopId);if(!a||!b)return[];
+ let metadata=prepared.get(trip);
+ if(metadata===false)return[];
+ if(!metadata){
+  if(!validShape(shape)){prepared.set(trip,false);return[];}
+  const distances=shape.map(point=>point.shapeDistance),events=trip.stopTimes.map(event=>event.shapeDistance);
+  metadata={distances,ordered:distances.every((value,index)=>Number.isFinite(value)&&(!index||value>distances[index-1]))&&events.every((value,index)=>Number.isFinite(value)&&(!index||value>=events[index-1])),repeated:new Set(trip.stopTimes.map(event=>event.stopId)).size!==trip.stopTimes.length,nearest:new Map()};
+  prepared.set(trip,metadata);
+ }
+ const{distances,ordered}=metadata;
+ if(ordered){
+  const at=value=>{
+   if(value<distances[0]||value>distances.at(-1))return null;
+   const index=distances.findIndex(distance=>distance>=value);if(index===0)return coordinate(shape[0]);
+   const ratio=(value-distances[index-1])/(distances[index]-distances[index-1]),start=shape[index-1],end=shape[index];
+   return{latitude:start.latitude+(end.latitude-start.latitude)*ratio,longitude:start.longitude+(end.longitude-start.longitude)*ratio};
+  };
+  const start=at(from.shapeDistance),end=at(to.shapeDistance);
+  if(!start||!end||to.shapeDistance<=from.shapeDistance||distanceMeters(start,a)>150||distanceMeters(end,b)>150)return[];
+  return[start,...shape.filter(point=>point.shapeDistance>from.shapeDistance&&point.shapeDistance<to.shapeDistance).map(coordinate),end];
+ }
+ // Source distances are required to distinguish repeated stop occurrences.
+ // Otherwise retain the exact boarded sequence as explicitly schematic geometry.
+ if(metadata.repeated)return[];
+ const nearest=stop=>{
+  if(metadata.nearest.has(stop.id))return metadata.nearest.get(stop.id);
+  let distance=Infinity,index=-1;
+  const values=shape.map((point,i)=>{const value=distanceMeters(point,stop);if(value<distance){distance=value;index=i;}return value;});
+  if(distance>150||values.some((value,i)=>Math.abs(i-index)>1&&value<=distance+1))index=-1;
+  metadata.nearest.set(stop.id,index);return index;
+ };
+ const start=nearest(a),end=nearest(b);if(start<0||end<=start)return[];
  return shape.slice(start,end+1).map(coordinate);
 }

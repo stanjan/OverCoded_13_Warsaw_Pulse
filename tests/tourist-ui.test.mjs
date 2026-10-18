@@ -45,3 +45,17 @@ for(const early of [false,true])test('active transit wins tourist result framing
  assert.equal(calls.at(-1)[0],'leaflet');assert.equal(calls.at(-1)[1],'transit-frame');assert.equal(calls.filter(call=>call[0]==='leaflet'&&call[1]==='transit-frame').length,1,'one final active journey replay');
  if(early)assert.equal(calls.some(call=>call[0]==='google'),false,'obsolete startup cannot restore old result framing');
 });
+
+test('saved tourist map reopen restores the tourist layer after marker opening and fits the full trail',async()=>{
+ const panel=element('section'),calls=[];let replace;
+ const status={classList:{add(){},remove(){}}};
+ const adapter=vendor=>({vendor,clearMarkers(){calls.push([vendor,'clear']);},addMarker(record,{onOpen}){return{open(){onOpen();calls.push([vendor,'open',record.id]);}};},showTouristRoutes(records,options){calls.push([vendor,'tourism',records,options]);},setView(){calls.push([vendor,'start-only-view']);},fitTo(){},showUser(){}});
+ const google=adapter('google'),leaflet=adapter('leaflet');
+ const context={console,Promise,document:{createElement:element,querySelector:()=>status},window:{createCityMap(_element,options){replace=options.onReplace;return Promise.resolve(google);}},resultPanel:panel,mapCanvas:{clientHeight:700},drawer:{offsetHeight:150},setExpanded(){},lastPosition:null};
+ runInNewContext('let cityMap,lastDisplayedAction;\n'+startup+render+'\nglobalThis.hooks={mapReady};',context);
+ await context.hooks.mapReady;assert.equal(context.window.focusCityPlace(place),true);
+ assert.equal(calls.some(call=>call[1]==='start-only-view'),false);
+ assert.equal(calls.at(-1)[1],'tourism');assert.equal(calls.at(-1)[3].selectedId,place.id);
+ assert.deepEqual(calls.at(-1)[2][0].traceSegments,place.traceSegments);
+ replace(leaflet);assert.equal(calls.at(-1)[0],'leaflet');assert.equal(calls.at(-1)[1],'tourism');assert.equal(calls.at(-1)[3].selectedId,place.id);
+});

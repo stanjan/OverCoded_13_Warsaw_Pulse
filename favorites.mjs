@@ -7,6 +7,29 @@ const text = (value, max = 300) => typeof value === 'string' && value.trim() ? v
 const texts = (value, max = 20, length = 200) => Array.isArray(value) ? value.map(item => text(item, length)).filter(Boolean).slice(0, max) : undefined;
 const clean = object => Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined && !(Array.isArray(value) && !value.length)));
 
+
+const MAX_TRACE_VERTICES = 10000, MAX_TOURIST_POINTS = 100;
+const latlng = value => Array.isArray(value) && value.length === 2 && Number.isFinite(value[0]) && Math.abs(value[0]) <= 90 && Number.isFinite(value[1]) && Math.abs(value[1]) <= 180;
+function routeSnapshot(place) {
+  if (place.category !== 'route') return {};
+  const lengthKm = Number.isFinite(place.lengthKm) && place.lengthKm >= 0 && place.lengthKm <= 10000 ? place.lengthKm : undefined;
+  let vertices = 0, discarded = false;
+  const traceSegments = [];
+  if (Array.isArray(place.traceSegments)) for (const segment of place.traceSegments) {
+    if (!Array.isArray(segment) || segment.length < 2 || !segment.every(latlng)) { discarded = true; continue; }
+    vertices += segment.length;
+    // Never truncate a trail into a misleading shortcut or connect its gaps.
+    if (vertices > MAX_TRACE_VERTICES || traceSegments.length >= 64) { traceSegments.length = 0; discarded = true; break; }
+    traceSegments.push(segment.map(point => [...point]));
+  }
+  const touristPoints = Array.isArray(place.touristPoints) ? place.touristPoints.slice(0, MAX_TOURIST_POINTS).flatMap(point => {
+    const name = text(point?.name), coordinates = [point?.lat, point?.lng];
+    return name && latlng(coordinates) ? [{ name, lat: coordinates[0], lng: coordinates[1] }] : [];
+  }) : [];
+  return { lengthKm, traceSegments, touristPoints, traceVertexCount: traceSegments.reduce((count, segment) => count + segment.length, 0),
+    geometryStatus: traceSegments.length ? discarded || place.geometryStatus === 'partial' ? 'partial' : 'published' : 'saved_unavailable' };
+}
+
 export function favoriteId(value) {
   if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 200);
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
@@ -23,7 +46,7 @@ export function favoriteSnapshot(place, now = Date.now()) {
     .map(date => clean({ from: text(date.from, 40), to: text(date.to, 40), sourceFrom: text(date.sourceFrom, 40), sourceTo: text(date.sourceTo, 40) })).filter(date => date.from) : undefined;
   const saved = typeof place.savedAt === 'string' && Number.isFinite(Date.parse(place.savedAt)) ? place.savedAt : new Date(now).toISOString();
   return clean({
-    id, name, category: text(place.category, 40), activities: texts(place.activities), audience: texts(place.audience),
+    id, name, ...routeSnapshot(place), category: text(place.category, 40), activities: texts(place.activities), audience: texts(place.audience),
     description: text(place.description, 1500), free: typeof place.free === 'boolean' ? place.free : undefined, dates,
     weekdays: texts(place.weekdays, 7, 40), time: text(place.time, 80), address: text(place.address), addresses: texts(place.addresses, 5),
     district: text(place.district, 80), lat: spatial ? place.lat : undefined, lng: spatial ? place.lng : undefined,
@@ -62,7 +85,7 @@ export function createFavoritesStore({ storage, key = FAVORITES_KEY, now = () =>
   const store = {
     key,
     get persistent() { return persistent; },
-    list: () => items.map(item => ({ ...item })),
+    list: () => structuredClone(items),
     has: id => { const wanted = favoriteId(id); return Boolean(wanted) && items.some(item => item.id === wanted); },
     add(place) {
       const snapshot = favoriteSnapshot(place, now());
