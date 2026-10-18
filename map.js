@@ -120,7 +120,7 @@
     let markers = [];
     let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView;
     let touristPlaces = [], touristLines = [], touristMarkers = [], touristRecommendedId;
-    const touristInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
+    const touristInfo = new InfoWindow({ maxWidth: 260, disableAutoPan: true, headerDisabled: true });
     let touristPopupContent;
     touristInfo.addListener('closeclick',()=>{touristPopupContent=null;});
     touristInfo.addListener('domready',()=>{
@@ -144,7 +144,7 @@
       }
       for (const [index, point] of touristPoints(selected).entries()) {
         const marker = new AdvancedMarkerElement({map,position:{lat:point.lat,lng:point.lng},content:touristPointElement(index),title:point.name,gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:210});
-        marker.addEventListener('gmp-click', () => { touristPopupContent=touristPointDetails(point);touristInfo.setContent(touristPopupContent); touristInfo.open({map,anchor:marker,shouldFocus:true}); }); touristMarkers.push(marker);
+        marker.addEventListener('gmp-click', () => { touristPopupContent=touristPointDetails(point,index,()=>{touristInfo.close();touristPopupContent=null;});touristInfo.setContent(touristPopupContent); touristInfo.open({map,anchor:marker,shouldFocus:true}); }); touristMarkers.push(marker);
       }
       const points = touristMapPoints(selected ? [selected] : touristPlaces);
       if (points.length) { routeView = {tourism:true,points:points.map(([latitude,longitude])=>({latitude,longitude})),options:{}}; fitRoute(); }
@@ -299,7 +299,7 @@
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
       for (const place of touristPlaces) for (const segment of touristSegments(place)) for(const [color,weight] of [['#fff8e8',8],['#3a2a22',3]])L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer);
       for (const [index, point] of touristPoints(selected).entries()) {
-        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point),{className:'tourist-point-popup',maxWidth:230,...vehiclePopupPadding(element)});
+        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point,index),{className:'tourist-point-popup',maxWidth:230,...vehiclePopupPadding(element)});
         marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,vehiclePopupPadding(element));popup.update();});marker.addTo(touristLayer);
       }
       const points=touristMapPoints(selected?[selected]:touristPlaces);
@@ -389,7 +389,14 @@
   function touristPoints(place) { return Array.isArray(place?.touristPoints) ? place.touristPoints.filter(point => typeof point?.name === 'string' && Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 && Number.isFinite(point.lng) && Math.abs(point.lng) <= 180) : []; }
   function touristMapPoints(places) { return places.flatMap(place => [...touristSegments(place).flat(), ...touristPoints(place).map(point => [point.lat,point.lng]), ...(Number.isFinite(place.lat)&&Number.isFinite(place.lng)?[[place.lat,place.lng]]:[])]); }
   function touristPointElement(index) { const dot=document.createElement('span');dot.className='tourist-point';dot.textContent=String(index+1);return dot; }
-  function touristPointDetails(point) { const details=document.createElement('strong');details.className='tourist-point-detail';details.textContent=point.name;return details; }
+  // Compact one-line popup: point number, name and (on Google, which has no header here) a small close button.
+  function touristPointDetails(point, index, onClose) {
+    const details=document.createElement('div');details.className='tourist-point-detail';
+    if(Number.isInteger(index)){const badge=touristPointElement(index);badge.setAttribute?.('aria-hidden','true');details.append(badge);}
+    const name=document.createElement('strong');name.textContent=point.name;details.append(name);
+    if(onClose){const close=document.createElement('button');close.type='button';close.className='tourist-point-detail__close';close.setAttribute?.('aria-label','Zamknij');close.textContent='×';close.addEventListener('click',onClose);details.append(close);}
+    return details;
+  }
   function validTransitPath(points) { return Array.isArray(points) ? points.filter(point=>Number.isFinite(point?.latitude)&&Math.abs(point.latitude)<=90&&Number.isFinite(point.longitude)&&Math.abs(point.longitude)<=180) : []; }
   function transitContextPath(step) { const path=validTransitPath(step.fullPath);return step.mode==='TRANSIT'&&step.geometry==='gtfs_shape'&&step.fullPathGeometry==='gtfs_shape'&&path.length===step.fullPath?.length?path:[]; }
   function destinationElement() {
@@ -771,7 +778,8 @@
   window.cityCardInfo = place => {
     const theme = themeFor(place);
     const price = priceInfo(place);
-    return { theme, themeLabel: place.category==='toilet'?'WC':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+    // Tourist routes use the same brown as their trace and pins on the map.
+    return { theme: place.category==='route'?'route':theme, themeLabel: place.category==='toilet'?'WC':place.category==='route'?'Trasa':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();

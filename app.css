@@ -344,6 +344,7 @@ button.place-card__title:hover { background: #f2f4f6; }
 .rec-card--seniors { --pin-light: #ccfbf1; --pin-ink: #0f6b60; }
 .rec-card--outdoor { --pin-light: #ecfccb; --pin-ink: #4d6b08; }
 .rec-card--aed { --pin-light: #fee2e2; --pin-ink: #b91c1c; }
+.rec-card--route { --pin-light: #f3eeea; --pin-ink: #3a2a22; }
 .rec-card__meta { grid-area: meta; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rec-card__tag { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--pin-light); color: var(--pin-ink); font-size: 11px; font-weight: 800; }
 .rec-card__when { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #342b26; font-size: 12px; font-weight: 700; }
@@ -371,7 +372,14 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 #ai-sheet.is-dragging #sheet-content { transition: none !important; }
 #sheet-toggle { touch-action: none; }
 .tourist-point{display:grid;place-items:center;width:22px;height:22px;padding:0;border:2px solid #fff8e8;outline:1px solid #3a2a22;border-radius:50%;background:#3a2a22;color:#fff8e8;font-family:Arial,sans-serif;font-size:12px;line-height:1;font-variant-numeric:lining-nums tabular-nums;font-weight:700;box-shadow:0 2px 5px #3a2a2233;box-sizing:border-box}
-.tourist-point-detail{display:block;color:#3a2a22;padding:4px;font-family:Georgia,serif;font-size:15px}
+.tourist-point-detail{display:flex;align-items:center;gap:8px;color:#3a2a22;padding:8px 10px;font-family:Georgia,serif;font-size:15px;line-height:1.25}
+.tourist-point-detail .tourist-point{flex:none}
+.tourist-point-detail strong{font-weight:600}
+.tourist-point-detail__close{flex:none;display:grid;place-items:center;width:24px;height:24px;margin-left:2px;padding:0;border:0;border-radius:50%;background:transparent;color:#75675f;font:20px/1 Arial,sans-serif;cursor:pointer}
+.tourist-point-detail__close:hover{background:#f3eeea;color:#3a2a22}
+.gm-style .gm-style-iw-c:has(.tourist-point-detail){padding:0!important;border-radius:16px}
+.gm-style .gm-style-iw-d:has(.tourist-point-detail){overflow:hidden!important}
+.tourist-point-popup .leaflet-popup-content{margin:0}
 .tourist-card-note{display:block;color:#75675f;font-size:13px;margin-top:4px}
 .tourist-result-detail .result-image--large{height:44px}
 .tourist-result-detail .result-detail__body{max-height:calc(var(--tourist-popup-height,200px) - 44px);box-sizing:border-box}
