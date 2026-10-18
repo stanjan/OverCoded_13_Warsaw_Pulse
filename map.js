@@ -531,7 +531,7 @@
       || 'culture';
   }
 
-  const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'sports_basketball', route: 'explore', toilet: 'wc', weather: 'partly_cloudy_day', air_quality: 'air' };
+  const categoryIcons = { event: 'local_activity', sports: 'sports_soccer', pitch: 'pitch', route: 'explore', toilet: 'wc', weather: 'partly_cloudy_day', air_quality: 'air' };
   function safeUrl(value, image = false) {
     try {
       const url = new URL(value);
@@ -574,7 +574,7 @@
     button.dataset.theme = theme;
     if(place.category==='route')button.dataset.tourism='true';
     const pin = document.createElement('span'); pin.className = 'result-pin'; pin.setAttribute('aria-hidden', 'true');
-    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = place.category === 'toilet' ? 'wc' : place.category==='route'?'explore':themeIcons[theme];
+    const glyph = document.createElement('span'); glyph.className = 'material-symbols-outlined result-pin__icon'; glyph.textContent = place.category === 'toilet' ? 'wc' : place.category === 'pitch' ? 'pitch' : place.category==='route'?'explore':themeIcons[theme];
     pin.append(glyph);
     // Recommended results show a white star on the small zoomed-out drop; zoomed in they look like every other pin.
     if (recommended) {
@@ -779,7 +779,7 @@
     const theme = themeFor(place);
     const price = priceInfo(place);
     // Tourist routes use the same brown as their trace and pins on the map.
-    return { theme: place.category==='route'?'route':theme, themeLabel: place.category==='toilet'?'WC':place.category==='route'?'Trasa':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+    return { theme: place.category==='route'?'route':theme, themeLabel: place.category==='toilet'?'WC':place.category==='route'?'Trasa':place.category==='pitch'?'Boisko':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':place.category==='pitch'?'pitch':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();
