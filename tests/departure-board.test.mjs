@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {boardRequest,departureBoard} from '../server/departure-board.mjs';
 import {createTransitService} from '../server/transit.mjs';
-import {boardingStages,nearestBoarding,boardTiming,mountDepartureBoard} from '../departure-board.mjs';
+import {boardingStages,nearestBoarding,boardTiming,departureDirection,mountDepartureBoard} from '../departure-board.mjs';
 
 const now=Date.parse('2026-10-18T12:00:00Z');
 const stops=[{id:'A',name:'Start',platform:'01',latitude:52.2,longitude:21},{id:'A2',name:'Start',platform:'02',latitude:52.2001,longitude:21},{id:'B',name:'Przesiadka',platform:'03',latitude:52.21,longitude:21},{id:'C',name:'Cel',latitude:52.22,longitude:21}];
@@ -64,12 +64,22 @@ test('panel follows nearest boarding until manual navigation and refreshes only 
 });
 test('old responses and errors cannot restore hidden or newer boards; failures/expiry remove GPS estimates',async()=>{
  const pending=[];const f=ui((_url,options)=>new Promise((resolve,reject)=>pending.push({resolve,reject,signal:options.signal})));f.board.show(journey);f.panel.children[0].children[1].children[0].click();assert.equal(pending[0].signal.aborted,true);
- pending[1].resolve(response('A',[{line:'17',headsign:'Cel',scheduledDeparture:now+600000,departure:now+660000,timing:'live_model_estimate',deltaMs:60000,observedAt:now,liveUntil:now+180000}]));await tick();assert.equal(f.body().children[0].children[2].children[1].className,'departure-board__live');
- pending[0].reject(new Error('old'));await tick();assert.equal(f.body().children[0].children[2].children[1].className,'departure-board__live');
- assert.equal(f.body().children[0].children[2].children[0].textContent,'14:11');
- const refresh=f.board.refresh();pending[2].reject(new Error('offline'));await refresh;assert.equal(f.body().children[0].children[2].children[1].className,'');assert.equal(f.body().children[0].children[2].children[0].textContent,'14:10');
+ pending[1].resolve(response('A',[{line:'17',headsign:'Cel',scheduledDeparture:now+600000,departure:now+660000,timing:'live_model_estimate',deltaMs:60000,observedAt:now,liveUntil:now+180000}]));await tick();assert.equal(f.body().children[0].children[2].children[0].dataset.tone,'on-time');
+ pending[0].reject(new Error('old'));await tick();assert.equal(f.body().children[0].children[2].children[0].dataset.tone,'on-time');
+ assert.equal(f.body().children[0].children[2].children[0].textContent,'11 min');assert.equal(f.body().children[0].children[2].children[0].children.length,1);
+ const refresh=f.board.refresh();pending[2].reject(new Error('offline'));await refresh;assert.equal(f.body().children[0].children[2].children[0].dataset.tone,'scheduled');assert.equal(f.body().children[0].children[2].children[0].textContent,'10 min');assert.equal(f.body().children[0].children[2].children[0].children.length,0);
  assert.equal(boardTiming({timing:'live_model_estimate',liveUntil:now+180000,observedAt:now,departure:now+660000,scheduledDeparture:now+600000},now+180001).live,false);
  const late=f.board.refresh();f.board.hide();pending[3].resolve(response('A'));await late;assert.equal(f.panel.hidden,true);
+});
+test('compact board uses relative times below thirty minutes, clock thereafter and inclusive two-minute live tolerance',async()=>{
+ const base={line:'116',headsign:'116 -> Wilanów',timing:'live_model_estimate',observedAt:now,liveUntil:now+180000};
+ for(const [deltaMs,tone]of [[-120001,'early'],[-120000,'on-time'],[120000,'on-time'],[120001,'late']])assert.equal(boardTiming({...base,deltaMs},now).tone,tone);
+ const rows=[{...base,deltaMs:-120001,departure:now+29*60000,scheduledDeparture:now+31*60000},{...base,deltaMs:120001,departure:now+30*60000,scheduledDeparture:now+28*60000},{line:'503',headsign:'503 → Natolin Płn.',timing:'scheduled',scheduledDeparture:now+31*60000}];
+ const f=ui(async()=>response('B',rows));f.board.show(journey);await tick();
+ assert.deepEqual(f.body().children.map(row=>row.children[2].children[0].textContent),['29 min','14:30','14:31']);
+ assert.deepEqual(f.body().children.map(row=>row.children[2].children[0].dataset.tone),['early','late','scheduled']);
+ assert.equal(f.body().children[0].children[1].children[0].textContent,'Wilanów');assert.equal(departureDirection(rows[2]),'Natolin Płn.');assert.equal(departureDirection({line:'116',headsign:'Os. Kabaty'}),'Os. Kabaty');
+ assert.equal(f.panel.children[0].children[0].children[1].textContent,'01');assert.equal(f.panel.children[1].hidden,true);f.board.hide();
 });
 test('board hides rather than covering weather or attribution when a small viewport has no map space',()=>{
  const container=element();container.getBoundingClientRect=()=>({top:0,bottom:360});
