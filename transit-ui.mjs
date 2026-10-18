@@ -5,6 +5,17 @@ function glyph(doc,kind){
  const paths=kind==='walk'?['M13 4h.01','M9 20l2-7 3 3v5','M6 12l4-5 4 2 3 4h3','M10 7l1 6'] : kind==='tram'||kind==='skm'?['M7 4h10a2 2 0 0 1 2 2v11H5V6a2 2 0 0 1 2-2Z','M5 12h14M9 4l1-3h4l1 3M8 20l-2 2m10-2 2 2M8 15h.01M16 15h.01'] : ['M6 3h12a2 2 0 0 1 2 2v13H4V5a2 2 0 0 1 2-2Z','M4 12h16M7 18v3m10-3v3M7 15h.01M17 15h.01M8 6h8'];
  for(const d of paths){const path=doc.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);svg.append(path);}return svg;
 }
+// Decorative placeholder cards shown while a route is computed; the status line carries the accessible text.
+export function loadingSkeleton(doc){
+ const row=doc.createElement('div');row.className='transit-skeleton-row';row.setAttribute('aria-hidden','true');
+ for(const kind of ['bus','tram']){
+  const card=doc.createElement('div');card.className='transit-skeleton';
+  for(const size of ['label','title','text']){const bar=doc.createElement('span');bar.className='transit-skeleton-bar transit-skeleton-'+size;card.append(bar);}
+  const track=doc.createElement('span');track.className='transit-skeleton-track';
+  for(let stop=0;stop<3;stop++){const dot=doc.createElement('span');dot.className='transit-skeleton-stop';track.append(dot);}
+  const vehicle=doc.createElement('span');vehicle.className='transit-skeleton-vehicle';vehicle.append(glyph(doc,kind));track.append(vehicle);card.append(track);row.append(card);
+ }return row;
+}
 export function routeChain(doc,route){
  const chain=doc.createElement('span');chain.className='route-chain';
  const legs=[];for(const step of route.steps||[]){const last=legs.at(-1);if(step.mode==='WALK'&&last?.mode==='WALK')last.end=step.end;else legs.push({...step});}
@@ -104,7 +115,8 @@ function mountSession({doc,host,compute,fetchImpl,panel,elements,activateSession
  }
  function render(next){
   const scroller=doc.getElementById('sheet-content'),following=scroller&&scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight<80;state=next;clearView();status.dataset.compact=String(next.status==='ready');el('details').hidden=true;el('search').disabled=next.status==='loading';el('search').setAttribute('aria-busy',String(next.status==='loading'));el('cancel').hidden=next.status!=='loading';el('clear').hidden=true;
-  if(next.status==='loading')message('Przygotowuję rozkład ZTM i sprawdzam połączenia…');
+  alternatives.setAttribute('aria-busy',String(next.status==='loading'));
+  if(next.status==='loading'){message('Przygotowuję rozkład ZTM i sprawdzam połączenia…');status.dataset.state='loading';alternatives.append(loadingSkeleton(doc));}
   else if(next.status==='error'){el('editor').open=true;message(next.error.message,true);}
   else if(next.status==='cancelled')message('Przerwano planowanie.');
   else if(next.status==='idle')message('Wybierz start i cel, by sprawdzić miejski rozkład.');
