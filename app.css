@@ -493,3 +493,13 @@ button.rec-card__title:hover { background: none; color: #a14d32; }
 
 #transit-mode,[data-transit="mode"]{width:100%;padding:10px 12px;border:1px solid #d9d5cf;border-radius:12px;background:#fff;color:#3a2a22;font:inherit}
 .transit-recommendation{color:#64564e;font-size:12px}
+
+/* New recommendations settle in gently; re-focusing the map does not replay them. */
+.rec-card--reveal { animation: recommendation-arrive 540ms cubic-bezier(.2,.7,.25,1) both; }
+.rec-card--reveal:nth-child(2) { animation-delay: 75ms; }
+.rec-card--reveal:nth-child(3) { animation-delay: 150ms; }
+@keyframes recommendation-arrive {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .rec-card--reveal { animation: none; } }

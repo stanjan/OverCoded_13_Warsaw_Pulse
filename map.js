@@ -8,6 +8,68 @@
   const DESTINATION_PIN = { width: 36, height: 44 };
   const STOP_DOT_SIZE = 6;
 
+  // Each overlay family owns its effects; removing it cannot leave a stale draw running.
+  function mapReveal() {
+    const effects = new Set();
+    const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const cancel = () => { for (const stop of [...effects]) stop(); effects.clear(); };
+    function pin(node, index = 0, enabled = true) {
+      if (!enabled || reduced() || !node?.animate) return;
+      const animation = node.animate([
+        { opacity: 0, transform: 'translateY(10px) scale(.7)' },
+        { opacity: 1, transform: 'translateY(-2px) scale(1.04)', offset: .72 },
+        { opacity: 1, transform: 'translateY(0) scale(1)' },
+      ], { duration: 460, delay: Math.min(index, 8) * 38, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'backwards' });
+      const stop = () => { animation.cancel(); effects.delete(stop); };
+      effects.add(stop); animation.onfinish = () => effects.delete(stop);
+    }
+    function draw(entries, enabled = true) {
+      if (!enabled || reduced() || !window.requestAnimationFrame || !entries.length) return;
+      // Arc length prevents dense shape points making the drawing accelerate and stall.
+      const lengths = entries.map(({ path }) => {
+        const cumulative = [0];
+        for (let i = 1; i < path.length; i++) {
+          const a = path[i - 1], b = path[i], scale = Math.cos((a[0] + b[0]) * Math.PI / 360);
+          cumulative.push(cumulative.at(-1) + Math.hypot(b[0] - a[0], (b[1] - a[1]) * scale));
+        }
+        return cumulative;
+      });
+      const total = lengths.reduce((sum, values) => sum + values.at(-1), 0);
+      if (!total) return;
+      let frame, start, stopped = false;
+      const stop = () => { stopped = true; window.cancelAnimationFrame?.(frame); effects.delete(stop); };
+      effects.add(stop);
+      const paint = progress => {
+        let distance = total * progress;
+        entries.forEach(({ path, set }, index) => {
+          const cumulative = lengths[index], length = cumulative.at(-1), target = Math.max(0, Math.min(length, distance));
+          distance -= length;
+          if (target >= length) { set(path); return; }
+          let end = 1;
+          while (end < path.length - 1 && cumulative[end] < target) end++;
+          const fraction = (target - cumulative[end - 1]) / (cumulative[end] - cumulative[end - 1] || 1);
+          const a = path[end - 1], b = path[end];
+          set([...path.slice(0, end), [a[0] + (b[0] - a[0]) * fraction, a[1] + (b[1] - a[1]) * fraction]]);
+        });
+      };
+      paint(0);
+      const tick = time => {
+        if (stopped) return;
+        if (reduced()) { paint(1); stop(); return; }
+        start ??= time;
+        const progress = Math.min(1, (time - start) / 780);
+        paint(1 - Math.pow(1 - progress, 2));
+        if (progress < 1) frame = window.requestAnimationFrame(tick);
+        else effects.delete(stop);
+      };
+      frame = window.requestAnimationFrame(tick);
+    }
+    return { pin, draw, cancel };
+  }
+  function routeRevealKey(route) {
+    return JSON.stringify([(route?.steps || []).map(step => [step.mode, step.transportColor, step.geometry, step.path]), route?.destinationPoint]);
+  }
+
   function routePadding(element, { top = 65, bottom = 24 } = {}) {
     // The coordinate anchor sits at the tip of the destination pin.
     // Reserve the whole marker plus a small gap below the floating route bar.
@@ -111,6 +173,8 @@
     const optionalCollision = google.maps.CollisionBehavior?.REQUIRED;
     info.addListener('closeclick', () => { touristResultDetails=null;activeBubble?.setAttribute('aria-expanded', 'false'); if (activeMarker) activeMarker.collisionBehavior = optionalCollision; if(routeView?.tourism)fitRoute(); });
     info.addListener('domready',()=>{if(touristResultDetails&&routeView?.tourism)fitRoute();});
+    const resultReveal = mapReveal(), routeReveal = mapReveal(), touristReveal = mapReveal();
+    let routeKey, touristKey;
     let markers = [];
     let routeLines = [], routeMarkers = [], vehicleMarkers = [], routeView;
     let touristPlaces = [], touristLines = [], touristMarkers = [], touristRecommendedId;
@@ -125,21 +189,26 @@
       if(x||y)map.panBy(x,y);
     });
     const clearTourism = () => {
+      touristReveal.cancel(); touristKey = undefined;
       touristInfo.close?.(); touristPopupContent=null; touristLines.forEach(line => line.setMap(null)); touristMarkers.forEach(marker => { marker.map = null; });
       touristLines = []; touristMarkers = []; if (routeView?.tourism) routeView = null;
     };
     const showTouristRoutes = (places, { selectedId, recommendedId = touristRecommendedId } = {}) => {
-      clearTourism(); touristPlaces = places.filter(place => place.category === 'route');
+      const key = JSON.stringify([selectedId, recommendedId, places.filter(place => place.category === 'route')]);
+      const animate = key !== touristKey, drawing = [];
+      clearTourism(); touristKey = key; touristPlaces = places.filter(place => place.category === 'route');
       touristRecommendedId=recommendedId;
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
       for (const place of touristPlaces) for (const segment of touristSegments(place)) {
         const opacity=place===selected?1:.25;
-        touristLines.push(new google.maps.Polyline({ map, path: segment.map(([lat,lng]) => ({lat,lng})), strokeColor: '#3a2a22', strokeWeight: 4, strokeOpacity: 0, icons:['#fff8e8','#3a2a22'].map((color,index)=>({icon:{path:'M 0,-3 0,3',scale:1,strokeColor:color,strokeWeight:index?3:7,strokeOpacity:opacity},offset:'0',repeat:'14px'})), clickable: false, zIndex: place === selected ? 5 : 0 }));
+        const line = new google.maps.Polyline({ map, path: segment.map(([lat,lng]) => ({lat,lng})), strokeColor: '#3a2a22', strokeWeight: 4, strokeOpacity: 0, icons:['#fff8e8','#3a2a22'].map((color,index)=>({icon:{path:'M 0,-3 0,3',scale:1,strokeColor:color,strokeWeight:index?3:7,strokeOpacity:opacity},offset:'0',repeat:'14px'})), clickable: false, zIndex: place === selected ? 5 : 0 });
+        touristLines.push(line); if (place === selected) drawing.push({path:segment,set:path=>line.setPath?.(path.map(([lat,lng])=>({lat,lng})))});
       }
       for (const [index, point] of touristPoints(selected).entries()) {
         const marker = new AdvancedMarkerElement({map,position:{lat:point.lat,lng:point.lng},content:touristPointElement(index),title:point.name,gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:210});
-        marker.addEventListener('gmp-click', () => { touristPopupContent=touristPointDetails(point,index,()=>{touristInfo.close();touristPopupContent=null;});touristInfo.setContent(touristPopupContent); touristInfo.open({map,anchor:marker,shouldFocus:true}); }); touristMarkers.push(marker);
+        marker.addEventListener('gmp-click', () => { touristPopupContent=touristPointDetails(point,index,()=>{touristInfo.close();touristPopupContent=null;});touristInfo.setContent(touristPopupContent); touristInfo.open({map,anchor:marker,shouldFocus:true}); }); touristMarkers.push(marker); touristReveal.pin(marker.content,index,animate);
       }
+      touristReveal.draw(drawing,animate);
       const points = touristMapPoints(selected ? [selected] : touristPlaces);
       if (points.length) { routeView = {tourism:true,points:points.map(([latitude,longitude])=>({latitude,longitude})),options:{}}; fitRoute(); }
       return points.length > 0;
@@ -152,7 +221,7 @@
       map.fitBounds(bounds, padding);
     };
     observeRouteViewport(element, fitRoute);
-    const clearRoute = () => { closeStopPopup();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
+    const clearRoute = () => { routeReveal.cancel(); routeKey = undefined; closeStopPopup();routeView = null; routeLines.forEach(line => line.setMap(null)); [...routeMarkers,...vehicleMarkers].forEach(marker => { marker.map = null; }); routeLines = []; routeMarkers = []; vehicleMarkers = []; };
     let userDot, userAccuracy;
     const syncDetail = () => element.classList?.toggle('markers-compact', Math.round(map.getZoom()) < DETAIL_ZOOM);
     map.addListener('zoom_changed', syncDetail);
@@ -164,10 +233,11 @@
       clearRoute,
       showTouristRoutes,
       showRoute(route, { top = 65 } = {}) {
+        const key = routeRevealKey(route), animate = key !== routeKey, drawing = [];
         touristResultDetails=null;
         clearTourism();
         info.close();activeBubble?.setAttribute('aria-expanded','false');
-        clearRoute();
+        clearRoute(); routeKey = key;
         for (const step of route?.steps || []) {
           const path = transitContextPath(step).map(point => ({ lat: point.latitude, lng: point.longitude }));
           if (path.length < 2) continue;
@@ -177,8 +247,10 @@
           const path = validTransitPath(step.path).map(point => ({ lat: point.latitude, lng: point.longitude }));
           if (path.length < 2) continue;
           const networkWalk=step.mode==='WALK'&&step.geometry==='osm_pedestrian';
-          routeLines.push(new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 }));
+          const line = new google.maps.Polyline({ map, path, strokeColor: step.mode === 'WALK' ? '#61776a' : transitColor(step), strokeOpacity: networkWalk?0:step.mode === 'WALK' ? .5 : .9, strokeWeight: step.mode === 'WALK' ? 4 : 6, ...(networkWalk?{icons:[{icon:{path:google.maps.SymbolPath?.CIRCLE??0,scale:5,fillColor:'#4285F4',fillOpacity:1,strokeColor:'#ffffff',strokeWeight:2,strokeOpacity:1},offset:'0',repeat:'16px'}]}:{}), clickable: false, zIndex: 1 });
+          routeLines.push(line); drawing.push({path:path.map(({lat,lng})=>[lat,lng]),set:points=>line.setPath?.(points.map(([lat,lng])=>({lat,lng})))});
         }
+        routeReveal.draw(drawing,animate);
         for(const stop of activeRouteStops(route, true)){
           const marker=new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150});
           marker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop,closeStopPopup);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
@@ -187,7 +259,8 @@
         if (points.length) {
           routeView = {points:[...points,...activeRouteStops(route),...validTransitPath([route.destinationPoint])],options:{top}};fitRoute();
           const destination = validTransitPath([route.destinationPoint])[0]||points.at(-1);
-          routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content: destinationElement(), title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
+          const content = destinationElement(); routeReveal.pin(content,3,animate);
+          routeMarkers.push(new AdvancedMarkerElement({ map, position: { lat: destination.latitude, lng: destination.longitude }, content, title: 'Cel podróży', anchorLeft: '-50%', anchorTop: '-100%', zIndex: 300 }));
         }
         return routeLines.length > 0;
       },
@@ -200,7 +273,7 @@
         }
       },
       setView({ lat, lng }, zoom) { routeView = null; map.panTo({ lat, lng }); map.setZoom(zoom); },
-      clearMarkers() { touristResultDetails=null;clearTourism(); touristPlaces = []; touristRecommendedId=undefined;info.close?.(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
+      clearMarkers() { resultReveal.cancel();touristResultDetails=null;clearTourism(); touristPlaces = []; touristRecommendedId=undefined;info.close?.(); activeBubble?.setAttribute('aria-expanded', 'false'); markers.forEach(m => { m.map = null; }); markers = []; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const marker = new AdvancedMarkerElement({ map, position: { lat: place.lat, lng: place.lng }, title: place.name, content: bubble, gmpClickable: true, zIndex: recommended ? 200 : 100, collisionBehavior: optionalCollision });
@@ -228,6 +301,7 @@
         };
         bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
         marker.addEventListener('gmp-click', open);
+        resultReveal.pin(bubble,markers.length);
         markers.push(marker);
         return { open };
       },
@@ -269,6 +343,8 @@
     const vehicleLayer = L.layerGroup().addTo(map);
     const touristLayer = L.layerGroup().addTo(map);
     let touristPlaces = [], touristRecommendedId;
+    const resultReveal = mapReveal(), routeReveal = mapReveal(), touristReveal = mapReveal();
+    let routeKey, touristKey;
     const results = [];
     let activeMarker, touristResultDetails;
     // Every result pin stays visible (no hiding of overlapping pins); only the zoom mode is synced.
@@ -286,16 +362,23 @@
       if (canFitRoute(element, padding)) map.fitBounds(routeView.points,{paddingTopLeft:[padding.left,padding.top],paddingBottomRight:[padding.right,padding.bottom],animate:false});
     };
     observeRouteViewport(element, fitRoute);
-    const clearTourism = () => { touristLayer.clearLayers(); if (routeView?.tourism) routeView = null; };
+    const clearTourism = () => { touristReveal.cancel(); touristKey = undefined; touristLayer.clearLayers(); if (routeView?.tourism) routeView = null; };
     const showTouristRoutes = (places, { selectedId, recommendedId = touristRecommendedId } = {}) => {
-      clearTourism(); touristPlaces = places.filter(place => place.category === 'route');
+      const key = JSON.stringify([selectedId, recommendedId, places.filter(place => place.category === 'route')]);
+      const animate = key !== touristKey, drawing = [];
+      clearTourism(); touristKey = key; touristPlaces = places.filter(place => place.category === 'route');
       touristRecommendedId=recommendedId;
       const selected = touristPlaces.find(place => place.id === (selectedId||recommendedId));
-      for (const place of touristPlaces) for (const segment of touristSegments(place)) for(const [color,weight] of [['#fff8e8',8],['#3a2a22',3]])L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer);
+      for (const place of touristPlaces) for (const segment of touristSegments(place)) {
+        const lines = [['#fff8e8',8],['#3a2a22',3]].map(([color,weight])=>L.polyline(segment,{color,weight,opacity:place === selected ? 1 : .25,dashArray:'7 7',lineCap:'round',interactive:false}).addTo(touristLayer));
+        if(place === selected) drawing.push({path:segment,set:path=>lines.forEach(line=>line?.setLatLngs?.(path))});
+      }
       for (const [index, point] of touristPoints(selected).entries()) {
-        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:touristPointElement(index),iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point,index),{className:'tourist-point-popup',maxWidth:230,...popupPadding(element)});
+        const content=touristPointElement(index);touristReveal.pin(content,index,animate);
+        const marker=L.marker([point.lat,point.lng],{icon:L.divIcon({className:'',html:content,iconSize:[22,22],iconAnchor:[11,11]}),title:point.name,keyboard:true,zIndexOffset:210}).bindPopup(touristPointDetails(point,index),{className:'tourist-point-popup',maxWidth:230,...popupPadding(element)});
         marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(touristLayer);
       }
+      touristReveal.draw(drawing,animate);
       const points=touristMapPoints(selected?[selected]:touristPlaces);
       if(points.length){routeView={tourism:true,points,options:{}};fitRoute();}return points.length>0;
     };
@@ -303,8 +386,10 @@
       vendor: 'leaflet',
       ready,
       showTouristRoutes,
-      clearRoute() { map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
+      clearRoute() { routeReveal.cancel();routeKey=undefined;map.closePopup?.();routeView = null;transitLayer.clearLayers(); vehicleLayer.clearLayers(); },
       showRoute(route, { top = 65 } = {}) {
+        const key=routeRevealKey(route),animate=key!==routeKey,drawing=[];
+        routeReveal.cancel();routeKey=key;
         touristResultDetails=null;
         clearTourism();
         routeView = null;map.closePopup?.();transitLayer.clearLayers();vehicleLayer.clearLayers();
@@ -319,15 +404,21 @@
           if(path.length<2)continue;lineCount++;
           if(step.mode==='WALK'&&step.geometry==='osm_pedestrian'){
             // Round zero-length SVG dashes form circles, with fixed pixel spacing at every zoom.
-            for(const[color,weight]of [['#ffffff',12],['#4285F4',8]])L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer);
-          }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
+            const lines=[['#ffffff',12],['#4285F4',8]].map(([color,weight])=>L.polyline(path,{color,weight,opacity:1,lineCap:'round',dashArray:'0 16',dashOffset:'0',interactive:false}).addTo(transitLayer));
+            drawing.push({path,set:points=>lines.forEach(line=>line?.setLatLngs?.(points))});
+          }else {
+            const line=L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
+            drawing.push({path,set:points=>line?.setLatLngs?.(points)});
+          }
         }
+        routeReveal.draw(drawing,animate);
         for(const stop of activeRouteStops(route, true)){
           const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop,()=>map.closePopup()),{className:'transit-stop-popup',maxWidth:230,closeButton:false,...popupPadding(element)});
           marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(transitLayer);
         }
         if(points.length){
-          const icon=L.divIcon({className:'',html:destinationElement(),iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
+          const content=destinationElement();routeReveal.pin(content,3,animate);
+          const icon=L.divIcon({className:'',html:content,iconSize:[DESTINATION_PIN.width,DESTINATION_PIN.height],iconAnchor:[DESTINATION_PIN.width/2,DESTINATION_PIN.height]});
           const destination=validTransitPath([route.destinationPoint])[0];
           L.marker(destination?[destination.latitude,destination.longitude]:points.at(-1),{icon,title:'Cel podróży',keyboard:false,interactive:false,zIndexOffset:300}).addTo(transitLayer);
           routeView={points:[...points,...activeRouteStops(route).map(stop=>[stop.latitude,stop.longitude]),...(destination?[[destination.latitude,destination.longitude]]:[])],options:{top}};fitRoute();
@@ -344,7 +435,7 @@
       },
 
       setView({ lat, lng }, zoom) { routeView = null;map.setView([lat, lng], zoom); },
-      clearMarkers() { touristResultDetails=null;clearTourism(); touristPlaces = []; touristRecommendedId=undefined;map.closePopup?.(); layer.clearLayers(); results.length = 0; activeMarker = undefined; },
+      clearMarkers() { resultReveal.cancel();touristResultDetails=null;clearTourism(); touristPlaces = []; touristRecommendedId=undefined;map.closePopup?.(); layer.clearLayers(); results.length = 0; activeMarker = undefined; },
       addMarker(place, { recommended = false, onOpen } = {}) {
         const bubble = resultBubble(place, recommended);
         const details=resultDetails(place,recommended);
@@ -357,6 +448,7 @@
         const open = () => { routeView = null;marker.openPopup(); };
         L.DomEvent.disableClickPropagation(bubble);
         bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
+        resultReveal.pin(bubble,results.length);
         results.push({ marker, bubble, recommended });
         arrangeBubbles();
         return { open };

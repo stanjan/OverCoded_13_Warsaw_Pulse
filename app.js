@@ -350,6 +350,7 @@ if (navigator.permissions?.query) navigator.permissions.query({ name: 'geolocati
 startLocating({ auto: true });
 
 function showResults(action) {
+  const revealCards = action !== lastDisplayedAction;
   lastDisplayedAction = action;
   resultPanel.replaceChildren();
   cityMap?.clearMarkers();
@@ -367,7 +368,7 @@ function showResults(action) {
     if (!listed.has(place)) continue;
     // Recommended card (Stitch prototype, our warm style): tag + when/price, title, address, photo, actions.
     const info = globalThis.cityCardInfo?.(place) || {};
-    const card = document.createElement('article'); card.className = 'place-card rec-card' + (info.theme ? ' rec-card--' + info.theme : '');
+    const card = document.createElement('article'); card.className = 'place-card rec-card' + (info.theme ? ' rec-card--' + info.theme : '') + (revealCards ? ' rec-card--reveal' : '');
     const focusMap = () => { if (!cityMap || !marker) return; setExpanded(false); if(place.category !== 'route')cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker.open(); };
     const title = document.createElement(marker ? 'button' : 'strong'); title.className = 'place-card__title rec-card__title'; title.textContent = place.name;
     if (marker) { title.type = 'button'; title.addEventListener('click', focusMap); }

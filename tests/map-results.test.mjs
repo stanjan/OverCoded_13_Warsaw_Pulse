@@ -79,3 +79,12 @@ test('conversation lists at most 3 recommended results, falling back to the firs
  assert.equal(starred.added.length,5);
  assert.deepEqual(run([]).titles,['Wydarzenie 1','Wydarzenie 2','Wydarzenie 3']);
 });
+
+
+test('recommendation cards stagger on new answers and do not replay on map-ready redraw',()=>{
+ const panel=element('section'),context={document:{createElement:element},resultPanel:panel,lastDisplayedAction:null,cityMap:undefined,drawer:{offsetHeight:150},mapCanvas:{clientHeight:700},action:{results:[{id:'a',name:'Spacer'},{id:'b',name:'Park'},{id:'c',name:'Wystawa'}]}};
+ runInNewContext(render+'\nshowResults(action);',context);
+ assert.ok(panel.children.every(card=>card.className.includes('rec-card--reveal')));assert.equal(panel.children.length,3);
+ runInNewContext('showResults(action);',context);assert.ok(panel.children.every(card=>!card.className.includes('rec-card--reveal')));
+ context.action={results:[{id:'d',name:'Inny spacer'}]};runInNewContext('showResults(action);',context);assert.ok(panel.children[0].className.includes('rec-card--reveal'));assert.equal(panel.children.length,1);
+});
