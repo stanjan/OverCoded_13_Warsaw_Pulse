@@ -189,6 +189,10 @@ function trackPlaceMarkers(map) {
 window.focusCityPlace = place => {
   if (!cityMap || !Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return false;
   if (place.category === 'route') {
+    // A saved route starts a new map context: stop live transit sessions and
+    // their board/vehicle camera before fitting the tourist trail.
+    window.dispatchEvent?.(new CustomEvent('city:query'));
+    cityMap.clearRoute?.();
     // Replay through the normal tourist layer, so pins, details, provider
     // replacement and final full-trail camera fitting share the same state.
     showResults({ type: 'display_results', results: [place], highlightIds: [], selectedTouristId: place.id, complete: true });
