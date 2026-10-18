@@ -251,3 +251,29 @@ test('pure walking option uses walking estimates, no transit claims and preserve
  f.panel.open({origin:'A',destination:'B',mode:'walk'});await tick();assert.equal(requests[0].mode,'walk');const card=f.ids['transit-alternatives'].children[0];const text=card.children.map(child=>child.textContent).join(' ');assert.match(text,/Polecana · pieszo/);assert.match(text,/szacowany czas marszu/);assert.doesNotMatch(text,/przesiad|wg rozkładu|GPS/);assert.equal(f.ids['transit-mode'].value,'walk');
  card.click();assert.match(f.ids['transit-attribution'].textContent,/OpenStreetMap/);assert.doesNotMatch(f.ids['transit-attribution'].textContent,/ZTM|GPS/);await f.panel.refreshLive();assert.equal(liveCalls,0);await f.panel.refreshRoute();assert.equal(requests.at(-1).mode,'walk');assert.equal(f.calls.filter(call=>call[0]==='route').at(-1)[1].steps[0].geometry,'osm_pedestrian');
 });
+
+test('saved tourist focus ends the active transit board/camera lifecycle before restoring its trail',async()=>{
+ const {readFile}=await import('node:fs/promises'),{runInNewContext}=await import('node:vm');
+ const app=await readFile(new URL('../app.js',import.meta.url),'utf8'),start=app.indexOf('window.focusCityPlace ='),end=app.indexOf('\nfunction useMap(',start);
+ let aborts=0;
+ const f=fixture({withBoard:true,compute:async()=>result([{...route('active'),steps:[{...route('active').steps[0],fromStopId:'A',toStopId:'B'}]}]),fetchImpl:(_url,options)=>new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>{aborts++;reject(new DOMException('aborted','AbortError'));}))});
+ let cameraPoint=null,tourist=null;
+ const originalClear=f.map.clearRoute;
+ f.map.clearRoute=()=>{cameraPoint=null;originalClear();};
+ f.map.clearMarkers=()=>{}; // Real adapters retain transit camera state here.
+ f.map.highlightStop=point=>{cameraPoint=point;};
+ f.map.highlightVehicle=point=>{cameraPoint=point;};
+ f.map.showTouristRoutes=records=>{assert.equal(cameraPoint,null,'old board focus must not override full tourist trail framing');tourist=records[0];};
+ f.panel.open({origin:'A',destination:'B'});await tick();f.ids['transit-alternatives'].children[0].click();
+ const board=f.ids['map-canvas-container'].children[0];assert.equal(board.hidden,false);assert.equal(f.ids['environment-bar'].dataset.route,'true');
+ f.map.highlightStop({id:'A'});f.map.highlightVehicle({id:'1',directionTripId:'active'});
+ const place={id:'saved-route',category:'route',lat:52.2,lng:21,traceSegments:[[[52.2,21],[52.3,21.1]]]},markers=new Map();
+ const context={window:{dispatchEvent:event=>f.events[event.type]?.()},CustomEvent:class{constructor(type){this.type=type;}},cityMap:f.map,placeMarkers:markers,setExpanded(){},
+ showResults(action){f.map.clearMarkers();markers.set(place.id,{open(){f.map.showTouristRoutes(action.results);}});f.map.showTouristRoutes(action.results);}};
+ runInNewContext(app.slice(start,end),context);assert.equal(context.window.focusCityPlace(place),true);
+ await tick();
+ assert.equal(tourist.id,place.id);assert.equal(board.hidden,true);assert.equal(f.ids['environment-bar'].dataset.route,'false');assert.equal(f.panel.getState().routeCount,0);assert.ok(aborts>0,'board request must be aborted');
+ const routeCalls=f.calls.filter(call=>call[0]==='route').length;
+ f.events['city:map']();assert.equal(f.calls.filter(call=>call[0]==='route').length,routeCalls,'provider replacement cannot replay the closed journey');
+ await f.panel.refreshLive();assert.equal(f.calls.filter(call=>call[0]==='route').length,routeCalls);
+});

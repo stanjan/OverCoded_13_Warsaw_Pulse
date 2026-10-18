@@ -188,6 +188,18 @@ function trackPlaceMarkers(map) {
 }
 window.focusCityPlace = place => {
   if (!cityMap || !Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return false;
+  if (place.category === 'route') {
+    // A saved route starts a new map context: stop live transit sessions and
+    // their board/vehicle camera before fitting the tourist trail.
+    window.dispatchEvent?.(new CustomEvent('city:query'));
+    cityMap.clearRoute?.();
+    // Replay through the normal tourist layer, so pins, details, provider
+    // replacement and final full-trail camera fitting share the same state.
+    showResults({ type: 'display_results', results: [place], highlightIds: [], selectedTouristId: place.id, complete: true });
+    setExpanded(false); placeMarkers.get(String(place.id))?.open();
+    cityMap.showTouristRoutes?.([place], { selectedId: place.id });
+    return true;
+  }
   const marker = placeMarkers.get(String(place.id)) || cityMap.addMarker(place, { onOpen: () => setExpanded(false) });
   setExpanded(false); cityMap.setView({ lat: place.lat, lng: place.lng }, 16); marker?.open();
   return true;
@@ -382,7 +394,7 @@ function showResults(action) {
     card.append(title, meta);
     if (place.category === 'route') {
       const note=document.createElement('span');note.className='tourist-card-note';
-      note.textContent=[Number.isFinite(place.lengthKm)?place.lengthKm+' km':'',place.geometryStatus==='partial'?'Ślad ma przerwy':place.geometryStatus!=='published'?'Brak pełnego śladu na mapie':''].filter(Boolean).join(' · ');
+      note.textContent=[Number.isFinite(place.lengthKm)?place.lengthKm+' km':'',place.geometryStatus==='saved_unavailable'?'Przebieg nie został zapisany lokalnie':place.geometryStatus==='partial'?'Ślad ma przerwy':place.geometryStatus!=='published'?'Brak pełnego śladu na mapie':''].filter(Boolean).join(' · ');
       if(note.textContent)card.append(note);
     }
     const where = [place.address || (place.addresses || []).join(', '), place.district].filter(Boolean).join(' · ');
@@ -567,8 +579,8 @@ document.querySelectorAll('nav a').forEach(link => link.addEventListener('click'
   addMessage(`Sekcja ${link.querySelector('span:last-child').textContent.trim()} będzie dostępna w kolejnej wersji aplikacji.`);
 }));
 
-if (demoReceiverLocation) import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiver({
-  input, location: demoReceiverLocation, isReady: () => !pending && !input.value.trim(),
+import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiver({
+  input, location: demoReceiverLocation || window.location, isReady: () => !pending && !input.value.trim(),
   start: prompt => {
     if (pending || input.value.trim()) return null;
     input.value = prompt;

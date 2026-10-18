@@ -51,14 +51,26 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  let municipalStops=[],stopBridge=new Map();
  let modelGraph,pollTimer,pollPromise,bindingPromise,trackingController,graphGeneration=0,tracking=false;
  const evidenceStats={requests:0,failures:0,lastSuccessAt:null,lastFailureAt:null,lastFailureCode:null};
- let latestSnapshot={vehicles:[],sources:[],errors:[]};
+ let latestSnapshot={vehicles:[],sources:[],errors:[]},snapshotSequence=0;
+ const fleetParts=new Map(),apiSequences=new Map();
  const trackingStats={lastPollStartedAt:null,lastPollCompletedAt:null,lastPollError:null};
  async function vehicleSnapshot(signal){
-  const results=await Promise.all([1,2].map(async type=>{try{const data=await api('vehicles',{type},signal);return{vehicles:normalizeVehicles(data.rows,type,now()),source:data.source};}catch(error){signal?.throwIfAborted();return{error:{code:error.code||'SOURCE_UNAVAILABLE',part:'vehicles',type}};}}));
-  signal?.throwIfAborted();const vehicles=results.flatMap(result=>result.vehicles||[]),sources=results.flatMap(result=>result.source?[result.source]:[]),errors=results.flatMap(result=>result.error?[result.error]:[]);
-  // Reserve every active line's bootstrap before per-vehicle platform misses
-  // can fill the bounded queue in source-record order.
-  prewarmEvidence(vehicles);delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return latestSnapshot;
+  const sequence=++snapshotSequence;
+  const results=await Promise.all([1,2].map(async type=>{try{const data=await api('vehicles',{type},signal);return{type,vehicles:normalizeVehicles(data.rows,type,now()),source:data.source};}catch(error){signal?.throwIfAborted();return{type,error:{code:error.code||'SOURCE_UNAVAILABLE',part:'vehicles',type}};}}));
+  signal?.throwIfAborted();
+  for(const result of results){
+   const previous=fleetParts.get(result.type)||{sequence:0,vehicles:[]},known=new Map(previous.vehicles.map(vehicle=>[vehicle.id,vehicle]));
+   const newer=(vehicle,old)=>!old||Number.isFinite(Date.parse(vehicle.observedAt))&&(!Number.isFinite(Date.parse(old.observedAt))||Date.parse(vehicle.observedAt)>Date.parse(old.observedAt));
+   if(sequence<previous.sequence){
+    // Old requests cannot resurrect samples absent from the latest full snapshot.
+    if(!result.error){const incoming=new Map(result.vehicles.map(vehicle=>[vehicle.id,vehicle]));previous.vehicles=previous.vehicles.map(old=>{const candidate=incoming.get(old.id);return candidate&&newer(candidate,old)?candidate:old;});}
+    continue;
+   }
+   const vehicles=result.error?previous.vehicles:result.vehicles.map(vehicle=>newer(vehicle,known.get(vehicle.id))?vehicle:known.get(vehicle.id));
+   fleetParts.set(result.type,{sequence,vehicles,source:result.source||previous.source,error:result.error});
+  }
+  const parts=[...fleetParts.values()],vehicles=parts.flatMap(part=>part.error?[]:part.vehicles).map(vehicle=>{const age=now()-Date.parse(vehicle.observedAt);return{...vehicle,freshness:!Number.isFinite(age)?'unknown':age< -60000||age>90000?'stale':'recent'};}),sources=parts.flatMap(part=>part.source?[part.source]:[]),errors=parts.flatMap(part=>part.error?[part.error]:[]);
+  prewarmEvidence(vehicles);delayModel.ingest(vehicles);latestSnapshot={vehicles,sources,errors};return structuredClone(latestSnapshot);
  }
  function attach(graph){if(modelGraph===graph)return;const same=Boolean(modelGraph&&modelGraph.serviceDay===graph.serviceDay&&modelGraph.source.version===graph.source.version);modelGraph=graph;delayModel.attachGraph(graph,{preserveState:same});if(same)return;graphGeneration++;bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();stopBridge.clear();const byName=new Map();for(const stop of municipalStops){const name=fold(stop.name);if(!byName.has(name))byName.set(name,[]);byName.get(name).push(stop);}for(const stop of graph.stops){const matches=(byName.get(fold(stop.name))||[]).filter(item=>!stop.platform||item.platform===stop.platform).map(item=>({stop:item,distance:distanceMeters(stop,item)})).filter(item=>item.distance<=60).sort((a,b)=>a.distance-b.distance);if(matches[0]&&(!matches[1]||matches[1].distance-matches[0].distance>=5))stopBridge.set(stop.id,matches[0].stop);}}
 
@@ -142,6 +154,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
  async function api(name,args,signal) {
   signal?.throwIfAborted();const spec=TRANSIT_SOURCES[name],cacheKey=name+JSON.stringify(args||{}),cached=cache.get(cacheKey);
   if(cached&&cached.until>now())return structuredClone(cached.result);
+  const apiSequence=name==='vehicles'?(apiSequences.get(cacheKey)||0)+1:null;if(apiSequence!==null)apiSequences.set(cacheKey,apiSequence);
   if(!key())throw new TransitError('SOURCE_NOT_CONFIGURED','Brak połączenia z miejskim API komunikacji.');
   let response;
   try{response=await fetchImpl('https://dane.um.warszawa.pl/api/action/'+spec.action,{method:'POST',headers:{Authorization:key(),'Content-Type':'application/json',Accept:'application/json'},...(args?{body:JSON.stringify(args)}:{}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)]):AbortSignal.timeout(timeoutMs)});}
@@ -149,7 +162,7 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   if(!response.ok)throw new TransitError('SOURCE_UNAVAILABLE','Miejskie API komunikacji jest chwilowo niedostępne.');
   const raw=await response.json();signal?.throwIfAborted();if(!Array.isArray(raw))throw new TransitError('SOURCE_SCHEMA','Miejskie API zwróciło nieznany format danych.');
   const result={rows:raw,source:sourceMeta(name,new Date(now()).toISOString())};
-  cache.set(cacheKey,{until:now()+spec.ttl,result});while(cache.size>cacheLimit)cache.delete(cache.keys().next().value);
+  if(apiSequence===null||apiSequences.get(cacheKey)===apiSequence)cache.set(cacheKey,{until:now()+spec.ttl,result});while(cache.size>cacheLimit)cache.delete(cache.keys().next().value);
   return structuredClone(result);
  }
  async function stops(signal){const result=await api('stops',null,signal),normalized=normalizeStops(result.rows);if(!normalized.length)throw new TransitError('SOURCE_SCHEMA','Brak poprawnych współrzędnych przystanków.');return{stops:normalized,source:result.source,invalidRecords:result.rows.length-normalized.length};}
@@ -194,6 +207,6 @@ export function createTransitService({fetchImpl=fetch,key=()=>process.env.DATA_A
   return{status:routes.length?'ready':'limited',mode,routes,reason,nextSearch,origin,destination,requestedDeparture:requested.toISOString(),timeZone:'Europe/Warsaw',stops:selected,originStopIds:starts.map(stop=>stop.id),destinationStopIds:ends.map(stop=>stop.id),departures,vehicles:relevant.slice(0,40),vehicleCount:relevant.length,vehicleProvided:Math.min(40,relevant.length),complete:false,errors,sources:[...new Map(sources.map(source=>[source.url,source])).values()],graphSource,liveModel:{...liveSummary(),vehicleSnapshotCount:snapshot.vehicles.length},coverage:{stopRadiusMeters:900,stopsPerEnd:8,linesPerStop:graph?0:1,maxSourceRequests:graph?3:7,sourceCalls:requests,vehicleRadiusMeters:2000},limitations:['Odjazdy z API bez daty i trip_id nie są łączone w przejazd.','Pozycja pojazdu to obserwacja; korekta ETA wymaga potwierdzonego modelu tego samego kursu.',routes.length?'Czasy dojść uwzględniają ścieżki OpenStreetMap / Valhalla; ostatnie metry do punktów i tempo marszu pozostają szacunkowe. Wyszukiwanie ma ograniczony zakres przystanków, przesiadek i sprawdzanych przejść.':'Przejścia piesze nie zostały potwierdzone w żadnej zwróconej trasie; wyszukiwanie ogranicza zakres przystanków, przesiadek i sprawdzanych przejść.']};
  }
 
- return{searchStops,plan,startTracking,liveSnapshot,board,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();boardGraphs.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
+ return{searchStops,plan,startTracking,liveSnapshot,board,stopTracking(){tracking=false;trackingController?.abort();clearTimeoutImpl(pollTimer);pollTimer=null;graphGeneration++;delayModel.clear();bindingCache.clear();bindingQueue.clear();activeBindings.clear();lineBindings.clear();boardGraphs.clear();fleetParts.clear();latestSnapshot={vehicles:[],sources:[],errors:[]};}};
 }
 export const transitService=createTransitService();

@@ -1,4 +1,5 @@
-// Opt-in receiver. Credentials only enter through a URL fragment and stay in this tab's memory.
+// Opt-in receiver. Access enters via a private fragment and survives reloads only in this tab.
+const storageKey = 'warsaw-ai-demo-receiver';
 export function receiverCredentials(hash) {
   try {
     const raw = new URLSearchParams(hash.replace(/^#/, '')).get('demo-receiver');
@@ -7,8 +8,22 @@ export function receiverCredentials(hash) {
     return /^[a-f0-9]{24}$/.test(data.target) && /^[a-zA-Z0-9_-]{43}$/.test(data.token) ? data : null;
   } catch { return null; }
 }
+export function receiverSession(hash, storage) {
+  const incoming = receiverCredentials(hash);
+  let saved;
+  try { saved = JSON.parse(storage.getItem(storageKey) || 'null'); } catch {}
+  const validSaved = receiverCredentials('#' + new URLSearchParams({ 'demo-receiver': JSON.stringify(saved) }));
+  const credentials = incoming || validSaved;
+  if (!credentials) return null;
+  const sameTarget = validSaved && saved.target === credentials.target && saved.token === credentials.token;
+  const client = sameTarget && /^[a-zA-Z0-9_-]{16,100}$/.test(saved.client) ? saved.client : crypto.randomUUID().replaceAll('-', '');
+  const session = { target: credentials.target, token: credentials.token, client };
+  // Failure is explicit: never promise reload continuity while silently keeping access in RAM.
+  storage.setItem(storageKey, JSON.stringify(session));
+  return session;
+}
 export function createDemoReceiver({ credentials, isReady, start, fetcher = fetch, onState = () => {}, delay = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
-  const client = crypto.randomUUID().replaceAll('-', '');
+  const client = credentials.client || crypto.randomUUID().replaceAll('-', '');
   let stopped = false, controller;
   const path = `/api/demo/targets/${credentials.target}`;
   const post = async (action, data, signal) => {
@@ -47,18 +62,17 @@ export function createDemoReceiver({ credentials, isReady, start, fetcher = fetc
   run();
   return { changed() { controller?.abort(); }, stop() { stopped = true; controller?.abort(); onState('Demo rozłączone'); } };
 }
-export function installDemoReceiver({ input, isReady, start, location = window.location, history = window.history, document = window.document }) {
-  const credentials = receiverCredentials(location.hash);
+export function installDemoReceiver({ input, isReady, start, location = window.location, history = window.history, storage }) {
+  let credentials;
+  try { credentials = receiverSession(location.hash, storage || window.sessionStorage); }
+  catch { console.error('Nie można zachować połączenia demo. Włącz pamięć sesji przeglądarki (sessionStorage) i otwórz ponownie link odbiornika.'); return null; }
   if (!credentials) return null;
   history.replaceState(null, '', location.pathname + location.search);
-  const badge = document.createElement('button'); badge.type = 'button'; badge.setAttribute('aria-label', 'Odłącz zdalne demo');
-  Object.assign(badge.style, { position: 'fixed', top: '5px', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, border: '1px solid #d9e0e5', borderRadius: '16px', padding: '6px 12px', background: '#fff', color: '#273440', font: '600 12px system-ui', boxShadow: '0 2px 10px #0002', cursor: 'pointer' });
-  document.body.append(badge);
-  const receiver = createDemoReceiver({ credentials, isReady, start, onState: state => { badge.textContent = `${state} ×`; } });
+  const receiver = createDemoReceiver({ credentials, isReady, start });
   const changed = () => receiver.changed();
   input.addEventListener('input', changed);
   window.addEventListener('city:query', changed);
-  const stop = () => { receiver.stop(); input.removeEventListener('input', changed); window.removeEventListener('city:query', changed); badge.remove(); };
-  badge.addEventListener('click', stop); window.addEventListener('pagehide', stop, { once: true });
+  const stop = () => { receiver.stop(); input.removeEventListener('input', changed); window.removeEventListener('city:query', changed); };
+  window.addEventListener('pagehide', stop, { once: true });
   return receiver;
 }

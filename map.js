@@ -776,7 +776,7 @@
     }
     if (place.category === 'route') {
       const note=document.createElement('p');note.className='result-detail__meta';
-      note.textContent=[Number.isFinite(place.lengthKm) ? place.lengthKm+' km' : '', place.geometryStatus === 'partial' ? 'Ślad źródłowy ma przerwy.' : place.geometryStatus !== 'published' ? 'Brak pełnego śladu trasy na mapie.' : 'Przebieg trasy według danych miejskich.'].filter(Boolean).join(' · ');body.append(note);
+      note.textContent=[Number.isFinite(place.lengthKm) ? place.lengthKm+' km' : '', place.geometryStatus === 'saved_unavailable' ? 'Przebieg nie został zapisany lokalnie.' : place.geometryStatus === 'partial' ? 'Ślad źródłowy ma przerwy.' : place.geometryStatus !== 'published' ? 'Brak pełnego śladu trasy na mapie.' : 'Przebieg trasy według danych miejskich.'].filter(Boolean).join(' · ');body.append(note);
     }
     if (place.provenance?.observedAt?.length) {
       const note = document.createElement('p'); note.className = 'result-detail__meta';
