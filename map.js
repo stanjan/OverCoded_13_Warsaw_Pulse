@@ -770,7 +770,7 @@
   window.cityCardInfo = place => {
     const theme = themeFor(place);
     const price = priceInfo(place);
-    return { theme, themeLabel: place.category==='aed'?'AED':themeLabels[theme], icon: place.category==='route'?'explore':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
+    return { theme, themeLabel: place.category==='aed'?'AED':place.category==='toilet'?'WC':themeLabels[theme], icon: place.category==='route'?'explore':place.category==='toilet'?'wc':themeIcons[theme], when: cardWhen(place), price: price && price.kind !== 'unknown' ? price.label : '', imageUrl: safeUrl(place.imageUrl, true) };
   };
   window.CITY_CENTER = { ...WARSAW, zoom: START_ZOOM };
 })();
