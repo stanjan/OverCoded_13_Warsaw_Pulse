@@ -31,5 +31,5 @@ export async function planDirectWalk(options,{provider=createWalkingProvider()}=
 }
 export function mergeRouteOptions(transitRoutes,walkingRoute) {
  const routes=[...transitRoutes,...(walkingRoute?[walkingRoute]:[])].sort((a,b)=>a.arrival-b.arrival||Number(b.mode==='walk')-Number(a.mode==='walk')).slice(0,3);
- return routes.map((route,index)=>({...route,recommended:index===0,...(index===0&&route.mode==='walk'?{recommendationReason:transitRoutes.length?'Pieszo dotrzesz wcześniej niż sprawdzoną komunikacją.':'Potwierdzona trasa piesza do celu.'}:{})}));
+ return routes.map((route,index)=>({...route,recommended:index===0,...(index===0&&route.mode==='walk'?{recommendationReason:transitRoutes.length?(route.arrival<Math.min(...transitRoutes.map(item=>item.arrival))?'Pieszo dotrzesz wcześniej niż sprawdzoną komunikacją.':'Pieszo dotrzesz równie szybko jak sprawdzoną komunikacją.'):'Potwierdzona trasa piesza do celu.'}:{})}));
 }
