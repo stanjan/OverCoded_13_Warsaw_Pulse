@@ -1,6 +1,7 @@
 // A demo receiver is opt-in for this tab only. Remove capability fragments before other app work.
 const demoReceiverLocation = new URLSearchParams(location.hash.slice(1)).has('demo-receiver') ? { hash: location.hash, pathname: location.pathname, search: location.search } : null;
 if (demoReceiverLocation) history.replaceState(null, '', location.pathname + location.search);
+const presentationDemo = window.parent !== window && new URLSearchParams(location.search).get('presentationDemo') === '1';
 // ?safeTop= / ?safeBottom= (0–100) override safe-area insets, e.g. inside an iframe where env() is always 0.
 {
   const params = new URLSearchParams(location.search);
@@ -299,6 +300,7 @@ function acceptPosition(position, generation) {
 // A stationary/backgrounded browser can stop watch callbacks. Refresh the measurement,
 // share concurrent callers, and bound the wait even if the browser never calls back.
 function refreshLocation({ force = false } = {}) {
+  if (presentationDemo && !permissionGranted && !force) return Promise.resolve(window.getCityLocation());
   if (permissionDenied || !navigator.geolocation) return Promise.resolve(window.getCityLocation());
   if (locationRequest) return locationRequest.promise;
   if (!force && hasRecentLocation()) return Promise.resolve(window.getCityLocation());
@@ -327,6 +329,7 @@ function refreshLocation({ force = false } = {}) {
 }
 window.refreshCityLocation = refreshLocation;
 function startLocating({ auto = false } = {}) {
+  if (auto && presentationDemo && !permissionGranted) return;
   if (!navigator.geolocation) { updateLocationSnapshot({ status: 'unavailable', reason: 'unavailable' }); setGpsState('denied'); return; }
   if (auto && permissionDenied) return;
   if (!auto) permissionDenied = false;
@@ -588,3 +591,13 @@ import('/demo-receiver.mjs').then(({ installDemoReceiver }) => installDemoReceiv
     return { completion: send() };
   },
 })).catch(() => {});
+
+if (presentationDemo) import('/presentation-receiver.mjs').then(({ installPresentationReceiver }) => installPresentationReceiver({
+  input, isReady: () => !pending && !input.value.trim(),
+  start: prompt => {
+    if (pending || input.value.trim()) return null;
+    input.value = prompt;
+    setExpanded(true);
+    return { completion: send() };
+  },
+})).catch(error => console.error('Nie udało się połączyć prezentacji.', error));
