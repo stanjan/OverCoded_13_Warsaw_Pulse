@@ -492,6 +492,8 @@ async function send() {
   const stageLabel = document.createElement('span'); stageLabel.className = 'thinking-label';
   status.append(dots, stageLabel);
   // Recommended results and source info appear under the answer once it is complete.
+  // Results of this answer are placed right after it in the conversation (in finally), so anything
+  // that follows (e.g. transit options opened from a card) comes below the recommended cards.
   resultPanel.hidden = true;
   const activity = document.createElement('span'); activity.className = 'assistant-activity'; activity.setAttribute('aria-label', 'Wykonane kroki');
   const activities = [];
@@ -544,7 +546,7 @@ async function send() {
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Spróbuj ponownie';
     retry.addEventListener('click', () => { if (pending) return; input.value = value; progress.remove(); send(); });
     progress.append(retry); renderStatus();
-  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); progress.classList.add('is-finished'); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
+  } finally { clearInterval(timer); clearTimeout(timeout); content.removeEventListener('scroll', onScroll); progress.classList.add('is-finished'); if (resultPanel.childElementCount) progress.after?.(resultPanel); resultPanel.hidden = false; keepVisible(); pending = false; submit.disabled = false; submit.removeAttribute('aria-busy'); }
 }
 submit.addEventListener('click', event => { event.stopPropagation(); send(); });
 input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); } });

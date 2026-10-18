@@ -648,7 +648,7 @@
     }
     if (Number.isFinite(place.lat) && Math.abs(place.lat) <= 90 && Number.isFinite(place.lng) && Math.abs(place.lng) <= 180) {
       const transit = document.createElement('button'); transit.type = 'button'; transit.className = 'result-detail__transit'; transit.textContent = 'Wyznacz trasę';
-      transit.addEventListener('click', () => window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })));
+      transit.addEventListener('click', () => { transit.closest('.result-detail')?.querySelector(':scope > .result-detail__close')?.click(); window.dispatchEvent(new CustomEvent('city:transit', { detail: { destination: { latitude: place.lat, longitude: place.lng, label: place.name } } })); });
       body.append(transit);
     }
     card.append(body);
