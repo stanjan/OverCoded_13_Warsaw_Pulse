@@ -46,7 +46,7 @@ onBeforeUnmount(() => controller?.stop())
 .demo-heading .eyebrow { flex: none; }
 .live-demo h1 { font-size: 2.15rem; line-height: 1.08; }
 .prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 5px; }
-.prompt-grid button { position: relative; display: grid; grid-template-columns: 25px 1fr; gap: 5px 8px; align-content: start; min-height: 105px; padding: 12px; border: 1px solid #2b3865; border-radius: 12px; background: #0a1438; color: #fff; text-align: left; font: inherit; cursor: pointer; transition: background .2s, border-color .2s, color .2s, transform .2s, box-shadow .2s; }
+.prompt-grid button { position: relative; display: grid; grid-template-columns: 25px 1fr; gap: 5px 8px; align-content: start; min-height: 92px; padding: 10px; border: 1px solid #2b3865; border-radius: 12px; background: #0a1438; color: #fff; text-align: left; font: inherit; cursor: pointer; transition: background .2s, border-color .2s, color .2s, transform .2s, box-shadow .2s; }
 .prompt-grid button:hover:not(:disabled) { border-color: #ccf460; transform: translateY(-2px); }
 .prompt-grid button:focus-visible { outline: 2px solid #ccf460; outline-offset: 3px; }
 .prompt-grid button.selected { background: #ccf460; border-color: #ccf460; color: #030a26; box-shadow: 0 4px 18px #ccf46020; }
