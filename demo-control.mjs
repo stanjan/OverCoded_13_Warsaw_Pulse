@@ -7,7 +7,8 @@ const valid = data => /^[a-f0-9]{24}$/.test(data?.target) && /^[a-zA-Z0-9_-]{43}
 let saved;
 try { saved = JSON.parse(sessionStorage.getItem('warsaw-ai-demo-control') || 'null'); } catch {}
 if (!config && valid(saved)) config = saved;
-let receiverToken = valid(config) && saved?.target === config.target && saved?.token === config.token ? saved.receiverToken : null;
+const validReceiver = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{43}$/.test(value);
+let receiverToken = valid(config) && validReceiver(config.receiverToken) ? config.receiverToken : valid(config) && saved?.target === config.target && saved?.token === config.token && validReceiver(saved.receiverToken) ? saved.receiverToken : null;
 const remember = () => sessionStorage.setItem('warsaw-ai-demo-control', JSON.stringify({ target: config.target, token: config.token, ...(receiverToken ? { receiverToken } : {}) }));
 let statusTimer, commandTimer, generation = 0;
 const api = async (suffix = '', method = 'GET', data) => {

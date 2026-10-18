@@ -120,12 +120,14 @@ test('controller reload keeps access but never repeats the prompt from its origi
     runInNewContext(source, { document: { querySelector: $ }, location: { hash, pathname: '/demo', search: '', origin: 'http://localhost:5173' }, history: { replaceState() {} }, sessionStorage: storage, URL, URLSearchParams, crypto, setTimeout: () => 1, clearTimeout() {}, fetch: async (url, options) => { calls.push({ url, method: options.method }); return { ok: true, json: async () => options.method === 'POST' ? { state: 'finished' } : { ready: true } }; } });
     return elements;
   };
-  const hash = '#' + new URLSearchParams({ 'demo-control': JSON.stringify({ target: 'a'.repeat(24), token: 'x'.repeat(43), prompt: 'A one-time tile click' }) });
+  const hash = '#' + new URLSearchParams({ 'demo-control': JSON.stringify({ target: 'a'.repeat(24), token: 'x'.repeat(43), receiverToken: 'y'.repeat(43), prompt: 'A one-time tile click' }) });
   load(hash); await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls.filter(call => call.method === 'POST').length, 1);
   assert.ok(!entries.get('warsaw-ai-demo-control').includes('A one-time tile click'));
   const reloaded = load(''); await new Promise(resolve => setImmediate(resolve));
   assert.equal(reloaded.get('#control').hidden, false);
+  assert.equal(reloaded.get('#receiver').hidden, false);
+  assert.equal(JSON.parse(new URLSearchParams(new URL(reloaded.get('#receiver').href).hash.slice(1)).get('demo-receiver')).token, 'y'.repeat(43));
   assert.equal(calls.filter(call => call.method === 'POST').length, 1);
 });
 
