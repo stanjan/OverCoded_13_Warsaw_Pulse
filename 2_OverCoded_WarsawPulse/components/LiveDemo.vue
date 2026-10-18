@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { useNav } from '@slidev/client'
 import PhoneFrame from './PhoneFrame.vue'
 import { createSlideDemoController, demoPrompts } from './live-demo-controller.mjs'
 
@@ -7,6 +8,7 @@ const phone = ref<InstanceType<typeof PhoneFrame> | null>(null)
 const state = ref({ ready: false, pending: null as string | null, selected: null as string | null, error: '' })
 const icons = { calendar: 'i-carbon-calendar', family: 'i-carbon-pedestrian-family', walk: 'i-carbon-pedestrian', ball: 'i-carbon-basketball', toilet: 'i-ph-toilet', heart: 'i-ph-heartbeat' }
 const appOrigin = 'http://localhost:5173'
+const { isPrintMode } = useNav()
 let controller: ReturnType<typeof createSlideDemoController> | undefined
 onMounted(() => {
   controller = createSlideDemoController({ getFrame: () => phone.value?.frame?.contentWindow, appOrigin, onChange: value => { state.value = value } })
@@ -20,7 +22,7 @@ onBeforeUnmount(() => controller?.stop())
       <div class="demo-heading">
         <div class="eyebrow">Demo na żywo</div>
         <p class="connection" role="status" :class="{ error: state.error }">
-          {{ state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? '' : 'Łączę z aplikacją…') }}
+          {{ isPrintMode ? '' : state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? '' : 'Łączę z aplikacją…') }}
         </p>
       </div>
       <h1>A teraz prawdziwa strona.</h1>
@@ -36,7 +38,7 @@ onBeforeUnmount(() => controller?.stop())
         </button>
       </div>
     </div>
-    <PhoneFrame ref="phone" :src="`${appOrigin}/?safeTop=35&safeBottom=0&presentationDemo=1`" @load="controller?.reset()" />
+    <PhoneFrame ref="phone" :src="`${appOrigin}/?safeTop=35&safeBottom=0&presentationDemo=1`" poster="/demo-live.jpg" @load="controller?.reset()" />
   </div>
 </template>
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useIsSlideActive } from '@slidev/client'
+import { useIsSlideActive, useNav } from '@slidev/client'
 
 // Ramka telefonu. Podaj `src` (adres żywej strony) albo `video` (nagranie z public/).
 // Strona wypełnia cały ekran. Odstęp pod wyspą robi sama aplikacja na podstawie
 // parametrów w adresie, np. src="http://localhost:5173?safeTop=59&safeBottom=34".
-const props = defineProps<{ src?: string; video?: string }>()
+// `poster` to obrazek pokazywany zamiast nagrania albo żywej strony przy eksporcie do PDF.
+const props = defineProps<{ src?: string; video?: string; poster?: string }>()
+const { isPrintMode } = useNav()
 
 const failed = ref(false)
 const player = ref<HTMLVideoElement | null>(null)
@@ -16,7 +18,7 @@ const emit = defineEmits<{ load: [] }>()
 // Nagranie startuje od początku, gdy slajd się pojawia, i zatrzymuje po wyjściu ze slajdu.
 const active = useIsSlideActive()
 watch([active, player], ([on, v]) => {
-  if (!v) return
+  if (!v || isPrintMode.value) return
   if (on) {
     v.currentTime = 0
     v.play().catch(() => {})
@@ -35,8 +37,16 @@ function toggle() {
 <template>
   <div class="phone">
     <div class="screen">
-      <template v-if="props.src">
+      <template v-if="props.src && isPrintMode && props.poster">
+        <img class="poster" :src="props.poster" alt="Zrzut ekranu aplikacji" />
+        <div class="island" />
+      </template>
+      <template v-else-if="props.src">
         <iframe ref="frame" :src="props.src" title="Demo strony" allow="geolocation" @load="emit('load')" />
+        <div class="island" />
+      </template>
+      <template v-else-if="props.video && isPrintMode && props.poster">
+        <img class="poster" :src="props.poster" alt="Klatka z nagrania demo" />
         <div class="island" />
       </template>
       <template v-else-if="props.video">
@@ -95,6 +105,7 @@ iframe {
   transform-origin: 0 0;
 }
 
+.poster,
 video {
   display: block;
   width: 226px;

@@ -93,7 +93,7 @@ class: s s-demo
 <li>Karty i pinezki na mapie całego miasta.</li>
 </ul>
 </div>
-<PhoneFrame video="/demo-events.mp4" />
+<PhoneFrame video="/demo-events.mp4" poster="/demo-events.jpg" />
 </div>
 
 <!--
@@ -115,7 +115,7 @@ class: s s-demo
 <li>Szacowany przyjazd i pojazdy na żywo w pobliżu.</li>
 </ul>
 </div>
-<PhoneFrame video="/demo-routes.mp4" />
+<PhoneFrame video="/demo-routes.mp4" poster="/demo-routes.jpg" />
 </div>
 
 <!--
@@ -137,7 +137,7 @@ class: s s-demo
 <li>Bez zakładania konta, lista zostaje w telefonie.</li>
 </ul>
 </div>
-<PhoneFrame video="/demo-favorites.mp4" />
+<PhoneFrame video="/demo-favorites.mp4" poster="/demo-favorites.jpg" />
 </div>
 
 <!--
