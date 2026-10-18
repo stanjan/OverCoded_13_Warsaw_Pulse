@@ -91,7 +91,7 @@
     const ready = new Promise(resolve => google.maps.event.addListenerOnce(map, 'tilesloaded', resolve));
     // headerDisabled removes Google's empty title row; the cloud draws its own close button over the photo.
     const info = new InfoWindow({ maxWidth: 290, headerDisabled: true });
-    const stopInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true });
+    const stopInfo = new InfoWindow({ maxWidth: 230, disableAutoPan: true, headerDisabled: true });
     let stopPopupContent;
     const closeStopPopup = () => { stopInfo.close?.();stopPopupContent=null; };
     stopInfo.addListener('closeclick',()=>{stopPopupContent=null;});
@@ -177,7 +177,7 @@
         }
         for(const stop of activeRouteStops(route, true)){
           const marker=new AdvancedMarkerElement({map,position:{lat:stop.latitude,lng:stop.longitude},content:stopElement(),title:stopTitle(stop),gmpClickable:true,anchorLeft:'-50%',anchorTop:'-50%',zIndex:150});
-          marker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
+          marker.addEventListener('gmp-click',()=>{stopPopupContent=stopDetails(stop,closeStopPopup);stopInfo.setContent(stopPopupContent);stopInfo.open({map,anchor:marker,shouldFocus:true});});routeMarkers.push(marker);
         }
         const points = (route?.steps || []).flatMap(step => validTransitPath(step.path));
         if (points.length) {
@@ -319,7 +319,7 @@
           }else L.polyline(path,{color:step.mode==='WALK'?'#61776a':transitColor(step),weight:step.mode==='WALK'?4:6,opacity:step.mode==='WALK'?.5:.9,dashArray:step.mode==='WALK'?'6 7':null,interactive:false}).addTo(transitLayer);
         }
         for(const stop of activeRouteStops(route, true)){
-          const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop),{className:'transit-stop-popup',maxWidth:230,...popupPadding(element)});
+          const marker=L.marker([stop.latitude,stop.longitude],{icon:L.divIcon({className:'',html:stopElement(),iconSize:[STOP_DOT_SIZE,STOP_DOT_SIZE],iconAnchor:[STOP_DOT_SIZE/2,STOP_DOT_SIZE/2],popupAnchor:[0,-STOP_DOT_SIZE/2]}),title:stopTitle(stop),keyboard:true,interactive:true,zIndexOffset:150}).bindPopup(stopDetails(stop,()=>map.closePopup()),{className:'transit-stop-popup',maxWidth:230,closeButton:false,...popupPadding(element)});
           marker.on('popupopen',()=>{const popup=marker.getPopup();Object.assign(popup.options,popupPadding(element));popup.update();});marker.addTo(transitLayer);
         }
         if(points.length){
@@ -460,10 +460,13 @@
   function stopElement(){const dot=document.createElement('span');dot.className='transit-stop';dot.style.width=dot.style.height=STOP_DOT_SIZE+'px';dot.setAttribute('aria-hidden','true');return dot;}
   function stopPlatform(stop){return typeof stop.platform==='string'?stop.platform.trim():'';}
   function stopTitle(stop){return 'Przystanek '+(stop.name||'bez nazwy')+(stopPlatform(stop)?' · stanowisko '+stopPlatform(stop):'');}
-  function stopDetails(stop){
+  function stopDetails(stop,onClose){
     const box=document.createElement('div');box.className='transit-stop-detail';
     const name=document.createElement('strong');name.textContent=stop.name||'Przystanek';box.append(name);
     const platform=stopPlatform(stop);if(platform){const label=document.createElement('p');label.textContent='Stanowisko '+platform;box.append(label);}
+    const close=document.createElement('button');close.type='button';close.className='transit-stop-detail__close';close.setAttribute('aria-label','Zamknij');
+    const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
+    const cross=document.createElementNS('http://www.w3.org/2000/svg','path');cross.setAttribute('d','M6 6l12 12M18 6 6 18');icon.append(cross);close.append(icon);close.addEventListener('click',onClose);box.append(close);
     return box;
   }
   // Position observations have no next-stop timing; keep vehicle markers non-interactive.
