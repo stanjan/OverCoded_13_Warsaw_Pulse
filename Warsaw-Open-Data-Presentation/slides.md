@@ -19,10 +19,10 @@ class: s s-title
 
 # Warsaw Pulse
 
-<p class="lead">Czym żyje dziś miasto?</p>
+<p class="lead">Czym żyje dziś miasto?<br>Złap w nim oddech w czasie, który masz.</p>
 
 <!--
-[0:10] Przywitaj się: "To jest Warsaw Pulse". Jedno zdanie, co to jest: strona w telefonie, która dzięki AI pokazuje najlepsze wydarzenia w Warszawie na dziś i jak tam dojechać. Nie rozwijaj, od razu przejdź do problemu.
+[0:10] NIE przedstawiaj się i nie tłumacz jeszcze, co to jest. Powiedz tylko: "Warsaw Pulse. Czym żyje dziś miasto?" i od razu przejdź dalej. Zespół przedstawicie na końcu.
 -->
 
 ---
@@ -31,16 +31,34 @@ class: s s-problem
 
 <div class="eyebrow">Problem</div>
 
-# Jest 18:00. W Warszawie coś się dzieje. Gdzie?
+# Jest 17:40. Masz godzinę dla siebie. I co?
 
 <div class="cols">
-<div class="col" v-click><h3>Rozproszone</h3><p>Wydarzenia są na wielu stronach i w wielu źródłach.</p></div>
-<div class="col" v-click><h3>Bez rankingu</h3><p>Długie listy i nikt nie mówi, co dziś naprawdę warto zobaczyć.</p></div>
-<div class="col" v-click><h3>Pół drogi</h3><p>Po wyborze wydarzenia trzeba jeszcze sprawdzić, jak tam dojechać.</p></div>
+<div class="col" v-click><h3>Szukanie zjada odpoczynek</h3><p>Kilka stron, kilka aplikacji. 15 minut z twojej wolnej godziny znika na scrollowanie.</p></div>
+<div class="col" v-click><h3>Za dużo decyzji</h3><p>Po 8 godzinach pracy nikt nie ma siły porównywać 600 wydarzeń.</p></div>
+<div class="col" v-click><h3>Wygrywa kanapa</h3><p>Nie wiesz, czy zdążysz dojechać, więc zostajesz w domu. Znowu.</p></div>
 </div>
 
 <!--
-[0:35] Zacznij od sytuacji, którą każdy zna: wieczór, chcesz wyjść, nie wiesz dokąd. Wymień trzy bolączki po kolei (każde kliknięcie odsłania kolejną kolumnę) i zrób pauzę po ostatniej, bo prowadzi prosto do rozwiązania.
+[0:35] To jest NASZ HOOK, mów do jury, nie do slajdu: "Jest 17:40. Wychodzicie z biura. Macie godzinę i jedną myśl: chcę coś zrobić dla siebie. Otwieracie trzy aplikacje, scrollujecie, sprawdzacie dojazd… i po 15 minutach jesteście w domu na kanapie." Potem kliknięcia: szukanie, decyzje, kanapa. Puenta: "Work-life balance nie przegrywa z pracą. Przegrywa z tarciem." Pauza.
+-->
+
+---
+class: s s-who
+---
+
+<div class="eyebrow">Dla kogo</div>
+
+# Dla ludzi, którym nie brakuje chęci. Brakuje im energii na planowanie.
+
+<div class="cols">
+<div class="col" v-click><h3>Po pracy</h3><p>Kasia, 29 lat, Mokotów. Ma godzinę wieczorem i nie chce jej spędzić na szukaniu.</p></div>
+<div class="col" v-click><h3>Rodzic z dzieckiem</h3><p>Wyjdzie tylko wtedy, gdy wie, gdzie jest toaleta i plac zabaw.</p></div>
+<div class="col" v-click><h3>Biegacz i senior</h3><p>Boisko po drodze, najbliższy defibrylator. Spokój, że miasto ma ich na oku.</p></div>
+</div>
+
+<!--
+[0:25] Jedno zdanie na kolumnę. Kasia to nasza persona i wracamy do niej w demo ("Kasia pyta…"). Puenta: "WC, boiska i defibrylatory to dla nich nie dodatki. To warunek, żeby w ogóle wyjść z domu."
 -->
 
 ---
@@ -49,16 +67,16 @@ class: s s-solution
 
 <div class="eyebrow">Rozwiązanie</div>
 
-# Jedna strona. Najlepsze wydarzenia na dziś. Dojazd w komplecie.
+# Od „mam chwilę” do „już idę” w 10 sekund.
 
 <div class="cols">
-<div class="col" v-click><h3>Otwórz</h3><p>Jeden link w telefonie. Bez instalowania aplikacji.</p></div>
-<div class="col" v-click><h3>Wybierz</h3><p>AI wskazuje najlepsze wydarzenia w Warszawie na dziś.</p></div>
-<div class="col" v-click><h3>Jedź</h3><p>Pokazujemy, jak tam dojechać.</p></div>
+<div class="col" v-click><h3>Powiedz</h3><p>Po ludzku: ile masz czasu, gdzie jesteś, na co masz ochotę. Bez filtrów i kategorii.</p></div>
+<div class="col" v-click><h3>Dostań 1–3 propozycje</h3><p>AI wybiera z prawdziwych danych miasta. Nie lista 600 pozycji, tylko decyzja.</p></div>
+<div class="col" v-click><h3>Idź</h3><p>Dojazd ZTM z pojazdami na żywo. Wiesz, czy zdążysz, zanim wyjdziesz.</p></div>
 </div>
 
 <!--
-[0:25] Trzy kroki, trzy słowa: otwórz, wybierz, jedź (każde kliknięcie odsłania kolejną kolumnę). Podkreśl, że to strona internetowa nastawiona na telefon, więc nic nie trzeba instalować. Potem: "zobaczcie, jak to wygląda".
+[0:25] Trzy kroki: powiedz, dostań propozycje, idź. Kluczowe słowo to CZAS, nie "wydarzenia": "Inne aplikacje pokazują, co się dzieje. My oddajemy wam czas, który zjadało szukanie." Wspomnij jednym zdaniem: to strona w telefonie, nic nie trzeba instalować. Potem: "Zobaczcie, jak to robi Kasia."
 -->
 
 ---
@@ -68,7 +86,7 @@ class: s s-demo
 <div class="demo">
 <div class="demo-text">
 <div class="eyebrow">Demo · 1/3 · Wydarzenia</div>
-<h1>Pytasz, co dziś się dzieje.</h1>
+<h1>Kasia pyta po ludzku.</h1>
 <ul class="callouts">
 <li>Po polsku albo gotowym przyciskiem.</li>
 <li>AI wybiera 1–3 propozycje z danych miasta.</li>
@@ -79,7 +97,7 @@ class: s s-demo
 </div>
 
 <!--
-[0:40] Nagranie startuje samo po wejściu na slajd (kliknięcie w telefon zatrzymuje i wznawia). Mów na bieżąco: pytam "co dziś wieczorem w pobliżu?", AI odpowiada krótko po polsku i pokazuje 1–3 propozycje jako karty i pinezki. Podkreśl: to prawdziwe rekordy z danych miasta, nie wymyślone miejsca.
+[0:40] Nagranie startuje samo po wejściu na slajd (kliknięcie w telefon zatrzymuje i wznawia). Opowiadaj jako Kasia, nie jako opis funkcji. Mów na bieżąco: pytam "co dziś wieczorem w pobliżu?", AI odpowiada krótko po polsku i pokazuje 1–3 propozycje jako karty i pinezki. Podkreśl: to prawdziwe rekordy z danych miasta, nie wymyślone miejsca.
 Nagranie: public/demo-events.mp4 (pionowe, 15–25 s, kilka MB). Sprawdź, czy nie widać na nim twojego adresu.
 -->
 
@@ -90,7 +108,7 @@ class: s s-demo
 <div class="demo">
 <div class="demo-text">
 <div class="eyebrow">Demo · 2/3 · Dojazd</div>
-<h1>Jeden przycisk i wiesz, jak dojechać.</h1>
+<h1>I od razu wie, czy zdąży.</h1>
 <ul class="callouts">
 <li>Start z Twojej lokalizacji, cel prosto z mapy.</li>
 <li>Połączenia z rozkładu ZTM i dojście pieszo.</li>
@@ -101,7 +119,7 @@ class: s s-demo
 </div>
 
 <!--
-[0:40] Pokaż "Wyznacz trasę" przy wydarzeniu: start bierze się z GPS, cel z mapy. Aplikacja liczy połączenia z rozkładu ZTM i dojście pieszo, pokazuje szacowany przyjazd i autobusy/tramwaje na żywo w pobliżu. Dodaj zdanie: wszystko z danych miejskich, bez tras z Google.
+[0:40] Pokaż "Wyznacz trasę" przy wydarzeniu: start bierze się z GPS, cel z mapy. Aplikacja liczy połączenia z rozkładu ZTM i dojście pieszo, pokazuje szacowany przyjazd i autobusy/tramwaje na żywo w pobliżu. Pokaż pojazd w ruchu, to nasz najmocniejszy wyróżnik: "To nie jest 'tramwaj co 10 minut'. To jest TEN tramwaj, dwa przystanki stąd." Dodaj zdanie: wszystko z danych miejskich, bez tras z Google.
 Nagranie: public/demo-routes.mp4.
 -->
 
@@ -123,7 +141,7 @@ class: s s-demo
 </div>
 
 <!--
-[0:25] Dodaj wydarzenie do ulubionych sercem, otwórz listę "Ulubione" i z niej wyznacz trasę albo pokaż miejsce na mapie. Krótko: nie trzeba zakładać konta, lista zapisuje się w przeglądarce telefonu.
+[0:15] Skróć do jednego zdania, to najmniej wyróżniająca funkcja (pierwszy kandydat do wycięcia, jeśli brakuje czasu). Dodaj wydarzenie do ulubionych sercem, otwórz listę "Ulubione" i z niej wyznacz trasę albo pokaż miejsce na mapie. Krótko: nie trzeba zakładać konta, lista zapisuje się w przeglądarce telefonu.
 Nagranie: public/demo-favorites.mp4.
 -->
 
@@ -155,7 +173,7 @@ class: s s-data
 # Na jakich danych to stoi
 
 <div class="rows">
-<div class="row"><div class="k">Wydarzenia i aktywności</div><div class="v">Portal otwartych danych Warszawy: kalendarz wydarzeń, zajęcia sportowe, otwarte boiska, trasy turystyczne i toalety. Około 3 tys. rekordów.</div></div>
+<div class="row"><div class="k">Wydarzenia i aktywności</div><div class="v">Portal otwartych danych Warszawy: kalendarz wydarzeń, zajęcia sportowe, otwarte boiska, trasy turystyczne, toalety i defibrylatory (AED). Około 3 tys. rekordów.</div></div>
 <div class="row"><div class="k">Dojazd</div><div class="v">ZTM: rozkład jazdy (GTFS) i pozycje autobusów i tramwajów na żywo. Adresy z GUGiK. Bez tras z Google.</div></div>
 <div class="row"><div class="k">Warunki teraz</div><div class="v">Pogoda, jakość powietrza, wschód i zachód słońca (Open-Meteo).</div></div>
 <div class="row"><div class="k">Uczciwie</div><div class="v">Brak danych albo nieaktualna pozycja autobusu są wyraźnie oznaczone. Niczego nie zgadujemy.</div></div>
@@ -195,10 +213,12 @@ class: s s-title s-thanks
 
 <div class="eyebrow">Warsaw Pulse · Warsaw Open Data Hackathon</div>
 
-# Dziękujemy
+# Złap oddech.
 
-<p class="lead">Pytania?</p>
+<p class="lead">Inni pokazują, czym żyje miasto.<br>My pomagamy w nim naprawdę odpocząć.</p>
+
+<p class="lead" style="margin-top:28px">Dziękujemy · Pytania?</p>
 
 <!--
-[0:20] Podziękuj jury, przedstaw zespół jednym zdaniem na osobę i powiedz, kto co robił. Jeśli zostało kilka sekund, dodaj jedno zdanie, co dalej (np. publiczne wdrożenie albo więcej zbiorów otwartych danych). Potem zamilknij i przyjmij pytania.
+[0:20] Najpierw puenta, powoli: "Czym żyje miasto? Od dziś także waszym odpoczynkiem." Dwie sekundy ciszy. Potem podziękuj jury, przedstaw zespół jednym zdaniem na osobę i powiedz, kto co robił. Jeśli zostało kilka sekund, dodaj jedno zdanie, co dalej (np. publiczne wdrożenie albo więcej zbiorów otwartych danych). Potem zamilknij i przyjmij pytania.
 -->
