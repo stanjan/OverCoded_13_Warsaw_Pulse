@@ -20,7 +20,7 @@ onBeforeUnmount(() => controller?.stop())
       <div class="demo-heading">
         <div class="eyebrow">Demo na żywo</div>
         <p class="connection" role="status" :class="{ error: state.error }">
-          {{ state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? 'Kliknij propozycję' : 'Łączę z aplikacją…') }}
+          {{ state.error || (state.pending ? 'Asystent odpowiada…' : state.ready ? '' : 'Łączę z aplikacją…') }}
         </p>
       </div>
       <h1>A teraz prawdziwa strona.</h1>
